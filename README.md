@@ -8,7 +8,7 @@ Mô hình nền tái dựng theo Foo, Seah & Chai, *Composite Structures* 85 (20
 
 [Tải bản 0.1.0 preview](https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/v0.1.0-preview). Giải nén đầy đủ vào đường dẫn ASCII, ví dụ `C:/HoneycombStudio`, rồi mở `HoneycombStudio.exe`. Bản này có .NET/WinAppSDK và Python riêng; Abaqus/license dùng bản đã cài trên máy. Không chạy exe tách khỏi các DLL/runtime đi kèm.
 
-Xem [kết quả nghiệm thu](docs/VALIDATION_RESULTS.md) để phân biệt các kiểm thử đã đạt với kiểm tra Drive thật, hội tụ và reboot chưa hoàn tất. Đây là bản nghiên cứu nội bộ chưa ký mã.
+Xem [kết quả nghiệm thu](docs/VALIDATION_RESULTS.md) để phân biệt các kiểm thử đã đạt với kiểm tra hội tụ, gián đoạn Abaqus thật và reboot chưa hoàn tất. Drive thật đã được kiểm tra upload, tiếp tục và khôi phục. Đây là bản nghiên cứu nội bộ chưa ký mã.
 
 ## Chức năng
 

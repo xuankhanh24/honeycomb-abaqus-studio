@@ -1,0 +1,333 @@
+{
+  "samples": [
+    {
+      "sample": {
+        "node_label": 5,
+        "integration_point": -1,
+        "instance": "BOTTOM-1",
+        "frame": 61,
+        "element_label": -1,
+        "field": "U",
+        "step": "Impact",
+        "components": [
+          "U1",
+          "U2",
+          "U3"
+        ],
+        "section_point": -1,
+        "position": "NODAL",
+        "data": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "odb_data": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": 55698,
+        "integration_point": -1,
+        "instance": "CORE-1",
+        "frame": 61,
+        "element_label": -1,
+        "field": "U",
+        "step": "Impact",
+        "components": [
+          "U1",
+          "U2",
+          "U3"
+        ],
+        "section_point": -1,
+        "position": "NODAL",
+        "data": [
+          -2.155465608666418e-06,
+          -4.0514378270017914e-06,
+          -1.0039449307441828e-06
+        ]
+      },
+      "odb_data": [
+        -2.155465608666418e-06,
+        -4.0514378270017914e-06,
+        -1.0039449307441828e-06
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": 7,
+        "integration_point": -1,
+        "instance": "TOP-1",
+        "frame": 61,
+        "element_label": -1,
+        "field": "U",
+        "step": "Impact",
+        "components": [
+          "U1",
+          "U2",
+          "U3"
+        ],
+        "section_point": -1,
+        "position": "NODAL",
+        "data": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "odb_data": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": 9867,
+        "integration_point": -1,
+        "instance": "TOP-1",
+        "frame": 61,
+        "element_label": -1,
+        "field": "U",
+        "step": "Impact",
+        "components": [
+          "U1",
+          "U2",
+          "U3"
+        ],
+        "section_point": -1,
+        "position": "NODAL",
+        "data": [
+          -0.007462817244231701,
+          -0.004809584002941847,
+          -0.025635739788413048
+        ]
+      },
+      "odb_data": [
+        -0.007462817244231701,
+        -0.004809584002941847,
+        -0.025635739788413048
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": -1,
+        "integration_point": 1,
+        "instance": "BOTTOM-1",
+        "frame": 61,
+        "element_label": 1161,
+        "field": "S",
+        "step": "Impact",
+        "components": [
+          "S11",
+          "S22",
+          "S33",
+          "S12"
+        ],
+        "section_point": 1,
+        "position": "INTEGRATION_POINT",
+        "data": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "odb_data": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": -1,
+        "integration_point": 1,
+        "instance": "CORE-1",
+        "frame": 61,
+        "element_label": 59160,
+        "field": "S",
+        "step": "Impact",
+        "components": [
+          "S11",
+          "S22",
+          "S33",
+          "S12"
+        ],
+        "section_point": 1,
+        "position": "INTEGRATION_POINT",
+        "data": [
+          0.03802342340350151,
+          0.3571288287639618,
+          0.0,
+          0.10294096171855927
+        ]
+      },
+      "odb_data": [
+        0.03802342340350151,
+        0.3571288287639618,
+        0.0,
+        0.10294096171855927
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": -1,
+        "integration_point": 1,
+        "instance": "CORE-1",
+        "frame": 61,
+        "element_label": 1,
+        "field": "S",
+        "step": "Impact",
+        "components": [
+          "S11",
+          "S22",
+          "S33",
+          "S12"
+        ],
+        "section_point": 5,
+        "position": "INTEGRATION_POINT",
+        "data": [
+          -0.07845278084278107,
+          -0.01851150579750538,
+          0.0,
+          0.12003143876791
+        ]
+      },
+      "odb_data": [
+        -0.07845278084278107,
+        -0.01851150579750538,
+        0.0,
+        0.12003143876791
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": -1,
+        "integration_point": 1,
+        "instance": "CORE-1",
+        "frame": 61,
+        "element_label": 18458,
+        "field": "S",
+        "step": "Impact",
+        "components": [
+          "S11",
+          "S22",
+          "S33",
+          "S12"
+        ],
+        "section_point": 5,
+        "position": "INTEGRATION_POINT",
+        "data": [
+          1.3401612043380737,
+          0.8431220054626465,
+          0.0,
+          80.65205383300781
+        ]
+      },
+      "odb_data": [
+        1.3401612043380737,
+        0.8431220054626465,
+        0.0,
+        80.65205383300781
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": -1,
+        "integration_point": 1,
+        "instance": "BOTTOM-1",
+        "frame": 120,
+        "element_label": 1161,
+        "field": "PEEQ",
+        "step": "Impact",
+        "components": [],
+        "section_point": 1,
+        "position": "INTEGRATION_POINT",
+        "data": [
+          0.0
+        ]
+      },
+      "odb_data": [
+        0.0
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": -1,
+        "integration_point": 1,
+        "instance": "CORE-1",
+        "frame": 120,
+        "element_label": 59160,
+        "field": "PEEQ",
+        "step": "Impact",
+        "components": [],
+        "section_point": 1,
+        "position": "INTEGRATION_POINT",
+        "data": [
+          0.0
+        ]
+      },
+      "odb_data": [
+        0.0
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": -1,
+        "integration_point": 1,
+        "instance": "CORE-1",
+        "frame": 120,
+        "element_label": 1,
+        "field": "PEEQ",
+        "step": "Impact",
+        "components": [],
+        "section_point": 5,
+        "position": "INTEGRATION_POINT",
+        "data": [
+          0.0
+        ]
+      },
+      "odb_data": [
+        0.0
+      ],
+      "passed": true
+    },
+    {
+      "sample": {
+        "node_label": -1,
+        "integration_point": 1,
+        "instance": "CORE-1",
+        "frame": 120,
+        "element_label": 18458,
+        "field": "PEEQ",
+        "step": "Impact",
+        "components": [],
+        "section_point": 5,
+        "position": "INTEGRATION_POINT",
+        "data": [
+          0.0
+        ]
+      },
+      "odb_data": [
+        0.0
+      ],
+      "passed": true
+    }
+  ],
+  "passed": true
+}

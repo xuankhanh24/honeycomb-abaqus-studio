@@ -1,0 +1,45 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Native build output and local runtime
+**/bin/
+**/obj/
+.tools/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+TestResults/
+artifacts/
+output/
+*.user
+*.suo
+
+# Simulation data and credentials are never source artifacts
+*.odb
+*.cae
+*.sim
+*.abq
+*.res
+*.prt
+*.stt
+*.pac
+*.sel
+*.lck
+*.rec
+*.rpy
+*.log
+*.dpapi
+client_secret*.json
+session.json
+engine-settings.json
+honeycomb-data/
+catalog.sqlite*

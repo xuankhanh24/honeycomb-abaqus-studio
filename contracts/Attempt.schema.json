@@ -1,0 +1,68 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "number": {
+      "minimum": 1,
+      "title": "Number",
+      "type": "integer"
+    },
+    "path": {
+      "title": "Path",
+      "type": "string"
+    },
+    "job_name": {
+      "title": "Job Name",
+      "type": "string"
+    },
+    "started_at": {
+      "title": "Started At",
+      "type": "string"
+    },
+    "ended_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ended At"
+    },
+    "process": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Process"
+    },
+    "durations": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Durations",
+      "type": "object"
+    }
+  },
+  "required": [
+    "number",
+    "path",
+    "job_name",
+    "started_at"
+  ],
+  "title": "Attempt",
+  "type": "object"
+}

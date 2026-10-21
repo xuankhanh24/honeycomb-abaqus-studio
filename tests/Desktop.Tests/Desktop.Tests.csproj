@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0"/>
+    <PackageReference Include="MSTest.TestAdapter" Version="4.5.1"/>
+    <PackageReference Include="MSTest.TestFramework" Version="4.5.1"/>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2"/>
+    <Compile Include="../../desktop/HoneycombStudio/EngineClient.cs" Link="EngineClient.cs"/>
+    <Compile Include="../../desktop/HoneycombStudio/StudioViewModel.cs" Link="StudioViewModel.cs"/>
+  </ItemGroup>
+</Project>

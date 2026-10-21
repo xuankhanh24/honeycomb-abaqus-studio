@@ -1,0 +1,82 @@
+"""Transparent estimates: geometric cold start, then comparable measured runs."""
+
+import math
+from statistics import median
+from typing import Any
+
+
+def records(store):
+    result = []
+    for run in store.list("runs"):
+        if run.get("test_only"):
+            continue
+        for attempt in run.get("attempts", []):
+            durations = attempt.get("durations", {})
+            if durations.get("solving", 0) > 1:
+                result.append({"model": run["resolved"], "durations": durations})
+    return result
+
+
+def predict(model, calibration=()) -> dict[str, Any]:
+    p = model
+    core = (
+        (p["panel"] / 100) ** 2
+        * (6.35 / p["cell_size"])
+        * (p["core_z_divisions"] / 20)
+        * (1.3 / p["core_outer_seed"])
+    )
+    face = (p["panel"] / 100) ** 2 * (1.25 / p["skin_outer_seed"]) ** 2
+    complexity = 0.75 * core + 0.25 * face
+    stable = min(
+        p["core_centre_seed"] / 0.7, p["skin_centre_seed"] / 0.75, p["core_height"] / p["core_z_divisions"]
+    )
+    cold = 25 * complexity / max(stable, 0.05) * (p["duration"] / 0.006) * 8 / p["cpus"]
+    weighted = []
+    keys = (
+        "panel",
+        "core_height",
+        "skin",
+        "cell_size",
+        "foil",
+        "core_centre_seed",
+        "core_outer_seed",
+        "skin_centre_seed",
+        "skin_outer_seed",
+        "core_z_divisions",
+    )
+    for record in calibration:
+        old = record["model"]
+        distance = sum(abs(math.log(p[k] / old[k])) for k in keys)
+        if distance < 1.5:
+            prediction = (
+                record["durations"]["solving"]
+                / 60
+                * p["duration"]
+                / old["duration"]
+                * old["cpus"]
+                / p["cpus"]
+            )
+            weighted.append((distance, prediction))
+    closest = sorted(weighted)[:3]
+    value = (
+        sum(v / (d + 0.1) for d, v in closest) / sum(1 / (d + 0.1) for d, v in closest) if closest else cold
+    )
+    phases = {
+        key: median([r["durations"][key] for r in calibration if key in r["durations"]]) / 60
+        if any(key in r["durations"] for r in calibration)
+        else fallback
+        for key, fallback in (("building", 1.0), ("extracting", 10.0), ("rendering", 2.0), ("reporting", 0.5))
+    }
+    raw = 2.673 * complexity * p["field_intervals"] / 120 * len(p["field_variables"]) / 10
+    return {
+        "solver_minutes": value,
+        "solver_range_minutes": [value * 0.65, value * 1.6],
+        "range_is": "heuristic, not confidence interval",
+        "method": "nearest measured comparable runs"
+        if closest
+        else "cold reference + mesh complexity heuristic",
+        "calibration_runs": len(closest),
+        "other_phase_minutes": phases,
+        "raw_odb_gb": raw,
+        "recommended_free_gb_above_reserve": max(8, raw * 3.5),
+    }

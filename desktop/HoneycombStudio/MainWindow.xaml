@@ -1,0 +1,104 @@
+<Window x:Class="HoneycombStudio.MainWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="using:HoneycombStudio"
+ xmlns:plot="using:ScottPlot.WinUI"
+ Title="Honeycomb Abaqus Studio">
+ <Grid>
+  <Grid.Resources>
+   <DataTemplate x:Key="EvidenceTemplate" x:DataType="local:EvidenceRow">
+    <Grid Padding="8,10" ColumnSpacing="16" RowSpacing="5"><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <TextBlock Text="{x:Bind Label}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Grid.Column="1" Text="{x:Bind Value}" TextWrapping="Wrap" IsTextSelectionEnabled="True"/><TextBlock Grid.Column="2" Text="{x:Bind Unit}" TextWrapping="Wrap"/>
+     <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{x:Bind Source}" FontSize="12" TextWrapping="Wrap" Opacity="0.8"/>
+    </Grid>
+   </DataTemplate>
+  </Grid.Resources>
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <InfoBar x:Name="Banner" IsOpen="True" IsClosable="True" Title="Đang kết nối engine" Message="Ứng dụng đang khởi động dịch vụ Python cục bộ." Severity="Informational" />
+  <NavigationView x:Name="Navigation" Grid.Row="1" IsSettingsVisible="False" PaneDisplayMode="Left" SelectionChanged="Navigate" OpenPaneLength="230">
+   <NavigationView.MenuItems>
+    <NavigationViewItem Content="Tổng quan" Tag="overview" Icon="Home"/>
+    <NavigationViewItem Content="Tạo job" Tag="create" Icon="Add"/>
+    <NavigationViewItem Content="Job mô phỏng" Tag="jobs" Icon="AllApps"/>
+    <NavigationViewItem Content="Thư viện dữ liệu" Tag="library" Icon="Library"/>
+    <NavigationViewItem Content="Backup và cài đặt" Tag="settings" Icon="Setting"/>
+   </NavigationView.MenuItems>
+   <Grid Padding="24,16,24,16">
+    <Grid x:Name="OverviewPanel">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+     <StackPanel Spacing="12"><TextBlock Text="Không gian nghiên cứu honeycomb" Style="{StaticResource TitleTextBlockStyle}"/>
+      <TextBlock Text="Thiết lập khảo sát, theo dõi từng lượt và truy vết dữ liệu từ input đến kết quả." TextWrapping="Wrap"/>
+      <StackPanel Orientation="Horizontal" Spacing="12"><Button Content="Tạo khảo sát" Click="NewStudy" Style="{StaticResource AccentButtonStyle}"/><Button Content="Làm mới" Click="RefreshClicked"/></StackPanel>
+     </StackPanel>
+     <TextBlock x:Name="ResourceText" Grid.Row="1" Margin="0,24,0,16" TextWrapping="Wrap" FontSize="15"/>
+     <ScrollViewer Grid.Row="2"><StackPanel Spacing="12"><TextBlock Text="Hoạt động gần đây" Style="{StaticResource SubtitleTextBlockStyle}"/><TextBox x:Name="ActivityText" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="280" FontFamily="Consolas"/></StackPanel></ScrollViewer>
+    </Grid>
+    <Grid x:Name="CreatePanel" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel Spacing="10"><TextBlock Text="Tạo job khảo sát" Style="{StaticResource TitleTextBlockStyle}"/>
+      <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled"><StackPanel Orientation="Horizontal" Spacing="12"><TextBox x:Name="BatchName" Header="Tên job" Text="Khảo sát honeycomb" Width="350"/><ComboBox x:Name="SamplingMode" Header="Lấy mẫu" SelectedIndex="0" Width="220"><ComboBoxItem Content="Lưới tổ hợp (grid)" Tag="grid"/><ComboBoxItem Content="Latin Hypercube" Tag="lhs"/><ComboBoxItem Content="Bảng CSV / JSON" Tag="table"/></ComboBox><NumberBox x:Name="SampleCount" Header="Số mẫu LHS" Value="32" Minimum="1" Maximum="10000" Width="130"/><NumberBox x:Name="RandomSeed" Header="Seed" Value="42" Width="110"/></StackPanel></ScrollViewer>
+     </StackPanel>
+     <TabView Grid.Row="1" Margin="0,16,0,8" IsAddTabButtonVisible="False" CanDragTabs="False" CanReorderTabs="False">
+      <TabViewItem Header="Thông số mô hình" IsClosable="False"><ScrollViewer><StackPanel x:Name="ParameterGroups" Spacing="10" Padding="0,12,12,12"/></ScrollViewer></TabViewItem>
+      <TabViewItem Header="Khoảng và bước nhảy" IsClosable="False"><ScrollViewer><StackPanel Spacing="14" Padding="12">
+       <TextBlock Text="Chọn năng lượng hoặc vận tốc trong input; trục khảo sát phải tương ứng. Các hàng bổ sung tạo tổ hợp, hoặc giới hạn liên tục khi chọn LHS." TextWrapping="Wrap"/>
+       <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Thêm tham số khảo sát" Click="AddAxis"/><Button Content="Nạp bảng CSV" Click="ImportDesignCsv"/><TextBox x:Name="DesignCsvPath" PlaceholderText="Đường dẫn CSV thiết kế" Width="400"/></StackPanel>
+       <StackPanel x:Name="AxesPanel" Spacing="12"/>
+       <TextBlock Text="Bảng thiết kế (JSON, chỉ dùng chế độ table)"/><TextBox x:Name="DesignsJson" Text="[]" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="150" FontFamily="Consolas"/>
+      </StackPanel></ScrollViewer></TabViewItem>
+      <TabViewItem Header="Input thực tế và preview" IsClosable="False"><Grid Padding="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock x:Name="PreviewSummary" TextWrapping="Wrap" Margin="0,0,0,12"/><TextBox x:Name="PreviewJson" Grid.Row="1" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas"/></Grid></TabViewItem>
+      <TabViewItem Header="JSON nâng cao" IsClosable="False"><Grid Padding="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><StackPanel Orientation="Horizontal" Spacing="12" Margin="0,0,0,8"><Button Content="Đọc từ form" Click="LoadJsonFromForm"/><Button Content="Áp dụng JSON vào form" Click="ApplyModelJson"/></StackPanel><TextBox x:Name="ModelJson" Grid.Row="1" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas"/></Grid></TabViewItem>
+      <TabViewItem Header="Giới hạn job" IsClosable="False"><ScrollViewer><StackPanel Padding="12" Spacing="16" MaxWidth="650" HorizontalAlignment="Left"><TextBox x:Name="ProjectName" Header="Nhóm nghiên cứu" Text="research"/><TextBox x:Name="StudyNotes" Header="Ghi chú" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100"/><NumberBox x:Name="RuntimeBudget" Header="Ngân sách solver mỗi lượt (phút, dùng để cảnh báo)" Value="30" Minimum="1"/><NumberBox x:Name="DiskReserve" Header="Dung lượng đĩa dự phòng (GB)" Value="20" Minimum="1"/><NumberBox x:Name="RamReserve" Header="RAM khả dụng tối thiểu trước khi cấp lượt (GiB)" Value="2" Minimum="0.5"/><NumberBox x:Name="MaxRuns" Header="Số lượt tối đa được phép tạo" Value="1000" Minimum="1" Maximum="10000"/><TextBlock Text="Một solver chạy đồng thời. Giảm reserve RAM chỉ sau khi đã xem nhu cầu bộ nhớ trong datacheck. Không tự hạ lưới hoặc đổi thời gian vật lý." TextWrapping="Wrap"/></StackPanel></ScrollViewer></TabViewItem>
+     </TabView>
+     <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12"><Button Content="Kiểm tra và preview" Click="PreviewStudy"/><Button Content="Tạo job" Click="CreateStudy" Style="{StaticResource AccentButtonStyle}"/><CheckBox x:Name="RenderImages" Content="Render ảnh cho PDF" IsChecked="True"/><CheckBox x:Name="BackupAfterRun" Content="Backup Drive khi hoàn tất"/></StackPanel>
+    </Grid>
+    <Grid x:Name="JobsPanel" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="110"/><RowDefinition Height="Auto"/><RowDefinition Height="*" MinHeight="110"/><RowDefinition Height="1.5*" MinHeight="150"/></Grid.RowDefinitions>
+     <StackPanel Orientation="Horizontal" Spacing="12"><TextBlock Text="Job mô phỏng" Style="{StaticResource TitleTextBlockStyle}"/><Button Content="Làm mới" Click="RefreshClicked"/><TextBox x:Name="JobSearch" PlaceholderText="Tìm tên job" Width="240" TextChanged="FilterJobs"/></StackPanel>
+     <ListView x:Name="JobList" Grid.Row="1" Margin="0,12,0,8" SelectionChanged="SelectBatch" HorizontalContentAlignment="Stretch">
+      <ListView.ItemTemplate><DataTemplate x:DataType="local:BatchRow"><Grid ColumnSpacing="16" Padding="4,6"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/><ColumnDefinition Width="250"/><ColumnDefinition Width="80"/></Grid.ColumnDefinitions><TextBlock Text="{x:Bind Name}" ToolTipService.ToolTip="{x:Bind Name}" TextTrimming="CharacterEllipsis"/><TextBlock Grid.Column="1" Text="{x:Bind Status}"/><TextBlock Grid.Column="2" Text="{x:Bind Counts}"/><TextBlock Grid.Column="3" Text="{x:Bind Percent}"/></Grid></DataTemplate></ListView.ItemTemplate>
+     </ListView>
+     <ScrollViewer Grid.Row="2" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled"><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Chạy / Tiếp tục" Click="StartBatch" Style="{StaticResource AccentButtonStyle}"/><Button Content="Dừng" Click="StopBatch"/><Button Content="Dừng sau lượt này" Click="PauseAfterCurrent"/><Button Content="PDF toàn job" Click="ExportBatchPdf"/><Button Content="Gói dữ liệu ZIP" Click="ExportBatchZip"/><Button Content="Backup Drive" Click="BackupBatch"/><ComboBox x:Name="RunSort" SelectedIndex="0" Width="150" SelectionChanged="SortRuns"><ComboBoxItem Content="Theo thứ tự"/><ComboBoxItem Content="Theo năng lượng"/><ComboBoxItem Content="Theo trạng thái"/></ComboBox><ComboBox x:Name="RunFilter" SelectedIndex="0" Width="150" SelectionChanged="SortRuns"><ComboBoxItem Content="Tất cả trạng thái" Tag=""/><ComboBoxItem Content="Chờ" Tag="queued"/><ComboBoxItem Content="Đang solver" Tag="solving"/><ComboBoxItem Content="Hoàn tất" Tag="completed"/><ComboBoxItem Content="Cần xem xét" Tag="review"/><ComboBoxItem Content="Lỗi" Tag="failed"/><ComboBoxItem Content="Bị dừng" Tag="interrupted"/></ComboBox></StackPanel></ScrollViewer>
+     <ScrollViewer Grid.Row="3" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled"><Grid MinWidth="1200" Margin="0,12,0,8"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <Grid Padding="12,0,12,8" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="60"/><ColumnDefinition Width="110"/><ColumnDefinition Width="100"/><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions><TextBlock Text="Lượt"/><TextBlock Grid.Column="1" Text="E (J) / v (m/s)"/><TextBlock Grid.Column="2" Text="Trạng thái"/><TextBlock Grid.Column="3" Text="Giai đoạn"/><TextBlock Grid.Column="4" Text="Tiến độ / thời gian / ETA"/><TextBlock Grid.Column="5" Text="Attempt"/></Grid>
+      <ListView x:Name="RunList" Grid.Row="1" SelectionChanged="SelectRun" HorizontalContentAlignment="Stretch"><ListView.ItemTemplate><DataTemplate x:DataType="local:RunRow"><Grid ColumnSpacing="12" Padding="4,5"><Grid.ColumnDefinitions><ColumnDefinition Width="60"/><ColumnDefinition Width="110"/><ColumnDefinition Width="100"/><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions><TextBlock Text="{x:Bind Index}"/><TextBlock Grid.Column="1" Text="{x:Bind Loading}"/><TextBlock Grid.Column="2" Text="{x:Bind Status}"/><TextBlock Grid.Column="3" Text="{x:Bind Phase}"/><StackPanel Grid.Column="4"><TextBlock Text="{x:Bind Timing}" FontSize="12" TextWrapping="Wrap"/><ProgressBar Value="{x:Bind Progress}" IsIndeterminate="{x:Bind Indeterminate}" Margin="0,5,0,0"/></StackPanel><TextBlock Grid.Column="5" Text="{x:Bind Attempts}"/></Grid></DataTemplate></ListView.ItemTemplate></ListView>
+     </Grid></ScrollViewer>
+     <Grid Grid.Row="4"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <TextBlock x:Name="SelectedRunTitle" Text="Chọn một lượt để xem input và kết quả" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,8"/>
+      <ScrollViewer Grid.Row="1" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" Margin="0,0,0,8"><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Mở rộng chi tiết" Click="ExpandDetails"/><Button Content="Mở ODB" Click="OpenOdb"/><Button Content="Mở CAE" Click="OpenCae"/><Button Content="PDF" Click="OpenPdf"/><Button Content="Thư mục" Click="OpenRunFolder"/><Button Content="Chạy lại lượt" Click="RetryRun"/><Button Content="ZIP lượt" Click="ExportRunZip"/><Button Content="Field → CSV" Click="ExportFieldsCsv"/></StackPanel></ScrollViewer>
+      <TabView Grid.Row="2" IsAddTabButtonVisible="False" CanDragTabs="False" CanReorderTabs="False">
+       <TabViewItem Header="Input thực tế" IsClosable="False"><ListView x:Name="RunInputs" ItemTemplate="{StaticResource EvidenceTemplate}" HorizontalContentAlignment="Stretch" SelectionMode="None"/></TabViewItem>
+       <TabViewItem Header="Kết quả và chất lượng" IsClosable="False"><ListView x:Name="RunOutputs" ItemTemplate="{StaticResource EvidenceTemplate}" HorizontalContentAlignment="Stretch" SelectionMode="None"/></TabViewItem>
+       <TabViewItem Header="Các attempt" IsClosable="False"><ListView x:Name="RunAttempts" ItemTemplate="{StaticResource EvidenceTemplate}" HorizontalContentAlignment="Stretch" SelectionMode="None"/></TabViewItem>
+       <TabViewItem Header="JSON đầy đủ" IsClosable="False"><TextBox x:Name="RunDetailJson" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas"/></TabViewItem>
+       <TabViewItem Header="Đường cong" IsClosable="False"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><ComboBox x:Name="ChartKind" SelectedIndex="0" SelectionChanged="ChangeChart" Width="280" Margin="8"><ComboBoxItem Content="Lực – thời gian"/><ComboBoxItem Content="Lực – chuyển vị"/><ComboBoxItem Content="Chuyển vị – thời gian"/><ComboBoxItem Content="Năng lượng – thời gian"/></ComboBox><plot:WinUIPlot x:Name="RunPlot" Grid.Row="1" MinHeight="180" VerticalAlignment="Stretch"/></Grid></TabViewItem>
+       <TabViewItem Header="Ảnh mô phỏng" IsClosable="False"><ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled"><StackPanel x:Name="FigureGallery" Orientation="Horizontal" Spacing="12"/></ScrollViewer></TabViewItem>
+       <TabViewItem Header="Log solver" IsClosable="False"><TextBox x:Name="RunLogs" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas"/></TabViewItem>
+      </TabView>
+     </Grid>
+    </Grid>
+    <Grid x:Name="LibraryPanel" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="220"/></Grid.RowDefinitions>
+     <StackPanel Spacing="12"><TextBlock Text="Thư viện dữ liệu nghiên cứu" Style="{StaticResource TitleTextBlockStyle}"/><StackPanel Orientation="Horizontal" Spacing="8"><TextBox x:Name="LibrarySearch" PlaceholderText="Tìm ID, tham số hoặc giá trị" Width="400"/><Button Content="Tìm kiếm" Click="SearchLibrary"/><CheckBox x:Name="OnlyEligible" Content="Chỉ lượt đủ chất lượng ML" IsChecked="True"/></StackPanel></StackPanel>
+     <ListView x:Name="LibraryList" Grid.Row="1" SelectionMode="Multiple" Margin="0,12" HorizontalContentAlignment="Stretch"><ListView.ItemTemplate><DataTemplate x:DataType="local:RunRow"><StackPanel Padding="4,7"><TextBlock Text="{x:Bind Id}"/><TextBlock Text="{x:Bind LibraryDescription}" FontSize="12"/></StackPanel></DataTemplate></ListView.ItemTemplate></ListView>
+     <ScrollViewer Grid.Row="2" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled"><StackPanel Spacing="10"><StackPanel Orientation="Horizontal" Spacing="8"><TextBox x:Name="DatasetName" Header="Tên dataset" Text="Honeycomb research" Width="260"/><TextBox x:Name="DatasetFeatures" Header="Features (để trống = tất cả input)" Width="300"/><TextBox x:Name="DatasetTargets" Header="Targets (để trống = mọi chỉ số)" Width="300"/></StackPanel><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Xuất dataset từ lượt đã chọn" Click="ExportDataset"/><Button Content="So sánh Pareto" Click="ShowPareto"/><Button Content="Đăng ký ODB có sẵn" Click="ImportReference"/><TextBox x:Name="ReferencePath" PlaceholderText="Đường dẫn ODB" Width="400"/></StackPanel></StackPanel></ScrollViewer>
+     <TabView x:Name="LibraryTabs" Grid.Row="3" Margin="0,12,0,0" IsAddTabButtonVisible="False" CanDragTabs="False"><TabViewItem Header="Kết quả xuất" IsClosable="False"><TextBox x:Name="LibraryResult" Text="Chọn các lượt ở danh sách trên, nhập features/targets nếu cần rồi chọn Xuất dataset. Kết quả và đường dẫn sẽ hiển thị tại đây." IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas"/></TabViewItem><TabViewItem Header="Pareto" IsClosable="False"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><StackPanel Orientation="Horizontal" Spacing="8"><ComboBox x:Name="ParetoGroup" Width="330" SelectionChanged="UpdateParetoPlot"/><ComboBox x:Name="ParetoX" SelectedIndex="0" Width="180" SelectionChanged="UpdateParetoPlot"><ComboBoxItem Content="Khối lượng (g)" Tag="panel_mass_kg"/><ComboBoxItem Content="SEA (J/kg)" Tag="SEA_J_kg"/><ComboBoxItem Content="Lực đỉnh (N)" Tag="peak_raw_contact_force_N"/><ComboBoxItem Content="Độ võng (mm)" Tag="max_top_centre_downward_mm"/></ComboBox><ComboBox x:Name="ParetoY" SelectedIndex="1" Width="180" SelectionChanged="UpdateParetoPlot"><ComboBoxItem Content="Khối lượng (g)" Tag="panel_mass_kg"/><ComboBoxItem Content="SEA (J/kg)" Tag="SEA_J_kg"/><ComboBoxItem Content="Lực đỉnh (N)" Tag="peak_raw_contact_force_N"/><ComboBoxItem Content="Độ võng (mm)" Tag="max_top_centre_downward_mm"/></ComboBox></StackPanel><plot:WinUIPlot x:Name="LibraryPlot" Grid.Row="1" MinHeight="160" VerticalAlignment="Stretch"/></Grid></TabViewItem></TabView>
+    </Grid>
+    <Grid x:Name="SettingsPanel" Visibility="Collapsed"><ScrollViewer><StackPanel Spacing="16" MaxWidth="1050" HorizontalAlignment="Stretch">
+     <TextBlock Text="Backup và cài đặt" Style="{StaticResource TitleTextBlockStyle}"/>
+     <TextBox x:Name="DataRoot" Header="Thư mục dữ liệu (cần engine khởi động lại để đổi)"/>
+     <TextBox x:Name="AbaqusPath" Header="Lệnh Abaqus"/>
+     <StackPanel Spacing="8"><Button Content="Lưu cấu hình" Click="SaveSettings"/><Button Content="Lưu và khởi động lại engine" Click="RestartEngine"/><Button Content="Kết nối lại engine" Click="Reconnect"/><Button Content="Xây lại danh mục từ manifest" Click="Reindex"/></StackPanel>
+     <TextBlock Text="Google Drive" Style="{StaticResource SubtitleTextBlockStyle}"/>
+     <TextBlock Text="Tạo OAuth client loại Desktop, bật Drive API, thêm tài khoản thử nghiệm nếu ứng dụng còn ở chế độ Testing. Token được bảo vệ bằng Windows DPAPI." TextWrapping="Wrap"/>
+     <StackPanel Spacing="8"><TextBox x:Name="OAuthClientPath" Header="OAuth client JSON"/><Button Content="Đăng nhập Google Drive" VerticalAlignment="Bottom" Click="ConnectDrive"/></StackPanel>
+     <TextBox x:Name="BackupStatus" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="160" MaxHeight="300" FontFamily="Consolas"/>
+     <StackPanel Spacing="8"><TextBox x:Name="BackupId" Header="Backup ID"/><Button Content="Tiếp tục upload" VerticalAlignment="Bottom" Click="ResumeBackup"/></StackPanel>
+     <TextBlock Text="Khôi phục có kiểm tra checksum" Style="{StaticResource SubtitleTextBlockStyle}"/>
+     <StackPanel Spacing="8"><TextBox x:Name="RestoreZip" Header="File ZIP local"/><Button Content="Khôi phục ZIP" VerticalAlignment="Bottom" Click="RestoreLocal"/></StackPanel>
+     <StackPanel Spacing="8"><TextBox x:Name="DriveFileId" Header="Drive file ID"/><TextBox x:Name="RestoreSha" Header="SHA-256 từ manifest backup"/><Button Content="Tải và khôi phục" VerticalAlignment="Bottom" Click="RestoreDrive"/></StackPanel>
+    </StackPanel></ScrollViewer></Grid>
+   </Grid>
+  </NavigationView>
+ </Grid>
+</Window>

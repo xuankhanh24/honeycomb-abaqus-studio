@@ -1,0 +1,623 @@
+from __future__ import annotations
+
+import csv
+import hashlib
+import json
+import math
+import re
+import zipfile
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+from .models import digest
+from .store import now, write_json
+
+
+def safe_name(text: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", text)[:100]
+
+
+def consume_spool(directory: Path) -> int:
+    count = 0
+    for ready in sorted((directory / "spool").glob("*.ready")):
+        meta = json.loads(ready.read_text())
+        source = ready.parent / meta["npz"]
+        with np.load(source, allow_pickle=False) as arrays:
+            cols = {}
+            for key in arrays.files:
+                arr = arrays[key]
+                if key == "data":
+                    matrix = arr.reshape((len(arr), -1))
+                    valid = np.isfinite(matrix)
+                    counts = valid.sum(axis=0)
+                    mins = np.where(valid, matrix, np.inf).min(axis=0)
+                    maxs = np.where(valid, matrix, -np.inf).max(axis=0)
+                    sums = np.where(valid, matrix, 0.0).sum(axis=0)
+                    meta["statistics"] = {
+                        "finite_count": counts.tolist(),
+                        "min": [float(v) if math.isfinite(v) else None for v in mins],
+                        "max": [float(v) if math.isfinite(v) else None for v in maxs],
+                        "sum": [float(v) if math.isfinite(v) else None for v in sums],
+                        "rows": len(matrix),
+                    }
+                cols[key] = (
+                    pa.FixedSizeListArray.from_arrays(pa.array(arr.reshape(-1)), arr.shape[1])
+                    if arr.ndim == 2
+                    else pa.array(arr)
+                )
+            if meta["kind"] == "field":
+                path = (
+                    directory
+                    / "fields"
+                    / safe_name(meta["step"])
+                    / safe_name(meta["field"])
+                    / ("frame=%05d" % meta["frame"])
+                )
+            else:
+                path = directory / "mesh" / safe_name(meta["instance"]) / meta["kind"]
+            path.mkdir(parents=True, exist_ok=True)
+            table = pa.table(cols).replace_schema_metadata({b"honeycomb": json.dumps(meta).encode()})
+            dest = path / ("part-%08d.parquet" % meta["sequence"])
+            temp = dest.with_suffix(".tmp")
+            pq.write_table(table, temp, compression="zstd")
+            with pq.ParquetFile(temp) as check:
+                if check.metadata.num_rows != table.num_rows:
+                    raise ValueError("Parquet row count mismatch")
+            temp.replace(dest)
+        source.unlink()
+        ready.unlink()
+        count += 1
+    return count
+
+
+def history_summary(
+    directory: Path, spec: dict, actual: dict | None = None, checkpoint=None
+) -> tuple[dict, list[dict]]:
+    history = json.loads((directory / "histories.json").read_text())
+
+    def find(var, region_contains=None, optional=False):
+        items = [
+            h
+            for h in history
+            if h["variable"] == var and (not region_contains or region_contains in h["region"].upper())
+        ]
+        if not items:
+            if optional:
+                return None
+            raise ValueError("ODB thiếu history bắt buộc: " + var + " / " + str(region_contains))
+        if len(items) != 1:
+            raise ValueError("History không duy nhất; không tự đoán region cho " + var)
+        return np.asarray(items[0]["data"], dtype=float)
+
+    acc = find("A3", "IMPACTOR")
+    vel = find("V3", "IMPACTOR")
+    disp = find("U3", "IMPACTOR")
+    time = acc[:, 0]
+
+    def sample(series):
+        return (
+            np.interp(time, series[:, 0], series[:, 1]) if series is not None else np.full(len(time), np.nan)
+        )
+
+    f = spec["impact_mass"] * (acc[:, 1] + spec["gravity"] * 1000)
+    u, v = -sample(disp), sample(vel)
+    top, bottom = sample(find("U3", "TOP", True)), sample(find("U3", "BOTTOM", True))
+    energies = {
+        k: sample(find(k, optional=True)) / 1000
+        for k in (
+            "ALLKE",
+            "ALLIE",
+            "ALLAE",
+            "ALLPD",
+            "ALLSE",
+            "ALLVD",
+            "ALLWK",
+            "ETOTAL",
+            "ALLFD",
+            "ALLDMD",
+            "ALLCD",
+        )
+    }
+    required = ("ALLKE", "ALLIE", "ALLAE", "ALLPD", "ALLSE", "ALLVD", "ALLWK", "ETOTAL")
+    missing = [k for k in required if np.isnan(energies[k]).all()]
+    if missing:
+        raise ValueError("Thiếu năng lượng bắt buộc: " + ", ".join(missing))
+    contact = np.flatnonzero(f > 10)
+    first = int(contact[0]) if len(contact) else None
+    last = int(contact[-1]) if len(contact) else None
+    peak = int(np.argmax(f))
+    maxdisp = int(np.argmax(u))
+    k0 = float(energies["ALLKE"][0])
+    mass = (actual or {}).get("panel_mass_kg")
+    if mass is None and (actual or {}).get("core_cut_density_kg_m3") is not None:
+        mass = (
+            spec["panel"] ** 2
+            * (
+                (spec["skin"] + spec["bottom_skin"]) * spec["face_material"]["density"]
+                + spec["core_height"] * (actual or {})["core_cut_density_kg_m3"]
+            )
+            * 1e-9
+        )
+    penergy = float(energies["ALLPD"][-1])
+    # Friction is physical; numerical bulk viscosity and hourglass energy are separate.
+    extra = {}
+    for key in ("ALLFD", "ALLDMD", "ALLCD"):
+        extra[key] = None if np.isnan(energies[key]).all() else float(energies[key][-1])
+    physical = penergy + sum(x for x in extra.values() if x is not None)
+    transmitted = None
+    if last is not None:
+        transmitted = (
+            k0
+            - 0.5 * spec["impact_mass"] * v[last] ** 2 / 1000
+            + spec["mass_kg"] * spec["gravity"] * u[last] / 1000
+        )
+    summary = {
+        "schema_version": "1",
+        "validation_status": "reconstruction_unvalidated",
+        "initial_kinetic_energy_J": k0,
+        "peak_raw_contact_force_N": float(f[peak]),
+        "peak_force_time_ms": float(time[peak] * 1000),
+        "max_impactor_displacement_mm": float(u[maxdisp]),
+        "max_displacement_time_ms": float(time[maxdisp] * 1000),
+        "max_indentation_from_contact_mm": None if first is None else float(np.max(u[first:] - u[first])),
+        "max_top_centre_downward_mm": None if np.isnan(top).all() else float(np.nanmax(-top)),
+        "max_bottom_centre_downward_mm": None if np.isnan(bottom).all() else float(np.nanmax(-bottom)),
+        "end_impactor_velocity_mm_s": float(v[-1]),
+        "end_contact_force_N": float(f[-1]),
+        "contact_first_above_10N_ms": None if first is None else float(time[first] * 1000),
+        "contact_last_above_10N_ms": None if last is None else float(time[last] * 1000),
+        "contact_duration_ms": None if first is None else float((time[last] - time[first]) * 1000),
+        "maximum_energy_balance_drift_percent": float(
+            100 * np.max(np.abs(energies["ETOTAL"] - energies["ETOTAL"][0])) / max(abs(k0), 1e-12)
+        ),
+        "artificial_energy_over_max_internal_percent": float(
+            100 * np.max(np.abs(energies["ALLAE"])) / max(float(np.max(energies["ALLIE"])), 1e-12)
+        ),
+        "plastic_dissipation_J": penergy,
+        "physical_dissipation_J": physical,
+        "physical_dissipation_components_J": {"ALLPD": penergy, **extra},
+        "transferred_energy_at_last_contact_J": transmitted,
+        "panel_mass_kg": mass,
+        "SEA_J_kg": physical / mass if mass else None,
+        "last_time_s": float(time[-1]),
+        "solver_completed": bool(time[-1] >= spec["duration"] * 0.999),
+        "force_method": "m_tonne*(A3_mm_s2+gravity_mm_s2); +Z contact on guided rigid impactor",
+        "missing_optional_outputs": [k for k, val in extra.items() if val is None],
+    }
+    rows = []
+    for i, t in enumerate(time):
+        row = {
+            "time_s": float(t),
+            "time_ms": float(t * 1000),
+            "contact_force_N": float(f[i]),
+            "impactor_displacement_mm": float(u[i]),
+            "velocity_mm_s": float(v[i]),
+            "acceleration_mm_s2": float(acc[i, 1]),
+            "top_U3_mm": float(top[i]),
+            "bottom_U3_mm": float(bottom[i]),
+        }
+        row.update({k + "_J": float(a[i]) for k, a in energies.items()})
+        rows.append({k: None if isinstance(x, float) and not math.isfinite(x) else x for k, x in row.items()})
+    write_rows(directory / "impact_history.csv", rows)
+    pq.write_table(pa.Table.from_pylist(rows), directory / "impact_history.parquet", compression="zstd")
+    all_rows = [
+        {
+            "step": h["step"],
+            "region": h["region"],
+            "variable": h["variable"],
+            "description": h["description"],
+            "time_s": t,
+            "value": x,
+        }
+        for h in history
+        for t, x in h["data"]
+    ]
+    pq.write_table(pa.Table.from_pylist(all_rows), directory / "all_histories.parquet", compression="zstd")
+    write_rows(directory / "all_histories.csv", all_rows)
+    inventory = json.loads((directory / "inventory.json").read_text())
+    summary["frames"] = inventory["frames"]
+    force_checks = []
+    extrema = {}
+    field_stats: dict[str, dict[str, Any]] = {}
+    parts = sorted((directory / "fields").glob("**/*.parquet"))
+    for part_index, file in enumerate(parts):
+        if checkpoint:
+            checkpoint(part_index, len(parts))
+        pf = pq.ParquetFile(file)
+        meta = json.loads(pf.schema_arrow.metadata[b"honeycomb"])
+        field = meta["field"]
+        stats = meta.get("statistics")
+        if stats is None:
+            column = pf.read(columns=["data"])["data"].combine_chunks()
+            matrix = column.values.to_numpy(zero_copy_only=False).reshape((len(column), -1))
+            valid = np.isfinite(matrix)
+            counts = valid.sum(axis=0)
+            stats: dict[str, Any] = {
+                "finite_count": counts.tolist(),
+                "min": np.where(valid, matrix, np.inf).min(axis=0).tolist(),
+                "max": np.where(valid, matrix, -np.inf).max(axis=0).tolist(),
+                "sum": np.where(valid, matrix, 0.0).sum(axis=0).tolist(),
+                "rows": len(matrix),
+            }
+        if field not in field_stats:
+            field_stats[field] = {
+                "components": meta.get("components") or ["value"],
+                "count": [0] * len(stats["sum"]),
+                "sum": [0.0] * len(stats["sum"]),
+                "min": [None] * len(stats["sum"]),
+                "max": [None] * len(stats["sum"]),
+                "rows": 0,
+            }
+        aggregate = field_stats[field]
+        aggregate["rows"] += stats["rows"]
+        for j, count in enumerate(stats["finite_count"]):
+            if not count:
+                continue
+            aggregate["count"][j] += count
+            aggregate["sum"][j] += stats["sum"][j]
+            aggregate["min"][j] = (
+                stats["min"][j] if aggregate["min"][j] is None else min(aggregate["min"][j], stats["min"][j])
+            )
+            aggregate["max"][j] = (
+                stats["max"][j] if aggregate["max"][j] is None else max(aggregate["max"][j], stats["max"][j])
+            )
+        if field.startswith(("CNORMF", "CSHEARF")):
+            tb = pf.read(columns=["instance_index", "data"])
+            index = next((i for i, n in enumerate(meta["instances"]) if "IMPACTOR" in n.upper()), None)
+            if index is not None:
+                total = sum(
+                    x[2]
+                    for idx, x in zip(tb["instance_index"].to_pylist(), tb["data"].to_pylist(), strict=False)
+                    if idx == index
+                )
+                force_checks.append((meta["time_s"], total))
+        if field in ("PEEQ", "S", "U"):
+            tb = pf.read(
+                columns=[
+                    "data",
+                    "mises",
+                    "node_label",
+                    "element_label",
+                    "instance_index",
+                    "integration_point",
+                    "section_point",
+                ]
+            )
+            vals = (
+                tb["mises"].to_pylist()
+                if field == "S"
+                else [float(np.linalg.norm(x)) if field == "U" else x[0] for x in tb["data"].to_pylist()]
+            )
+            candidates = [(x, i) for i, x in enumerate(vals) if x is not None and math.isfinite(x)]
+            if candidates:
+                value, i = max(candidates)
+                key = {"PEEQ": "PEEQ_max", "S": "mises_max_MPa", "U": "displacement_magnitude_max_mm"}[field]
+                if key not in extrema or value > extrema[key]["value"]:
+                    extrema[key] = {
+                        "value": value,
+                        "step": meta["step"],
+                        "frame": meta["frame"],
+                        "time_s": meta["time_s"],
+                        "instance": meta["instances"][tb["instance_index"][i].as_py()],
+                        **{
+                            k: tb[k][i].as_py()
+                            for k in ("node_label", "element_label", "integration_point", "section_point")
+                        },
+                    }
+        pf.close()
+    if checkpoint:
+        checkpoint(len(parts), len(parts))
+    # Chunks for the same frame must be summed before comparing against RP history.
+    if force_checks:
+        sums = {}
+        for t, x in force_checks:
+            sums[t] = sums.get(t, 0.0) + x
+        errors = [abs(x - float(np.interp(t, time, f))) for t, x in sums.items()]
+        summary["contact_force_check_max_relative_percent"] = 100 * max(errors) / max(float(f[peak]), 1e-12)
+    else:
+        summary["contact_force_check_max_relative_percent"] = None
+    summary["field_extrema"] = extrema
+    for field, stats in field_stats.items():
+        stats["mean"] = [s / n if n else None for s, n in zip(stats.pop("sum"), stats["count"], strict=True)]
+        stats["unit"] = {
+            "A": "mm/s²",
+            "AR": "rad/s²",
+            "U": "mm",
+            "UR": "rad",
+            "V": "mm/s",
+            "VR": "rad/s",
+            "S": "MPa",
+            "CPRESS": "MPa",
+            "CNORMF": "N",
+            "CSHEARF": "N",
+            "RF": "N",
+            "RM": "N.mm",
+            "LE": "1",
+            "PE": "1",
+            "PEEQ": "1",
+        }.get(field.split()[0], "ODB-native")
+    summary["field_statistics"] = field_stats
+    write_json(directory / "field-statistics.json", field_stats)
+    write_json(directory / "summary.json", summary)
+    return summary, rows
+
+
+def quality(summary: dict) -> dict:
+    findings = []
+    if not summary.get("solver_completed"):
+        findings.append("Solver chưa đạt thời gian vật lý yêu cầu")
+    for key, threshold in (
+        ("maximum_energy_balance_drift_percent", 1.0),
+        ("artificial_energy_over_max_internal_percent", 5.0),
+        ("contact_force_check_max_relative_percent", 2.0),
+    ):
+        value = summary.get(key)
+        if value is not None and value > threshold:
+            findings.append(f"{key}={value:.5g}% vượt {threshold}%")
+    if abs(summary["initial_kinetic_energy_J"]) < 1e-12:
+        findings.append("Động năng ban đầu bằng 0")
+    if summary.get("end_contact_force_N", 0) > 10:
+        findings.append("Cuối step còn tiếp xúc >10 N; cần xem xét tăng thời gian vật lý")
+    return {
+        "solver_completed": summary.get("solver_completed", False),
+        "numerical_quality": "review" if findings else "passed",
+        "physical_validation": "not_established",
+        "findings": findings,
+        "thresholds": {
+            "energy_drift_percent": 1.0,
+            "artificial_energy_percent": 5.0,
+            "force_crosscheck_percent": 2.0,
+        },
+        "definition": "max(abs(ETOTAL-ETOTAL[0]))/KE0; max(abs(ALLAE))/max(ALLIE)",
+        "ml_eligible": not findings,
+    }
+
+
+def write_rows(path: Path, rows: list[dict]):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not rows:
+        path.write_text("", encoding="utf-8-sig")
+        return
+    keys = list(dict.fromkeys(k for r in rows for k in r))
+    with path.open("w", newline="", encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=keys)
+        w.writeheader()
+        w.writerows(
+            {k: json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v for k, v in r.items()}
+            for r in rows
+        )
+
+
+def checksum(path: Path, algorithm="sha256", checkpoint=None) -> str:
+    h = hashlib.new(algorithm)
+    with path.open("rb") as f:
+        for block in iter(lambda: f.read(8 * 1024 * 1024), b""):
+            h.update(block)
+            if checkpoint:
+                checkpoint(len(block))
+    return h.hexdigest()
+
+
+def manifest(root: Path, metadata: dict | None = None, checkpoint=None) -> dict:
+    paths = [
+        p
+        for p in sorted(root.rglob("*"))
+        if p.is_file()
+        and p != root / "artifact-manifest.json"
+        and not p.name.endswith((".tmp", ".lck"))
+        and "spool" not in p.parts
+    ]
+    files = []
+    total = sum(p.stat().st_size for p in paths)
+    done = 0
+
+    def advance(size):
+        nonlocal done
+        done += size
+        if checkpoint:
+            checkpoint(done, total)
+
+    for p in paths:
+        stat = p.stat()
+        files.append(
+            {
+                "path": p.relative_to(root).as_posix(),
+                "bytes": stat.st_size,
+                "sha256": checksum(p, checkpoint=advance),
+            }
+        )
+    data = {"schema_version": "1", "created_at": now(), "metadata": metadata or {}, "files": files}
+    write_json(root / "artifact-manifest.json", data)
+    return data
+
+
+def archive(root: Path, destination: Path):
+    manifest(root)
+    with zipfile.ZipFile(
+        destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True
+    ) as z:
+        for p in root.rglob("*"):
+            if (
+                p.is_file()
+                and p.resolve() != destination.resolve()
+                and not p.name.endswith((".lck", ".tmp"))
+                and "spool" not in p.parts
+            ):
+                z.write(p, p.relative_to(root).as_posix())
+
+
+def pareto(rows: list[dict]) -> list[dict]:
+    objectives = ["panel_mass_kg", "peak_raw_contact_force_N", "max_top_centre_downward_mm", "SEA_J_kg"]
+    valid = [r for r in rows if all(r.get(k) is not None for k in objectives)]
+    points = np.array([[r[k] * (-1 if k == "SEA_J_kg" else 1) for k in objectives] for r in valid])
+    return [
+        r
+        for i, r in enumerate(valid)
+        if not any(np.all(p <= points[i]) and np.any(p < points[i]) for j, p in enumerate(points) if i != j)
+    ]
+
+
+def dataset(store, run_ids: list[str], name: str, seed=42, features=None, targets=None, curve_points=201):
+    rows = []
+    groups = {}
+    for rid in dict.fromkeys(run_ids):
+        run = store.get("runs", rid)
+        if (
+            run.get("test_only")
+            or run.get("status") != "completed"
+            or not (run.get("quality") or {}).get("ml_eligible")
+        ):
+            continue
+        flat = {}
+
+        def flatten(d, prefix="input."):
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    flatten(v, prefix + k + ".")
+                elif isinstance(v, (str, int, float, bool)) or v is None:
+                    flat[prefix + k] = v
+
+        flatten(run["resolved"])
+        row = {
+            "run_id": rid,
+            "batch_id": run["batch_id"],
+            "design_id": run["design_id"],
+            "input_hash": run["input_hash"],
+            **flat,
+            **{k: v for k, v in run["summary"].items() if isinstance(v, (int, float, str)) or v is None},
+        }
+        if row["input_hash"] in groups:
+            continue
+        groups[row["input_hash"]] = rid
+        rows.append(row)
+    if not rows:
+        raise ValueError("Không có lượt đủ chất lượng để tạo dataset")
+    designs = sorted(set(r["design_id"] for r in rows))
+    np.random.default_rng(seed).shuffle(designs)
+    # Assign entire physical designs, including numerical variants, to one split.
+    n = len(designs)
+    train = max(1, int(n * 0.7))
+    val = int(n * 0.15)
+    split = {
+        g: ("train" if i < train else "validation" if i < train + val else "test")
+        for i, g in enumerate(designs)
+    }
+    for row in rows:
+        row["split"] = split[row["design_id"]]
+    identity = (
+        "d"
+        + digest(
+            {
+                "runs": sorted(groups),
+                "seed": seed,
+                "features": features,
+                "targets": targets,
+                "curve_points": curve_points,
+            }
+        )[:16]
+    )
+    out = store.root / "datasets" / identity
+    out.mkdir(parents=True, exist_ok=True)
+    selected = []
+    for row in rows:
+        keys = {"run_id", "batch_id", "design_id", "input_hash", "split"}
+        keys.update(features if features else [k for k in row if k.startswith("input.")])
+        keys.update(targets if targets else [k for k in row if not k.startswith("input.")])
+        unknown = keys - row.keys()
+        if unknown:
+            raise ValueError("Tên feature/target không tồn tại: " + ", ".join(sorted(unknown)))
+        selected.append({k: row[k] for k in row if k in keys})
+    write_rows(out / "samples-full.csv", rows)
+    write_rows(out / "samples.csv", selected)
+    pq.write_table(pa.Table.from_pylist(selected), out / "samples.parquet", compression="zstd")
+    # Original time samples and a separate, explicitly resampled curve product.
+    for row in rows:
+        run = store.get("runs", row["run_id"])
+        if not run["attempts"]:
+            continue
+        source = Path(run["attempts"][-1]["path"]) / "extracted"
+        curves = out / "curves" / run["id"]
+        curves.mkdir(parents=True, exist_ok=True)
+        import shutil
+
+        for filename in ("impact_history.csv", "impact_history.parquet", "all_histories.parquet"):
+            if (source / filename).exists():
+                shutil.copy2(source / filename, curves / filename)
+        write_json(curves / "resolved-input.json", run["resolved"])
+        if (source / "impact_history.parquet").exists():
+            raw = pq.read_table(source / "impact_history.parquet").to_pylist()
+            t = np.array([r["time_s"] for r in raw])
+            contact = run["summary"].get("contact_first_above_10N_ms")
+            start = contact / 1000 if contact is not None else float(t[0])
+            grid = np.linspace(start, float(t[-1]), curve_points)
+            sampled = {"time_since_contact_s": grid - start, "time_s": grid}
+            for key in ("contact_force_N", "impactor_displacement_mm", "velocity_mm_s"):
+                sampled[key] = np.interp(grid, t, [r[key] for r in raw])
+            pq.write_table(pa.table(sampled), curves / "resampled.parquet", compression="zstd")
+    dictionary = {
+        k: {
+            "role": "input" if k.startswith("input.") else "target_or_provenance",
+            "missing": "null; never imputed",
+        }
+        for k in selected[0]
+    }
+    write_json(out / "data-dictionary.json", dictionary)
+    write_json(
+        out / "dataset.json",
+        {
+            "id": identity,
+            "name": name,
+            "seed": seed,
+            "group_by": "physical design, excludes loading and mesh",
+            "samples": len(rows),
+            "designs": n,
+            "split_counts": {s: sum(r["split"] == s for r in rows) for s in ("train", "validation", "test")},
+            "run_ids": [r["run_id"] for r in rows],
+            "features": features,
+            "targets": targets,
+            "resampling": {
+                "points": curve_points,
+                "method": "linear",
+                "alignment": "first F>10 N; fallback first sample",
+                "originals_preserved": True,
+            },
+        },
+    )
+    manifest(out)
+    return {"id": identity, "path": str(out), "samples": len(rows)}
+
+
+def verify_export(directory: Path, checkpoint=None) -> dict:
+    inventory = json.loads((directory / "inventory.json").read_text())
+    expected = {(f["step"], f["frame"], f["field"]): f["rows"] for f in inventory["fields"]}
+    observed = {}
+    parts = 0
+    files = list((directory / "fields").glob("**/*.parquet"))
+    for index, path in enumerate(files):
+        if checkpoint:
+            checkpoint(index, len(files))
+        with pq.ParquetFile(path) as pf:
+            meta = json.loads(pf.schema_arrow.metadata[b"honeycomb"])
+            key = (meta["step"], meta["frame"], meta["field"])
+            observed[key] = observed.get(key, 0) + pf.metadata.num_rows
+            parts += 1
+    mismatch = {
+        str(k): {"expected": expected.get(k), "observed": observed.get(k, 0)}
+        for k in set(expected) | set(observed)
+        if expected.get(k, 0) != observed.get(k, 0)
+    }
+    result = {
+        "passed": not mismatch,
+        "parts": parts,
+        "field_frame_pairs": len(expected),
+        "rows": sum(observed.values()),
+        "mismatches": mismatch,
+    }
+    write_json(directory / "export-verification.json", result)
+    if mismatch:
+        raise ValueError("Số bản ghi Parquet không khớp ODB; xem export-verification.json")
+    return result

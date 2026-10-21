@@ -1,0 +1,58 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "solver_completed": {
+      "title": "Solver Completed",
+      "type": "boolean"
+    },
+    "numerical_quality": {
+      "enum": [
+        "passed",
+        "review"
+      ],
+      "title": "Numerical Quality",
+      "type": "string"
+    },
+    "physical_validation": {
+      "default": "not_established",
+      "enum": [
+        "not_established",
+        "established",
+        "test_solver"
+      ],
+      "title": "Physical Validation",
+      "type": "string"
+    },
+    "findings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "thresholds": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Thresholds",
+      "type": "object"
+    },
+    "ml_eligible": {
+      "default": false,
+      "title": "Ml Eligible",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "solver_completed",
+    "numerical_quality"
+  ],
+  "title": "QualityReport",
+  "type": "object"
+}

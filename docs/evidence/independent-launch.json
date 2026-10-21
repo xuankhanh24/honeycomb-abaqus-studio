@@ -1,0 +1,53 @@
+{
+  "checked_at": "2026-10-21T11:03:39.545343+00:00",
+  "engine_ancestry": [
+    {
+      "pid": 13804,
+      "name": "pythonw.exe"
+    },
+    {
+      "pid": 2360,
+      "name": "svchost.exe"
+    },
+    {
+      "pid": 1680,
+      "name": "services.exe"
+    },
+    {
+      "pid": 1560,
+      "name": "wininit.exe"
+    }
+  ],
+  "ui_ancestry": [
+    [
+      {
+        "pid": 25196,
+        "name": "HoneycombStudio.exe"
+      },
+      {
+        "pid": 2360,
+        "name": "svchost.exe"
+      },
+      {
+        "pid": 1680,
+        "name": "services.exe"
+      },
+      {
+        "pid": 1560,
+        "name": "wininit.exe"
+      }
+    ]
+  ],
+  "engine_api_healthy": true,
+  "batch_status": "running",
+  "completed_runs": 7,
+  "active_runs": [
+    {
+      "index": 8,
+      "status": "checking",
+      "attempt": 4,
+      "solver_percent": null
+    }
+  ],
+  "limitation": "Actual closure of the current chat client is not performed by the agent."
+}

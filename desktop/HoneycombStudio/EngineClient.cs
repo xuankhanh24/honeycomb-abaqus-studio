@@ -32,6 +32,11 @@ public sealed class EngineClient
         Directory.CreateDirectory(ConfigDirectory);
         var session = sessionFile;
         if (await TrySession(session)) return;
+        if (await StartRegisteredEngine())
+        {
+            for (int i = 0; i < 160; i++) { await Task.Delay(250); if (await TrySession(session)) return; }
+            throw new InvalidOperationException("Windows đang khởi động engine độc lập. Xem logs/engine.log trong thư mục cấu hình HoneycombStudio.");
+        }
         var settings = ReadSettings();
         var packaged = Path.Combine(AppContext.BaseDirectory, "runtime", "python.exe");
         string executable;
@@ -52,6 +57,26 @@ public sealed class EngineClient
         Process.Start(start);
         for (int i = 0; i < 80; i++) { await Task.Delay(250); if (await TrySession(session)) return; }
         throw new InvalidOperationException("Engine chưa khởi động sau 20 giây. Xem đường dẫn Abaqus/data và chạy scripts/start-engine.ps1 để xem log.");
+    }
+
+    private static async Task<bool> StartRegisteredEngine()
+    {
+        foreach (var verb in new[] { "/Query", "/Run" })
+        {
+            var start = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "schtasks.exe"))
+            {
+                UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            foreach (var arg in new[] { verb, "/TN", "HoneycombStudio-Engine" }) start.ArgumentList.Add(arg);
+            using var process = Process.Start(start)!;
+            var output = process.StandardOutput.ReadToEndAsync();
+            var error = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            await Task.WhenAll(output, error);
+            if (process.ExitCode != 0) return false;
+        }
+        return true;
     }
 
     private async Task<bool> TrySession(string file)

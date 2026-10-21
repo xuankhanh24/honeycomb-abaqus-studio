@@ -46,3 +46,7 @@ Kết quả này chưa chứng minh tương đương thí nghiệm. Tất cả p
 - Dừng/tiếp tục ba lượt đã kiểm tra với solver giả lập. Kiểm thử gián đoạn solver Abaqus thật phải thực hiện trong thư viện thử riêng, không trên dữ liệu nghiên cứu đang chạy.
 
 Không đổi các mục chưa kiểm tra thành “đạt”. Dữ liệu numerical-quality passed vẫn có physical-validation not_established.
+
+## Bản 0.2.0: báo cáo và dữ liệu nghiên cứu gọn
+
+PDF tham chiếu được tạo lại thành 5 trang và render kiểm tra đủ 5 trang. Chế độ giảm gọn đã đọc 121 frame, xử lý 66.361.845 mẫu của 605 cặp field/frame, đối chiếu không sai lệch; lực đỉnh và cực trị U/PEEQ/von Mises khớp bản xuất toàn trường. Dữ liệu dẫn xuất khoảng 6,0 MB (không tính ODB/ảnh/PDF), thời gian 117,54 s trên máy hiện tại. Hồ sơ tại docs/evidence/research-profile.json. Các phép đo này là kiểm tra trích xuất, không xác nhận hội tụ/thí nghiệm.

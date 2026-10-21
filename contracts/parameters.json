@@ -687,15 +687,9 @@
     "description": "",
     "default": [
       "U",
-      "V",
-      "A",
-      "RF",
-      "CSTRESS",
-      "CFORCE",
       "S",
-      "PE",
       "PEEQ",
-      "LE"
+      "CFORCE"
     ],
     "type": "list[str]",
     "sweep_allowed": true

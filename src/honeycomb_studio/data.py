@@ -16,6 +16,7 @@ import pyarrow.parquet as pq
 
 from .models import digest
 from .quantities import describe_column
+from .research import FEATURES, PROVENANCE, TARGETS, field_reduction, merge_statistics
 from .store import now, write_json
 
 
@@ -25,10 +26,22 @@ def safe_name(text: str) -> str:
 
 def consume_spool(directory: Path) -> int:
     count = 0
+    policy = directory / "export-policy.json"
+    compact = policy.exists() and not json.loads(policy.read_text(encoding="utf-8"))["full_fields"]
     for ready in sorted((directory / "spool").glob("*.ready")):
         meta = json.loads(ready.read_text())
         source = ready.parent / meta["npz"]
         with np.load(source, allow_pickle=False) as arrays:
+            if compact and meta["kind"] == "field":
+                write_json(
+                    directory / "reduced-fields" / ("part-%08d.json" % meta["sequence"]),
+                    field_reduction(arrays, meta),
+                )
+                arrays.close()
+                source.unlink()
+                ready.unlink()
+                count += 1
+                continue
             cols = {}
             for key in arrays.files:
                 arr = arrays[key]
@@ -149,7 +162,7 @@ def history_summary(
     extra = {}
     for key in ("ALLFD", "ALLDMD", "ALLCD"):
         extra[key] = None if np.isnan(energies[key]).all() else float(energies[key][-1])
-    physical = penergy + sum(x for x in extra.values() if x is not None)
+    physical = penergy + sum(value for value in extra.values() if value is not None)
     transmitted = None
     if last is not None:
         transmitted = (
@@ -169,6 +182,7 @@ def history_summary(
         "max_top_centre_downward_mm": None if np.isnan(top).all() else float(np.nanmax(-top)),
         "max_bottom_centre_downward_mm": None if np.isnan(bottom).all() else float(np.nanmax(-bottom)),
         "end_impactor_velocity_mm_s": float(v[-1]),
+        "end_impactor_velocity_m_s": float(v[-1] / 1000),
         "end_contact_force_N": float(f[-1]),
         "contact_first_above_10N_ms": None if first is None else float(time[first] * 1000),
         "contact_last_above_10N_ms": None if last is None else float(time[last] * 1000),
@@ -245,28 +259,7 @@ def history_summary(
                 "sum": np.where(valid, matrix, 0.0).sum(axis=0).tolist(),
                 "rows": len(matrix),
             }
-        if field not in field_stats:
-            field_stats[field] = {
-                "components": meta.get("components") or ["value"],
-                "count": [0] * len(stats["sum"]),
-                "sum": [0.0] * len(stats["sum"]),
-                "min": [None] * len(stats["sum"]),
-                "max": [None] * len(stats["sum"]),
-                "rows": 0,
-            }
-        aggregate = field_stats[field]
-        aggregate["rows"] += stats["rows"]
-        for j, count in enumerate(stats["finite_count"]):
-            if not count:
-                continue
-            aggregate["count"][j] += count
-            aggregate["sum"][j] += stats["sum"][j]
-            aggregate["min"][j] = (
-                stats["min"][j] if aggregate["min"][j] is None else min(aggregate["min"][j], stats["min"][j])
-            )
-            aggregate["max"][j] = (
-                stats["max"][j] if aggregate["max"][j] is None else max(aggregate["max"][j], stats["max"][j])
-            )
+        merge_statistics(field_stats, field, stats, meta.get("components"))
         if field.startswith(("CNORMF", "CSHEARF")):
             tb = pf.read(columns=["instance_index", "data"])
             index = next((i for i, n in enumerate(meta["instances"]) if "IMPACTOR" in n.upper()), None)
@@ -313,6 +306,18 @@ def history_summary(
         pf.close()
     if checkpoint:
         checkpoint(len(parts), len(parts))
+    reduced = sorted((directory / "reduced-fields").glob("*.json"))
+    for index, path in enumerate(reduced):
+        if checkpoint:
+            checkpoint(index, len(reduced))
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        merge_statistics(field_stats, entry["field"], entry["statistics"], entry.get("components"))
+        key, extreme = entry.get("extremum_key"), entry.get("extremum")
+        if extreme and (key not in extrema or extreme["value"] > extrema[key]["value"]):
+            extrema[key] = extreme
+        if "impactor_force_z_N" in entry:
+            force_checks.append((entry["time_s"], entry["impactor_force_z_N"]))
+    summary["field_storage"] = "reduced" if reduced else "full_parquet"
     # Chunks for the same frame must be summed before comparing against RP history.
     if force_checks:
         sums = {}
@@ -508,10 +513,16 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
             "physical_validation": run["quality"].get("physical_validation", "not_established"),
             "numerical_quality": run["quality"].get("numerical_quality", "unknown"),
             "attempt_number": run["attempts"][-1]["number"] if run["attempts"] else None,
-            "extractor_version": "0.1.0",
+            "extractor_version": (
+                (run["attempts"][-1].get("postprocess_sources") or [{}])[-1].get("version", "unknown")
+                if run["attempts"]
+                else "unknown"
+            ),
             **flat,
             **{k: v for k, v in run["summary"].items() if isinstance(v, (int, float, str)) or v is None},
         }
+        if "end_impactor_velocity_m_s" not in row and row.get("end_impactor_velocity_mm_s") is not None:
+            row["end_impactor_velocity_m_s"] = row["end_impactor_velocity_mm_s"] / 1000
         row.update({k: v["value"] for k, v in run["summary"].get("field_extrema", {}).items()})
         if row["input_hash"] in groups:
             continue
@@ -547,19 +558,29 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
     out.mkdir(parents=True, exist_ok=True)
     selected = []
     for row in rows:
-        keys = {"run_id", "batch_id", "design_id", "input_hash", "split"}
-        keys.update(features if features else [k for k in row if k.startswith("input.")])
-        keys.update(targets if targets else [k for k in row if not k.startswith("input.")])
+        keys = PROVENANCE & row.keys()
+        keys.update(
+            features if features is not None else ["input." + k for k in FEATURES if "input." + k in row]
+        )
+        keys.update(targets if targets is not None else [k for k in TARGETS if k in row])
         unknown = keys - row.keys()
         if unknown:
             raise ValueError("Tên feature/target không tồn tại: " + ", ".join(sorted(unknown)))
         selected.append({k: row[k] for k in row if k in keys})
-    write_rows(out / "samples-full.csv", rows)
+    selected_columns = list(dict.fromkeys(k for row in selected for k in row))
+    selected = [{k: row.get(k) for k in selected_columns} for row in selected]
     write_rows(out / "samples.csv", selected)
     pq.write_table(pa.Table.from_pylist(selected), out / "samples.parquet", compression="zstd")
     # Original time samples and a separate, explicitly resampled curve product.
     for row in rows:
         run = store.get("runs", row["run_id"])
+        audit = out / "provenance" / run["id"]
+        for filename, payload in (
+            ("resolved-input.json", run["resolved"]),
+            ("summary.json", run["summary"]),
+            ("quality.json", run["quality"]),
+        ):
+            write_json(audit / filename, payload)
         if not run["attempts"]:
             continue
         source = Path(run["attempts"][-1]["path"]) / "extracted"
@@ -570,7 +591,6 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
         for filename in ("impact_history.csv", "impact_history.parquet", "all_histories.parquet"):
             if (source / filename).exists():
                 shutil.copy2(source / filename, curves / filename)
-        write_json(curves / "resolved-input.json", run["resolved"])
         if (source / "impact_history.parquet").exists():
             raw = pq.read_table(source / "impact_history.parquet").to_pylist()
             t = np.array([r["time_s"] for r in raw])
@@ -598,8 +618,14 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
             "designs": n,
             "split_counts": {s: sum(r["split"] == s for r in rows) for s in ("train", "validation", "test")},
             "run_ids": [r["run_id"] for r in rows],
-            "features": features,
-            "targets": targets,
+            "features": features
+            if features is not None
+            else [k for k in selected[0] if k.startswith("input.")],
+            "targets": targets if targets is not None else [k for k in selected[0] if k in TARGETS],
+            "constant_features": [
+                k for k in selected[0] if k.startswith("input.") and len({r.get(k) for r in selected}) == 1
+            ],
+            "note": "Constant features may be removed by training preprocessing; custom plastic tables require explicit curve features. Numerical quality does not establish experimental validity.",
             "resampling": {
                 "points": curve_points,
                 "method": "linear",
@@ -617,6 +643,11 @@ def verify_export(directory: Path, checkpoint=None) -> dict:
     expected = {(f["step"], f["frame"], f["field"]): f["rows"] for f in inventory["fields"]}
     observed = {}
     parts = 0
+    for path in (directory / "reduced-fields").glob("*.json"):
+        item = json.loads(path.read_text(encoding="utf-8"))
+        key = (item["step"], item["frame"], item["field"])
+        observed[key] = observed.get(key, 0) + item["rows"]
+        parts += 1
     files = list((directory / "fields").glob("**/*.parquet"))
     for index, path in enumerate(files):
         if checkpoint:
@@ -633,6 +664,8 @@ def verify_export(directory: Path, checkpoint=None) -> dict:
     }
     result = {
         "passed": not mismatch,
+        "mode": inventory.get("export_profile", "full_fields"),
+        "rows_definition": "source field samples processed; reduced mode stores statistics and extrema, not these rows",
         "parts": parts,
         "field_frame_pairs": len(expected),
         "rows": sum(observed.values()),
@@ -640,5 +673,5 @@ def verify_export(directory: Path, checkpoint=None) -> dict:
     }
     write_json(directory / "export-verification.json", result)
     if mismatch:
-        raise ValueError("Số bản ghi Parquet không khớp ODB; xem export-verification.json")
+        raise ValueError("Số mẫu đã xử lý không khớp danh mục ODB; xem export-verification.json")
     return result

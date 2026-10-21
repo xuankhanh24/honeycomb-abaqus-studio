@@ -111,7 +111,7 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
         # owned solver processes; persisted ownership supports later adoption.
         engine.shutdown.set()
 
-    app = FastAPI(title="Honeycomb Studio local engine", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Honeycomb Studio local engine", version="0.2.0", lifespan=lifespan)
     app.state.store = store
     app.state.engine = engine
 
@@ -149,7 +149,7 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
 
     @app.get("/health")
     def health():
-        return {"service": "honeycomb-studio", "version": "0.1.0"}
+        return {"service": "honeycomb-studio", "version": "0.2.0"}
 
     @app.post("/v1/engine/shutdown")
     def shutdown_engine():
@@ -492,6 +492,8 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
         if not r["attempts"]:
             raise ValueError("Chưa có dữ liệu")
         root = Path(r["attempts"][-1]["path"]) / "extracted"
+        if not (root / "fields").exists():
+            raise ValueError("Lượt dùng dữ liệu nghiên cứu gọn. Chọn Dữ liệu ML gọn; dữ liệu trường đầy đủ vẫn có trong ODB gốc.")
 
         def export():
             import pyarrow.parquet as pq
@@ -519,6 +521,8 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
         if not run["attempts"]:
             raise ValueError("Chưa có dữ liệu")
         root = Path(run["attempts"][-1]["path"]) / "extracted"
+        if not (root / "fields").exists():
+            raise ValueError("Không lưu bản sao trường Parquet ở chế độ nghiên cứu gọn. Chọn Dữ liệu ML gọn; ODB gốc vẫn được giữ.")
         inventory = json.loads((root / "inventory.json").read_text())
         fields = {}
         for item in inventory["fields"]:

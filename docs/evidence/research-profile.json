@@ -1,0 +1,15 @@
+{
+  "elapsed_seconds": 117.54004180000084,
+  "bytes": 6002993,
+  "coverage": {
+    "passed": true,
+    "mode": "research_reduced",
+    "rows_definition": "source field samples processed; reduced mode stores statistics and extrema, not these rows",
+    "parts": 1694,
+    "field_frame_pairs": 605,
+    "rows": 66361845,
+    "mismatches": {}
+  },
+  "metrics_match_full_export": true,
+  "field_storage": "reduced"
+}

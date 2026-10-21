@@ -71,7 +71,7 @@ def main():
             "token": token,
             "pid": os.getpid(),
             "data_root": str(store.root),
-            "version": "0.1.0",
+            "version": "0.2.0",
         },
     )
     print("Honeycomb local engine: http://127.0.0.1:" + str(port), flush=True)

@@ -24,9 +24,9 @@ Không chỉnh bộ input của job đã tạo. Tạo job mới để giữ lị
 
 Mở ODB/CAE bằng nút trong lượt; ODB dùng Abaqus/Viewer, CAE dùng Abaqus/CAE. PDF và thư mục dùng ứng dụng Windows mặc định. File chỉ xuất hiện khi giai đoạn tương ứng đã hoàn tất.
 
-Mỗi lượt có JSON input, dữ liệu Parquet/CSV, ảnh và PDF; ZIP đóng gói toàn bộ dữ liệu đã hoàn tất kèm checksum. Field → CSV cho chọn field và xem dự toán dung lượng trước khi xuất, có thể tạo nhiều file lớn; Parquet vẫn là bản xuất mặc định cho dữ liệu trường.
+Mỗi lượt có JSON input, dữ liệu Parquet/CSV, ảnh và PDF; ZIP đóng gói toàn bộ dữ liệu đã hoàn tất kèm checksum. **Dữ liệu ML gọn** xuất bảng mỗi lượt một dòng và các đường cong cần cho huấn luyện/tối ưu. **CSV nút/phần tử (nâng cao)** là bản sao mọi giá trị theo frame, có thể lớn hàng chục GB; chỉ dùng khi thực sự cần học trường không gian. Tùy chọn Lưu mọi trường trong Giới hạn job mặc định tắt.
 
-PDF toàn job gồm bảng mọi lượt và so sánh. Các giá trị nút/phần tử đầy đủ nằm trong Parquet, không in hàng triệu dòng lên PDF.
+PDF toàn job gồm bảng mọi lượt và so sánh. PDF mỗi lượt khoảng 5 trang, không in bảng dẻo dài hoặc thống kê tensor rỗng; input đầy đủ vẫn giữ trong JSON/CSV và ODB. Parquet trường đầy đủ chỉ được tạo khi bật chế độ nâng cao.
 
 ## Dataset và Pareto
 

@@ -682,8 +682,8 @@
       "type": "boolean"
     },
     "export_all_fields": {
-      "const": true,
-      "default": true,
+      "default": false,
+      "description": "Advanced archive: duplicate every recorded ODB field to Parquet; research mode otherwise",
       "title": "Export All Fields",
       "type": "boolean"
     },

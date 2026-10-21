@@ -364,7 +364,7 @@ class Engine:
                     "started_at": now(),
                     "process": None,
                     "software": {
-                        "engine_version": "0.1.0",
+                        "engine_version": "0.2.0",
                         "source_sha256": {
                             p.name: checksum(p)
                             for p in [*Path(__file__).parent.glob("*.py"), *ADAPTERS.glob("*.py")]
@@ -517,21 +517,33 @@ class Engine:
                 Path(__file__),
                 Path(__file__).with_name("data.py"),
                 Path(__file__).with_name("reports.py"),
+                Path(__file__).with_name("research_report.py"),
+                Path(__file__).with_name("research.py"),
                 ADAPTERS / "extract.py",
                 ADAPTERS / "render.py",
             ]
         }
         if not a.get("postprocess_sources") or a["postprocess_sources"][-1]["sha256"] != sources:
             a.setdefault("postprocess_sources", []).append(
-                {"at": now(), "version": "0.1.0", "sha256": sources}
+                {"at": now(), "version": "0.2.0", "sha256": sources}
             )
         attempt = Path(a["path"])
         extracted = attempt / "extracted"
         odb = attempt / "raw" / (a["job_name"] + ".odb")
         config = attempt / "extract-config.json"
-        write_json(config, {"odb": str(odb), "extract_directory": str(extracted), "chunk_size": 48000})
+        full_fields = batch["spec"].get("export_all_fields", True)
+        write_json(
+            config,
+            {
+                "odb": str(odb),
+                "extract_directory": str(extracted),
+                "chunk_size": 48000,
+                "full_fields": full_fields,
+            },
+        )
+        write_json(extracted / "export-policy.json", {"full_fields": full_fields})
         if not (extracted / "complete.json").exists():
-            if (extracted / "fields").exists():
+            if (extracted / "fields").exists() or (extracted / "reduced-fields").exists():
                 history = attempt / "postprocess-history"
                 history.mkdir(exist_ok=True)
                 destination = history / ("extract-" + str(time.time_ns()))
@@ -539,6 +551,7 @@ class Engine:
                     raise ValueError("Extraction path escaped attempt")
                 extracted.rename(destination)
                 extracted.mkdir()
+                write_json(extracted / "export-policy.json", {"full_fields": full_fields})
             spool_directory = extracted / "spool"
             if spool_directory.exists():
                 for stale in spool_directory.iterdir():
@@ -591,6 +604,7 @@ class Engine:
                     "odb": str(odb),
                     "figures_directory": str(attempt / "figures"),
                     "summary": str(extracted / "summary.json"),
+                    "compact": True,
                 },
             )
             self._monitor(r, a, "rendering", ["cae", "noGUI=" + str(ADAPTERS / "render.py"), "--", str(cfg)])
@@ -607,7 +621,7 @@ class Engine:
             {
                 "run_id": r["id"],
                 "input_hash": r["input_hash"],
-                "extractor_version": "0.1.0",
+                "extractor_version": "0.2.0",
                 "software": a.get("software"),
                 "postprocess_sources": a["postprocess_sources"],
             },

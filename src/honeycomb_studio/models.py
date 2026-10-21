@@ -129,7 +129,7 @@ class ModelSpec(StrictModel):
     field_intervals: int = parameter(120, "Số khoảng field", "", ge=2, le=10000)
     history_intervals: int = parameter(1200, "Số khoảng history", "", ge=10, le=1000000)
     field_variables: list[str] = Field(
-        default_factory=lambda: ["U", "V", "A", "RF", "CSTRESS", "CFORCE", "S", "PE", "PEEQ", "LE"]
+        default_factory=lambda: ["U", "S", "PEEQ", "CFORCE"]
     )
     history_variables: list[str] = Field(
         default_factory=lambda: ["ALLAE", "ALLIE", "ALLKE", "ALLPD", "ALLSE", "ALLVD", "ALLWK", "ETOTAL"]
@@ -246,7 +246,10 @@ class BatchSpec(StrictModel):
         2, ge=0.5, description="Available RAM reserve before solver admission"
     )
     render_images: bool = True
-    export_all_fields: Literal[True] = True
+    export_all_fields: bool = Field(
+        False,
+        description="Advanced archive: duplicate every recorded ODB field to Parquet; research mode otherwise",
+    )
     backup_after_run: bool = False
 
 

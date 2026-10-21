@@ -1,6 +1,6 @@
 [project]
 name = "honeycomb-studio"
-version = "0.1.0"
+version = "0.2.0"
 description = "Reproducible Abaqus honeycomb impact studies, datasets and reports"
 readme = "README.md"
 authors = [

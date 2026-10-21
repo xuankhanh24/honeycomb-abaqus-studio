@@ -31,6 +31,8 @@ try:
         ("peak_displacement", summary["max_displacement_time_ms"] / 1000.0),
         ("final", frames[-1].frameValue),
     ]
+    if cfg.get("compact", True):
+        targets = [targets[0], targets[-1]]
     made = []
     missing = []
     names = list(odb.rootAssembly.instances.keys())
@@ -47,7 +49,7 @@ try:
             if var == "S":
                 kwargs["refinement"] = (INVARIANT, "Mises")
             vp.odbDisplay.setPrimaryVariable(**kwargs)
-            for view in ["full", "core", "top"]:
+            for view in (["core"] if var in ("S", "PEEQ") else ["full"]) if cfg.get("compact", True) else ["full", "core", "top"]:
                 selected = (
                     names
                     if view == "full"

@@ -269,7 +269,7 @@ public sealed partial class MainWindow : Window
         spec["project_id"] = ProjectName.Text; spec["notes"] = StudyNotes.Text;
         spec["runtime_budget_minutes"] = RuntimeBudget.Value; spec["min_free_gb"] = DiskReserve.Value;
         spec["min_available_ram_gb"] = RamReserve.Value; spec["max_runs"] = (int)MaxRuns.Value;
-        spec["render_images"] = RenderImages.IsChecked == true; spec["backup_after_run"] = BackupAfterRun.IsChecked == true;
+        spec["export_all_fields"] = FullFieldArchive.IsChecked == true; spec["render_images"] = RenderImages.IsChecked == true; spec["backup_after_run"] = BackupAfterRun.IsChecked == true;
         var array = new JsonArray();
         foreach (var axis in axes)
         {
@@ -457,6 +457,14 @@ public sealed partial class MainWindow : Window
     private async void ExportBatchPdf(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation($"/v1/batches/{ViewModel.SelectedBatchId}/report/export"));
     private async void ExportBatchZip(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation($"/v1/batches/{ViewModel.SelectedBatchId}/archive/export"));
     private async void ExportRunZip(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation($"/v1/runs/{ViewModel.SelectedRunId}/archive/export"));
+    private async void ExportRunResearch(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        if(ViewModel.SelectedRunId is null) throw new InvalidOperationException("Chọn lượt trước");
+        var result = await client.Post("/v1/datasets",new JsonObject { ["run_ids"] = new JsonArray(ViewModel.SelectedRunId), ["name"] = "Dữ liệu tối ưu honeycomb" });
+        lastDatasetId=result["id"]!.ToString();
+        await client.Post("/v1/open",new JsonObject{["path"]=result["path"]!.ToString()});
+        Message("Đã xuất samples.csv/Parquet: mỗi lượt một dòng, kèm đường cong và từ điển cột. Không xuất bảng nút/phần tử khổng lồ.");
+    });
     private async void ExportFieldsCsv(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         if(ViewModel.SelectedRunId is null) throw new InvalidOperationException("Chọn lượt trước");
@@ -466,7 +474,7 @@ public sealed partial class MainWindow : Window
         string suffix="?field="+Uri.EscapeDataString(field.Text.Trim());
         var estimate=await client.Get($"/v1/runs/{ViewModel.SelectedRunId}/fields/csv/preview"+suffix);
         double low=estimate["estimated_bytes_range"]![0]!.GetValue<double>()/1e9,high=estimate["estimated_bytes_range"]![1]!.GetValue<double>()/1e9;
-        var confirm=new ContentDialog{Title="Dự toán CSV",Content=new TextBlock{Text=$"{estimate["rows"]} bản ghi. Dự kiến {low:0.0}–{high:0.0} GB; ổ đĩa còn {estimate["free_bytes"]!.GetValue<double>()/1e9:0.0} GB. Các trường lớn có thể cần nhiều thời gian. Parquet đầy đủ đã được giữ trong thư viện.",TextWrapping=TextWrapping.Wrap},PrimaryButtonText="Xuất CSV",CloseButtonText="Đóng",XamlRoot=Navigation.XamlRoot};
+        var confirm=new ContentDialog{Title="CSV nút/phần tử - không cần cho ML dạng bảng",Content=new TextBlock{Text=$"{estimate["rows"]} bản ghi. Dự kiến {low:0.0}–{high:0.0} GB; ổ đĩa còn {estimate["free_bytes"]!.GetValue<double>()/1e9:0.0} GB. Đây là dữ liệu mọi nút/phần tử qua các frame, KHÔNG phải bảng mỗi lượt một dòng. Để huấn luyện/tối ưu, chọn Dữ liệu ML gọn. ODB gốc được giữ trong thư viện.",TextWrapping=TextWrapping.Wrap},PrimaryButtonText="Xuất CSV",CloseButtonText="Đóng",XamlRoot=Navigation.XamlRoot};
         if(await confirm.ShowAsync()==ContentDialogResult.Primary) await ExportOperation($"/v1/runs/{ViewModel.SelectedRunId}/fields/csv"+suffix);
     });
     private async Task LoadLibrary()

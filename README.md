@@ -6,9 +6,13 @@ Mô hình nền tái dựng theo Foo, Seah & Chai, *Composite Structures* 85 (20
 
 ## Bản Windows x64
 
-[Tải bản 0.1.0 preview](https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/v0.1.0-preview). Giải nén đầy đủ vào đường dẫn ASCII, ví dụ `C:/HoneycombStudio`, rồi mở `HoneycombStudio.exe`. Bản này có .NET/WinAppSDK và Python riêng; Abaqus/license dùng bản đã cài trên máy. Không chạy exe tách khỏi các DLL/runtime đi kèm.
+[Tải bản 0.2.0 preview](https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/v0.2.0-preview). Giải nén đầy đủ vào đường dẫn ASCII, ví dụ `C:/HoneycombStudio`, rồi mở `HoneycombStudio.exe`. Bản này có .NET/WinAppSDK và Python riêng; Abaqus/license dùng bản đã cài trên máy. Không chạy exe tách khỏi các DLL/runtime đi kèm.
 
 Xem [kết quả nghiệm thu](docs/VALIDATION_RESULTS.md) để phân biệt các kiểm thử đã đạt với kiểm tra hội tụ, gián đoạn Abaqus thật và reboot chưa hoàn tất. Drive thật đã được kiểm tra upload, tiếp tục và khôi phục. Đây là bản nghiên cứu nội bộ chưa ký mã.
+
+## Dữ liệu gọn từ bản 0.2.0
+
+Nút **Dữ liệu ML gọn** xuất `samples.csv/Parquet` (mỗi lượt một dòng), đường cong và từ điển cột. Mặc định không nhân bản dữ liệu trường của ODB. PDF mỗi lượt 5 trang tiếng Việt; bảng dẻo và thống kê nút/phần tử nằm ngoài PDF. CSV nút/phần tử là chức năng nâng cao có thể tạo hàng chục GB, không cần cho mô hình ML dạng bảng.
 
 ## Chức năng
 
@@ -16,7 +20,7 @@ Xem [kết quả nghiệm thu](docs/VALIDATION_RESULTS.md) để phân biệt c�
 - Quét năng lượng/vận tốc với bước nhảy, tổ hợp nhiều biến, Latin Hypercube có seed hoặc bảng CSV.
 - Một solver tại một thời điểm; tiến độ vật lý, ETA, log, CPU/RAM, datacheck và điều kiện tài nguyên.
 - Dừng hàng đợi hoặc dừng ngay; tiếp tục lượt bị dừng từ đầu, giữ các lượt đã hoàn tất và mọi attempt.
-- Mở CAE/ODB bằng Abaqus; xuất toàn bộ history và mọi field đã lưu trong ODB sang Parquet, giữ integration/section point và cơ sở tọa độ.
+- Mở CAE/ODB bằng Abaqus; mặc định xuất chỉ số, đường cong và cực trị để huấn luyện/tối ưu; chế độ nâng cao sao chép mọi field ODB sang Parquet.
 - CSV, JSON, Parquet, PDF từng lượt/toàn job, ZIP64 có manifest và checksum.
 - Tập dữ liệu có chia nhóm thiết kế để tránh rò rỉ train/test; đường cong gốc và nội suy riêng; so sánh Pareto theo cùng điều kiện tải.
 - Google Drive OAuth, upload tiếp tục, kiểm tra checksum và khôi phục về job mới.

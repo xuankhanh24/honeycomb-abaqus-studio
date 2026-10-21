@@ -120,6 +120,7 @@ def run(config):
         instance_lookup = dict((name, i) for i, name in enumerate(instances))
         inventory = {
             "schema_version": "1",
+            "export_profile": "full_fields" if config.get("full_fields", True) else "research_reduced",
             "odb_version": str(odb.jobData.version),
             "instances": instances,
             "steps": [],
@@ -130,6 +131,9 @@ def run(config):
         }
         for name in instances:
             inst = odb.rootAssembly.instances[name]
+            if not config.get("full_fields", True):
+                inventory.setdefault("mesh_counts", {})[name] = {"nodes": len(inst.nodes), "elements": len(inst.elements)}
+                continue
             labels = np.array([n.label for n in inst.nodes], dtype=np.int64)
             xyz = np.array([n.coordinates for n in inst.nodes], dtype=np.float64)
             publish(
@@ -176,10 +180,10 @@ def run(config):
             }
         # Assembly sets may span instances and must not lose the instance labels.
         inventory["assembly_sets"] = {"nodes": {}, "elements": {}}
-        for category, repo in [
+        for category, repo in ([] if not config.get("full_fields", True) else [
             ("nodes", odb.rootAssembly.nodeSets),
             ("elements", odb.rootAssembly.elementSets),
-        ]:
+        ]):
             for name, region in repo.items():
                 groups = getattr(region, category)
                 if groups and not isinstance(groups[0], (list, tuple)) and hasattr(groups[0], "label"):
@@ -214,6 +218,8 @@ def run(config):
                 if config.get("frame_indices") is not None and frame_index not in config["frame_indices"]:
                     continue
                 for field_name, field in frame.fieldOutputs.items():
+                    if not config.get("full_fields", True) and field_name not in ("U", "S", "PEEQ") and not field_name.startswith(("CNORMF", "CSHEARF")):
+                        continue
                     meta = {
                         "step": step_name,
                         "frame": frame_index,

@@ -26,7 +26,7 @@ MEANINGS = {
     "max_bottom_centre_downward_mm": "max(-U3) of bottom node nearest impact location selected at build",
     "contact_duration_ms": "Last minus first history time with contact force >10 N",
     "plastic_dissipation_J": "ALLPD at last history sample /1000",
-    "physical_dissipation_J": "ALLPD plus recorded ALLFD/ALLDMD/ALLCD at last sample; excludes artificial and numerical viscosity energy",
+    "physical_dissipation_J": "ALLPD plus recorded ALLFD (friction), ALLDMD (damage), ALLCD (creep/viscoelastic dissipation) at last sample; excludes artificial and numerical viscosity energy",
     "transferred_energy_at_last_contact_J": "Initial impactor kinetic energy minus kinetic energy at last contact, plus gravity work on impactor",
     "panel_mass_kg": "Finite sandwich mass: two faces and honeycomb, excludes impactor",
     "SEA_J_kg": "Physical dissipation / finite sandwich mass",

@@ -38,6 +38,7 @@ function Register-DemandTask([string]$Name, [string]$Executable, [string]$Argume
     $taskDefinition.Principal.RunLevel = 0
     $taskDefinition.Settings.ExecutionTimeLimit = 'PT0S'
     $taskDefinition.Settings.MultipleInstances = 2 # Ignore a duplicate start.
+    $taskDefinition.Settings.Priority = 4 # Normal; Scheduler's default 7 starves polling under solver load.
     $taskDefinition.Settings.DisallowStartIfOnBatteries = $false
     $taskDefinition.Settings.StopIfGoingOnBatteries = $false
     if ($Background) {

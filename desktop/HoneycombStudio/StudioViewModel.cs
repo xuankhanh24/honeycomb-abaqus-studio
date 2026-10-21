@@ -14,8 +14,19 @@ public partial class StudioViewModel : ObservableObject
     [ObservableProperty] public partial string? SelectedBatchId { get; set; }
     [ObservableProperty] public partial string? SelectedRunId { get; set; }
 
-    public void UpdateBatches(IEnumerable<BatchRow> rows) => Reconcile(Batches, rows);
-    public void UpdateRuns(IEnumerable<RunRow> rows) => Reconcile(Runs, rows);
+    public void UpdateBatches(IEnumerable<BatchRow> rows)
+    {
+        Reconcile(Batches, rows);
+        if (SelectedBatchId is null)
+            SelectedBatchId = (Batches.FirstOrDefault(row => row.Status == "running") ?? Batches.FirstOrDefault())?.Id;
+    }
+    public void UpdateRuns(IEnumerable<RunRow> rows)
+    {
+        Reconcile(Runs, rows);
+        if (SelectedRunId is null)
+            SelectedRunId = (Runs.FirstOrDefault(row => row.Status is not ("completed" or "review" or "failed" or "queued"))
+                ?? Runs.FirstOrDefault())?.Id;
+    }
 
     private static void Reconcile<T>(ObservableCollection<T> target, IEnumerable<T> rows) where T : DocumentRow
     {

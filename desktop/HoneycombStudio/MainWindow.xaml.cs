@@ -88,7 +88,9 @@ public sealed partial class MainWindow : Window
             updatingLists = false;
             if (ViewModel.SelectedBatchId is not null)
             {
-                var detail = await client.Get("/v1/batches/" + ViewModel.SelectedBatchId);
+                var selectedBatchId = ViewModel.SelectedBatchId;
+                var detail = await client.Get("/v1/batches/" + selectedBatchId);
+                if (ViewModel.SelectedBatchId != selectedBatchId) return;
                 if (detail["resource_error"] is not null) Message(detail["resource_error"]!.ToString(), true);
                 runRows = detail["runs"]!.AsArray().Select(n => new RunRow(n!.AsObject())).ToList();
                 var old = ViewModel.Runs.FirstOrDefault(r => r.Id == ViewModel.SelectedRunId)?.Status;

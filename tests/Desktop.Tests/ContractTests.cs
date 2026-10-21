@@ -10,6 +10,25 @@ namespace Desktop.Tests;
 public sealed class ContractTests
 {
     [TestMethod]
+    public void InitialRefreshSelectsRunningBatchAndItsActiveRun()
+    {
+        var vm = new StudioViewModel();
+        vm.UpdateBatches([
+            new BatchRow(JsonNode.Parse("""{"id":"reference","name":"Reference","status":"completed"}""")!.AsObject()),
+            new BatchRow(JsonNode.Parse("""{"id":"sweep","name":"Sweep","status":"running"}""")!.AsObject())
+        ]);
+        Assert.AreEqual("sweep", vm.SelectedBatchId);
+        vm.UpdateRuns(Enumerable.Range(1, 13).Select(i => new RunRow(JsonNode.Parse($$"""
+        {"id":"r{{i}}","index":{{i}},"status":"{{(i == 8 ? "solving" : i < 8 ? "completed" : "queued")}}","attempts":[]}
+        """)!.AsObject())));
+        Assert.AreEqual(13, vm.Runs.Count);
+        Assert.AreEqual("r8", vm.SelectedRunId);
+        vm.SelectedRunId = "r1";
+        vm.UpdateRuns(vm.Runs.ToArray());
+        Assert.AreEqual("r1", vm.SelectedRunId); // Polling must not steal the user's selection.
+    }
+
+    [TestMethod]
     public void PollingPreservesRunIdentityAndDoesNotResetTheList()
     {
         var vm = new StudioViewModel();

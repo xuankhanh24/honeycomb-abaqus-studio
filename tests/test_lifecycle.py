@@ -1,3 +1,5 @@
+import os
+import subprocess
 import time
 from pathlib import Path
 
@@ -7,7 +9,7 @@ from fastapi.testclient import TestClient
 from honeycomb_studio.api import make_app
 from honeycomb_studio.engine import Engine
 from honeycomb_studio.models import Axis, BatchSpec
-from honeycomb_studio.solver import owned_alive, sta_progress
+from honeycomb_studio.solver import command, owned_alive, sta_progress
 from honeycomb_studio.store import Store
 
 
@@ -99,3 +101,14 @@ def test_missing_odb_does_not_create_batch(tmp_path):
     with pytest.raises(ValueError):
         e.import_reference(Path("missing.odb"))
     assert store.list("batches") == []
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows cmd quoting")
+def test_batch_launcher_and_argument_paths_with_spaces(tmp_path):
+    folder = tmp_path / "launcher with spaces"
+    folder.mkdir()
+    launcher = folder / "launch test.bat"
+    launcher.write_text('@echo off\necho %~1>"%~2"\n', encoding="ascii")
+    output = folder / "result file.txt"
+    process = subprocess.run(command(str(launcher), "hello", str(output)), capture_output=True, timeout=10)
+    assert process.returncode == 0 and output.read_text().strip() == "hello"

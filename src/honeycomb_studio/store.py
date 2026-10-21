@@ -77,6 +77,12 @@ class Store:
           CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT, time TEXT, batch_id TEXT, run_id TEXT, payload TEXT);
           CREATE INDEX IF NOT EXISTS run_batch ON runs(batch_id);
         """)
+        guide = self.root / "README.md"
+        if not guide.exists():
+            guide.write_text(
+                "# Thư viện Honeycomb Abaqus Studio\n\nMở LIBRARY.csv để tìm tên job, ID và thư mục tương ứng. catalog.sqlite là chỉ mục tìm kiếm; có thể xây lại từ manifest trong ứng dụng.\n\n- projects/<project>/batches/<batch>: batch.json, run-index.csv và reports/batch-report.pdf.\n- runs/<run>: requested-input và resolved-input (JSON/CSV có đơn vị và nguồn).\n- attempts/001, 002…: mỗi lần thực thi solver giữ raw (CAE/INP/ODB), extracted (history/field Parquet), figures, reports, logs và checksum manifest.\n- datasets: mẫu ML, từ điển cột, nhóm train/validation/test và đường cong gốc.\n- backup-manifests/backups/restores: upload có thể tiếp tục, ZIP và bản khôi phục.\n\nKhông đổi tên các thư mục ID bằng Explorer. Đặt tên hiển thị/ghi chú khi tạo job trong ứng dụng; không xóa file đang được solver dùng. Solver hoàn tất, chất lượng số và kiểm chứng vật lý là ba trạng thái riêng.\n",
+                encoding="utf-8",
+            )
 
     def save(self, table: str, doc: dict):
         if table not in ("batches", "runs"):
@@ -160,7 +166,34 @@ class Store:
             write_input_csv(rp / "requested-input.csv", entry["requested"])
             write_input_csv(rp / "resolved-input.csv", entry["resolved"])
         self.event(identity, None, {"type": "batch_created", "runs": len(entries)})
+        self.refresh_library_index()
         return batch
+
+    def refresh_library_index(self):
+        # This human-readable index is a cache, not a precondition for saving a job.
+        with self.lock:
+            try:
+                self._write_library_index()
+            except OSError as exc:
+                self.event(None, None, {"type": "library_index_warning", "error": str(exc)})
+
+    def _write_library_index(self):
+        path = self.root / "LIBRARY.csv"
+        temporary = path.with_suffix(".csv.tmp")
+        with temporary.open("w", encoding="utf-8-sig", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=["name", "batch_id", "runs", "created_at", "folder"])
+            writer.writeheader()
+            for batch in self.list("batches"):
+                writer.writerow(
+                    {
+                        "name": batch["name"],
+                        "batch_id": batch["id"],
+                        "runs": batch["runs_total"],
+                        "created_at": batch["created_at"],
+                        "folder": batch["path"],
+                    }
+                )
+        temporary.replace(path)
 
     def event(self, batch_id: str | None, run_id: str | None, payload: dict):
         with self.lock:
@@ -197,4 +230,5 @@ class Store:
                     attempt["process"] = None
                 self.save(table, doc)
                 count += 1
+        self.refresh_library_index()
         return count

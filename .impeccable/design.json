@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-21T11:08:02.5251958+07:00",
+  "title": "Design System: Honeycomb Abaqus Studio",
+  "extensions": {
+    "typographyMeta": {
+      "diagnostic": {
+        "purpose": "JSON, logs, activity and backup status",
+        "displayName": "Raw diagnostics"
+      },
+      "resource-summary": {
+        "purpose": "Overview resource summary",
+        "displayName": "Local resources"
+      },
+      "provenance": {
+        "purpose": "Source lines and supporting evidence text",
+        "displayName": "Evidence provenance"
+      }
+    },
+    "breakpoints": [],
+    "motion": [],
+    "verification": {
+      "unverified": [
+        "Actual assistive-technology use",
+        "Dark-theme visual behavior"
+      ],
+      "reviewDisposition": "ship after five material fixes",
+      "evidence": [
+        "output/ui/review-input-fixed.png",
+        "output/ui/review-settings-fixed.png",
+        "output/ui/review-restore-fixed.png",
+        "output/ui/review-library-fixed.png",
+        "output/ui/jobs-chart-final.png"
+      ],
+      "sourceAuthority": "Current source supersedes older chart capture tab labels"
+    },
+    "colorMeta": {},
+    "shadows": [],
+    "nativePlatform": {
+      "mode": "Operate",
+      "previewPolicy": "HTML/CSS previews are omitted: they cannot reproduce native theme, automation, keyboard or control behavior. Native source and desktop captures are authoritative. No fixed palette, synthetic tonal ramp, shadow or motion values are inferred.",
+      "authority": "Native Fluent controls, Windows system typography and system theme",
+      "headings": [
+        "TitleTextBlockStyle",
+        "SubtitleTextBlockStyle"
+      ],
+      "framework": "WinUI 3",
+      "resources": "desktop/HoneycombStudio/App.xaml: XamlControlsResources",
+      "components": [
+        {
+          "implementation": "Button + AccentButtonStyle",
+          "name": "Principal action"
+        },
+        {
+          "implementation": "NumberBox / TextBox / ComboBox / CheckBox, model-editor automation properties",
+          "name": "Property editor"
+        },
+        {
+          "implementation": "NavigationView with five labeled icon entries",
+          "name": "Navigation"
+        },
+        {
+          "implementation": "EvidenceTemplate in native ListView: label, selectable value, unit, provenance",
+          "name": "Evidence row"
+        },
+        {
+          "implementation": "InfoBar and measured/indeterminate ProgressBar",
+          "name": "Feedback"
+        },
+        {
+          "implementation": "ScottPlot.WinUI.WinUIPlot with scientific axes and units",
+          "name": "Scientific plot"
+        }
+      ]
+    }
+  },
+  "components": [],
+  "narrative": {
+    "donts": [
+      "Don't replace structured input/output/attempt lists with a JSON-only inspector.",
+      "Don't encode run status or scientific identity only in color.",
+      "Don't equate solver completion or numerical eligibility with physical validation.",
+      "Don't replace the native Windows world with web styling, custom fonts or raster interface mockups."
+    ],
+    "northStar": "The Reproducible Research Workbench",
+    "keyCharacteristics": [
+      "Native Fluent controls and system theme.",
+      "Dense tables, labeled property groups and expandable run evidence.",
+      "Vietnamese task language with technical identifiers preserved.",
+      "Scientific plots and raw data traceable to the selected run."
+    ],
+    "rules": [
+      {
+        "section": "colors",
+        "body": "Use native theme resources for chrome, text, focus, selection and controls; do not freeze screenshot colors into application tokens.",
+        "name": "The System Authority Rule"
+      },
+      {
+        "section": "typography",
+        "body": "Keep labels, values, units and sources visible together. Preserve full identifiers through wrapping, tooltips or selectable raw detail rather than relying on a truncated label.",
+        "name": "The Readable Evidence Rule"
+      },
+      {
+        "section": "layout",
+        "body": "Let wide scientific tables and toolbars scroll horizontally. Retain clear label/value/unit relationships as the window narrows. There is no mobile or web breakpoint system.",
+        "name": "The Preserve Columns Rule"
+      },
+      {
+        "section": "components",
+        "body": "Preserve raw provenance and scientific meaning when changing presentation. Keep display decimation separate from export samples. Physical deformation scale 1 and labeled frame times remain contour requirements; the inspected desktop captures do not establish those rendering details.",
+        "name": "The Trace Before Polish Rule"
+      }
+    ],
+    "overview": "A dense, restrained engineering workspace built with native WinUI 3 Fluent controls and Windows system typography. The visual story follows study configuration, batch and run control, then inspectable evidence and datasets. Units, provenance and attempt identity carry more weight than decoration.\n\nThis is the implemented Operate-mode reference. Native Windows behavior and the user's Fluent/system-type choice are visual authority. The landing view presents the next study action, local resources and recent activity. Other surfaces retain the same practical hierarchy rather than repeating a landing-page composition.",
+    "dos": [
+      "Do extend native Fluent controls, system typography and theme resources.",
+      "Do keep units, sources, numerical status and attempt context near their values.",
+      "Do preserve horizontal access to wide data/actions and vertical access to all settings.",
+      "Do retain scientific labels, raw-data context and physical-validation qualifications.",
+      "Do verify keyboard, assistive-technology and theme behavior when those areas change."
+    ]
+  }
+}

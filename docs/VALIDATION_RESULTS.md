@@ -4,7 +4,7 @@ Ngày thực hiện: 21/10/2026. Máy Windows x64, Intel i7-12700H, RAM khoảng
 
 ## Phần mềm
 
-- 34 kiểm thử Python: khoảng/bước nhảy, LHS, bảng vật liệu, đổi E/v/m, điều phối ba lượt dừng/tiếp tục, phục hồi, hậu xử lý không chạy lại solver, license, lỗi backup, Parquet, checksum/ZIP/restore và chống rò rỉ dataset.
+- 36 kiểm thử Python: khoảng/bước nhảy, LHS, bảng vật liệu, đổi E/v/m, điều phối ba lượt dừng/tiếp tục, phục hồi, hậu xử lý không chạy lại solver, license, lỗi backup, Parquet, checksum/ZIP/restore và chống rò rỉ dataset.
 - `ruff check` và `ty check` engine Python hiện đại: đạt. Adapter Python 2.7 được tách khỏi công cụ Python 3.
 - 4 kiểm thử hợp đồng C#: đạt. Build và publish WinUI x64 thực hiện trên máy thật.
 - Runtime Python đóng gói được kiểm tra ở chế độ isolated (`-I`); import engine/PyArrow/NumPy/DPAPI từ thư mục phát hành, không từ editable source.
@@ -35,13 +35,13 @@ PDF từng lượt và toàn job đã được mở bằng trình đọc PDF, re
 
 Ba mức lưới quick/reference/fine được chạy ở 7 J, 6 ms trong thư viện riêng `C:/UET/DO_AN/honeycomb-validation`. Chỉ công bố hội tụ khi cả ba ca và so sánh hoàn tất.
 
-Ca quick đã hoàn tất solver và hậu xử lý: lực đỉnh 2.960,5554875 N; độ võng tâm trên 4,2312784195 mm; drift 0,03787673%; tỷ lệ năng lượng nhân tạo 4,98309970%. CPU time solver ghi trong STA là 16 phút 32 giây. Ca reference mới và fine chưa được kết luận tại thời điểm ghi nhận này.
+Ca quick đã hoàn tất solver và hậu xử lý: lực đỉnh 2.960,5554875 N; độ võng tâm trên 4,2312784195 mm; drift 0,03787673%; tỷ lệ năng lượng nhân tạo 4,98309970%. CPU time solver ghi trong STA là 16 phút 32 giây. Ca reference mới đã hoàn tất, tái tạo đúng lực đỉnh 2.842,7550375 N, hành trình viên 4,5661344528 mm và 121 frame. Wall time solver đo được 1.998,06 s (33,30 phút), trích xuất 635,12 s (10,59 phút). Thời gian bị ảnh hưởng tải máy/RAM; bản đo này đã được nhập vào calibration.json của thư viện hiện tại để dự báo và cảnh báo vượt ngân sách 30 phút. Ca fine đang được tính, chưa kết luận hội tụ.
 
 Kết quả này chưa chứng minh tương đương thí nghiệm. Tất cả preset vẫn mang nhãn chưa xác nhận hội tụ. Ngân sách 20–30 phút chỉ tính solver; trích xuất mọi field có thể cần thêm nhiều phút và dung lượng lớn.
 
 ## Những kiểm tra cần tài khoản/máy nghiên cứu
 
-- Drive: kiểm thử tự động đã mô phỏng mất ACK khi upload, truy vấn offset rồi tiếp tục, checksum và restore local. Chưa chạy upload/restore trên tài khoản Google thật vì chưa cung cấp OAuth Desktop client/đăng nhập.
+- Drive thật: đã xác nhận tài khoản đăng nhập đúng tài khoản người dùng yêu cầu; upload job tổng hợp 25.242.407 byte, chủ động ngắt client sau khi server nhận 8 MiB, tiếp tục cùng phiên từ byte 8.388.608, đối chiếu size/MD5, tải về và khôi phục với SHA-256, checksum từng file, input và trạng thái chất lượng được giữ. Đây là gián đoạn client có kiểm soát trên dịch vụ thật, chưa phải thử ngắt mạng vật lý. Job tổng hợp luôn bị loại khỏi dữ liệu ML. Hồ sơ: `docs/evidence/drive-acceptance.json`; lệnh chạy lại: `scripts/validate_drive.py --root <thư-mục-thử-riêng> --account <email>` sau đăng nhập OAuth.
 - Khởi động lại Windows thật chưa được thực hiện vì máy đang chạy công việc khác. Bộ kiểm thử kiểm tra phục hồi ownership và các trạng thái gián đoạn; cần nghiệm thu mất điện/reboot có kiểm soát trước một chiến dịch dài.
 - Dừng/tiếp tục ba lượt đã kiểm tra với solver giả lập. Kiểm thử gián đoạn solver Abaqus thật phải thực hiện trong thư viện thử riêng, không trên dữ liệu nghiên cứu đang chạy.
 

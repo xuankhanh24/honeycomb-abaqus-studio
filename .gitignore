@@ -36,6 +36,8 @@ output/
 *.lck
 *.rec
 *.rpy
+*.rpy.*
+*.jnl
 *.log
 *.dpapi
 client_secret*.json

@@ -22,7 +22,8 @@ try:
     )
     session.printOptions.setValues(vpDecorations=OFF)
     session.pngOptions.setValues(imageSize=(1400, 1000))
-    vp.viewportAnnotationOptions.setValues(title=OFF, state=ON, legend=ON, compass=OFF)
+    vp.viewportAnnotationOptions.setValues(title=OFF, state=ON, legend=ON, compass=OFF,
+        legendBackgroundStyle=OTHER,legendBackgroundColor='#FFFFFF')
     step_name = odb.steps.keys()[0]
     frames = odb.steps[step_name].frames
     targets = [

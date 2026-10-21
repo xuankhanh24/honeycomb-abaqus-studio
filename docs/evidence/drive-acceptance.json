@@ -1,0 +1,15 @@
+{
+  "created_at": "2026-10-21T05:05:28.875538+00:00",
+  "synthetic_fixture": true,
+  "account_matches_requested": true,
+  "bytes": 25242407,
+  "sha256": "8bd3bff28e42cdd182442b253b7e178718efa9ccbe922c8229550624656dc7a1",
+  "interruption": "client interrupted after Drive acknowledged a real 8 MiB chunk",
+  "first_resumed_range": "bytes 8388608-16777215/25242407",
+  "upload_size_md5_verified": true,
+  "download_sha256_verified": true,
+  "restored_catalog_path_exists": true,
+  "input_and_output_preserved": true,
+  "payload_checksum_matches": true,
+  "ml_eligible": false
+}

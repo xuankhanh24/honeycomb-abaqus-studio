@@ -18,12 +18,15 @@ public sealed partial class MainWindow : Window
     private JsonObject baseSpec = new();
     private JsonArray parameters = new();
     private readonly List<AxisEditor> axes = [];
+    private readonly Dictionary<string,NumberBox> loadingEditors=[];
+    private bool synchronizingLoading;
     private List<BatchRow> batchRows = [];
     private List<RunRow> runRows = [];
     private JsonArray historyRows = new();
     private JsonArray paretoGroups = new();
     private bool connected, refreshing, updatingLists;
     private int eventCursor;
+    private string? lastDatasetId;
     private readonly Queue<string> recentEvents = new();
     private readonly JsonSerializerOptions pretty = new() { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
@@ -133,9 +136,27 @@ public sealed partial class MainWindow : Window
         JsonObject node = model;
         var parts = key.Split('.'); foreach (var part in parts[..^1]) node = node[part]!.AsObject();
         node[parts[^1]] = value;
+        if(key is "loading" or "energy_J" or "velocity_m_s" or "mass_kg") UpdateLoadingEditors();
+    }
+    private void UpdateLoadingEditors()
+    {
+        if(synchronizingLoading)return;
+        synchronizingLoading=true;
+        try
+        {
+            double mass=model["mass_kg"]?.GetValue<double>()??0;
+            if(mass<=0)return;
+            string dependent=model["loading"]?.ToString()=="velocity"?"energy_J":"velocity_m_s";
+            double independent=model[dependent=="energy_J"?"velocity_m_s":"energy_J"]?.GetValue<double>()??0;
+            if(independent<0)return;
+            double calculated=dependent=="energy_J"?.5*mass*independent*independent:Math.Sqrt(2*independent/mass);
+            if(double.IsFinite(calculated)){model[dependent]=calculated;if(loadingEditors.TryGetValue(dependent,out var box))box.Value=calculated;}
+        }
+        finally{synchronizingLoading=false;}
     }
     private void BuildParameterForm()
     {
+        UpdateLoadingEditors();loadingEditors.Clear();
         ParameterGroups.Children.Clear();
         foreach (var group in parameters.Select(p => p!.AsObject()).GroupBy(p => Group(p["key"]!.ToString())))
         {
@@ -149,7 +170,9 @@ public sealed partial class MainWindow : Window
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 var label = new TextBlock { Text = descriptor["title"] + (unit.Length > 0 ? " (" + unit + ")" : ""), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
                 ToolTipService.SetToolTip(label, key); row.Children.Add(label);
-                var source = new TextBlock { Text = descriptor["source"]?.ToString(), FontSize = 12, Opacity = .8, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(source, 2); row.Children.Add(source);
+                bool derivedLoading=key==(model["loading"]?.ToString()=="velocity"?"energy_J":"velocity_m_s");
+                string mode=derivedLoading?"Suy ra E=½mv²":axes.Any(a=>a.Key.SelectedItem?.ToString()==key)?"Khảo sát":"Cố định";
+                var source = new TextBlock { Text = mode+" · "+descriptor["source"]?.ToString(), FontSize = 12, Opacity = .8, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(source, 2); row.Children.Add(source);
                 var current = Value(key);
                 FrameworkElement editor;
                 var options = key switch
@@ -175,7 +198,7 @@ public sealed partial class MainWindow : Window
                             axis.Stop.Value = v == "energy" ? 13 : Math.Sqrt(2 * 13 / model["mass_kg"]!.GetValue<double>());
                             axis.Step.Value = v == "energy" ? 1 : .2; axis.End.IsChecked = true;
                         }
-                        if (key == "mesh_preset") DispatcherQueue.TryEnqueue(BuildParameterForm);
+                        if (key is "mesh_preset" or "loading") DispatcherQueue.TryEnqueue(BuildParameterForm);
                     }; editor = combo;
                 }
                 else if (current is JsonArray)
@@ -196,11 +219,13 @@ public sealed partial class MainWindow : Window
                 else if (current is null || current is JsonValue nv && nv.TryGetValue<double>(out _))
                 {
                     var box = new NumberBox { Value = current?.GetValue<double>() ?? double.NaN, PlaceholderText = "Tự tính từ mặt trên", SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
+                    if(key is "energy_J" or "velocity_m_s" or "mass_kg")loadingEditors[key]=box;
+                    if(derivedLoading)box.IsEnabled=false;
                     if (descriptor["type"]?.ToString().Contains("Literal") == true || key == "impactor_poisson") box.IsEnabled = false;
                     if ((key.Contains("seed") || key == "core_z_divisions") && model["mesh_preset"]?.ToString() != "custom") { box.IsEnabled = false; source.Text += " · theo preset; chọn custom để sửa"; }
                     box.ValueChanged += (_, args) =>
                     {
-                        if (double.IsFinite(args.NewValue)) SetValue(key, JsonValue.Create(args.NewValue));
+                        if (double.IsFinite(args.NewValue) && !synchronizingLoading) SetValue(key, JsonValue.Create(args.NewValue));
                         else if (key == "bottom_skin") SetValue(key, null);
                     }; editor = box;
                 }
@@ -230,11 +255,12 @@ public sealed partial class MainWindow : Window
         var vals = new TextBox { Header = "Hoặc danh sách (JSON)", PlaceholderText = "[0.85, 2, 7, 13]", Width = 230 };
         var remove = new Button { Content = "Bỏ", VerticalAlignment = VerticalAlignment.Bottom };
         foreach (var control in new FrameworkElement[] { combo, a, b, h, end, vals, remove }) panel.Children.Add(control);
-        combo.SelectionChanged += (_, _) => { if (combo.SelectedItem?.ToString()?.EndsWith(".hardening") == true) vals.Text = "[\"perfect_plastic\",\"shifted_ramberg_osgood\",\"bilinear\"]"; };
+        combo.SelectionChanged += (_, _) => { if (combo.SelectedItem?.ToString()?.EndsWith(".hardening") == true) vals.Text = "[\"perfect_plastic\",\"shifted_ramberg_osgood\",\"bilinear\"]"; DispatcherQueue.TryEnqueue(BuildParameterForm); };
         var row = new Grid(); row.Children.Add(new ScrollViewer { Content = panel, HorizontalScrollMode = ScrollMode.Enabled, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollMode = ScrollMode.Disabled }); var editor = new AxisEditor(row, combo, a, b, h, end, vals); axes.Add(editor); AxesPanel.Children.Add(row);
-        remove.Click += (_, _) => { axes.Remove(editor); AxesPanel.Children.Remove(row); };
+        remove.Click += (_, _) => { axes.Remove(editor); AxesPanel.Children.Remove(row); BuildParameterForm(); };
+        BuildParameterForm();
     }
-    private void AddAxis(object sender, RoutedEventArgs e) => AddAxisEditor();
+    private void AddAxis(object sender, RoutedEventArgs e) => AddAxisEditor(model["loading"]?.ToString()=="velocity"?"velocity_m_s":"energy_J");
     private JsonObject Spec()
     {
         var spec = baseSpec.DeepClone().AsObject(); spec["name"] = BatchName.Text; spec["model"] = model.DeepClone();
@@ -290,8 +316,17 @@ public sealed partial class MainWindow : Window
         updatingLists = true;
         IEnumerable<RunRow> ordered = RunSort.SelectedIndex switch { 1 => runRows.OrderBy(r => r.Energy), 2 => runRows.OrderBy(r => r.Status), _ => runRows.OrderBy(r => int.Parse(r.Index)) };
         string filter = (RunFilter?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
-        ViewModel.Runs.Clear(); foreach (var r in ordered.Where(r => filter.Length == 0 || r.Status == filter)) ViewModel.Runs.Add(r);
+        ViewModel.Runs.Clear(); foreach (var r in ordered.Where(r => filter.Length == 0 || r.Status == filter)) ViewModel.Runs.Add(new RunRow(r.Document));
         RunList.SelectedItem = ViewModel.Runs.FirstOrDefault(r => r.Id == ViewModel.SelectedRunId); updatingLists = false;
+    }
+    private void UpdateColumns(object sender,RoutedEventArgs e)
+    {
+        ColumnSettings.Status=ShowStatusColumn.IsChecked?Visibility.Visible:Visibility.Collapsed;
+        ColumnSettings.Phase=ShowPhaseColumn.IsChecked?Visibility.Visible:Visibility.Collapsed;
+        ColumnSettings.Attempt=ShowAttemptColumn.IsChecked?Visibility.Visible:Visibility.Collapsed;
+        StatusHeader.Visibility=ColumnSettings.Status;PhaseHeader.Visibility=ColumnSettings.Phase;AttemptHeader.Visibility=ColumnSettings.Attempt;
+        RunTable.MinWidth=1200-(ShowStatusColumn.IsChecked?0:100)-(ShowPhaseColumn.IsChecked?0:160)-(ShowAttemptColumn.IsChecked?0:100);
+        ApplyRunSort();
     }
     private void SortRuns(object sender, SelectionChangedEventArgs e) { if (RunList is not null) ApplyRunSort(); }
     private async void SelectRun(object sender, SelectionChangedEventArgs e)
@@ -446,7 +481,12 @@ public sealed partial class MainWindow : Window
         if (ids.Count == 0) throw new InvalidOperationException("Chọn các lượt trong thư viện trước");
         JsonArray? names(string text) => string.IsNullOrWhiteSpace(text) ? null : new JsonArray(text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(s => JsonValue.Create(s)).ToArray());
         var result = await client.Post("/v1/datasets", new JsonObject { ["run_ids"] = ids, ["name"] = DatasetName.Text, ["seed"] = 42, ["features"] = names(DatasetFeatures.Text), ["targets"] = names(DatasetTargets.Text) });
-        LibraryResult.Text = result.ToJsonString(pretty); await client.Post("/v1/open", new JsonObject { ["path"] = result["path"]!.ToString() });
+        lastDatasetId=result["id"]!.ToString();LibraryResult.Text = result.ToJsonString(pretty); await client.Post("/v1/open", new JsonObject { ["path"] = result["path"]!.ToString() });
+    });
+    private async void ExportDatasetZip(object sender,RoutedEventArgs e)=>await Guard(async()=>
+    {
+        if(lastDatasetId is null)throw new InvalidOperationException("Xuất dataset từ các lượt đã chọn trước, sau đó đóng gói ZIP.");
+        await ExportOperation($"/v1/datasets/{lastDatasetId}/archive/export");
     });
     private async void ShowPareto(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
@@ -500,4 +540,11 @@ public sealed partial class MainWindow : Window
     private async void ResumeBackup(object sender, RoutedEventArgs e) => await Guard(async () => { Message((await client.Post("/v1/backup/resume/" + BackupId.Text)).ToJsonString()); });
     private async void RestoreLocal(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation("/v1/backup/restore-local", new JsonObject { ["path"] = RestoreZip.Text }));
     private async void RestoreDrive(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation("/v1/backup/restore-drive", new JsonObject { ["file_id"] = DriveFileId.Text, ["sha256"] = RestoreSha.Text }));
+}
+
+public static class ColumnSettings
+{
+    public static Visibility Status {get;set;}=Visibility.Visible;
+    public static Visibility Phase {get;set;}=Visibility.Visible;
+    public static Visibility Attempt {get;set;}=Visibility.Visible;
 }

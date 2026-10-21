@@ -11,7 +11,7 @@
 
 ## Theo dõi và dừng
 
-Job hiển thị số lượt theo trạng thái. Chọn lượt để xem input/output/attempt, log, ảnh và đường cong. Phần trăm solver tính từ thời gian vật lý, không phải phần trăm thời gian thực. Dựng hình/render có thể không có phần trăm đo được.
+Job hiển thị số lượt theo trạng thái. Chọn cột để ẩn/hiện trạng thái, giai đoạn hoặc attempt; kéo thanh cuộn ngang để xem toàn bộ thời gian/CPU/RAM. Chọn lượt để xem input/output/attempt, log, ảnh và đường cong. Phần trăm solver tính từ thời gian vật lý, không phải phần trăm thời gian thực. Dựng hình/render có thể không có phần trăm đo được.
 
 - **Dừng**: dừng hàng đợi và lượt đang thực thi, giữ file attempt. Khi tiếp tục, lượt chưa tính xong chạy lại từ 0 trong attempt mới.
 - **Dừng sau lượt này**: giữ lượt hiện tại chạy hết, sau đó tạm dừng.
@@ -24,7 +24,7 @@ Không chỉnh bộ input của job đã tạo. Tạo job mới để giữ lị
 
 Mở ODB/CAE bằng nút trong lượt; ODB dùng Abaqus/Viewer, CAE dùng Abaqus/CAE. PDF và thư mục dùng ứng dụng Windows mặc định. File chỉ xuất hiện khi giai đoạn tương ứng đã hoàn tất.
 
-Mỗi lượt có JSON input, dữ liệu Parquet/CSV, ảnh và PDF; ZIP đóng gói toàn bộ dữ liệu đã hoàn tất kèm checksum. Field → CSV có thể tạo nhiều file lớn; Parquet vẫn là bản xuất mặc định cho dữ liệu trường.
+Mỗi lượt có JSON input, dữ liệu Parquet/CSV, ảnh và PDF; ZIP đóng gói toàn bộ dữ liệu đã hoàn tất kèm checksum. Field → CSV cho chọn field và xem dự toán dung lượng trước khi xuất, có thể tạo nhiều file lớn; Parquet vẫn là bản xuất mặc định cho dữ liệu trường.
 
 PDF toàn job gồm bảng mọi lượt và so sánh. Các giá trị nút/phần tử đầy đủ nằm trong Parquet, không in hàng triệu dòng lên PDF.
 
@@ -41,3 +41,5 @@ Pareto chia theo điều kiện tải, đồng thời giảm khối lượng/l�
 Thay thư mục/lệnh Abaqus được lưu cho lần khởi động engine tiếp theo. Đường dẫn kỹ thuật nên dùng ASCII để tương thích Abaqus 2017. Không chạy nhiều engine thủ công trên cùng dữ liệu.
 
 Google Drive cần OAuth client Desktop. Khi kết nối thành công có thể backup job và tiếp tục upload bị gián đoạn. Khôi phục luôn tạo job mới và kiểm tra file; không ghi đè job gốc. Xem [hướng dẫn Drive](DRIVE_BACKUP.md).
+
+Sau khi xuất dataset, nút ZIP dataset vừa xuất tạo gói ZIP64 kèm manifest/checksum. Data root có README.md và LIBRARY.csv để tìm job theo tên; từng lượt có bảng input thực tế, output/chất lượng và attempt, với JSON đầy đủ ở tab riêng.

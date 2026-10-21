@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import re
+import uuid
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .models import digest
+from .quantities import describe_column
 from .store import now, write_json
 
 
@@ -436,18 +438,34 @@ def manifest(root: Path, metadata: dict | None = None, checkpoint=None) -> dict:
 
 
 def archive(root: Path, destination: Path):
-    manifest(root)
+    if destination.resolve().is_relative_to(root.resolve()):
+        raise ValueError("Gói ZIP phải nằm ngoài thư mục nguồn")
+    snapshot = manifest(root)
+    entries: list[dict[str, Any]] = [
+        *snapshot["files"],
+        {
+            "path": "artifact-manifest.json",
+            "bytes": (root / "artifact-manifest.json").stat().st_size,
+            "sha256": checksum(root / "artifact-manifest.json"),
+        },
+    ]
     with zipfile.ZipFile(
         destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True
     ) as z:
-        for p in root.rglob("*"):
-            if (
-                p.is_file()
-                and p.resolve() != destination.resolve()
-                and not p.name.endswith((".lck", ".tmp"))
-                and "spool" not in p.parts
-            ):
-                z.write(p, p.relative_to(root).as_posix())
+        for item in entries:
+            p = root / item["path"]
+            h = hashlib.sha256()
+            size = 0
+            with p.open("rb") as source, z.open(item["path"], "w", force_zip64=True) as target:
+                for block in iter(lambda: source.read(8 * 1024 * 1024), b""):
+                    target.write(block)
+                    h.update(block)
+                    size += len(block)
+            if size != item["bytes"] or h.hexdigest() != item["sha256"]:
+                raise ValueError(
+                    "File thay đổi trong lúc đóng gói; chờ thao tác ghi kết thúc rồi xuất lại: "
+                    + item["path"]
+                )
 
 
 def pareto(rows: list[dict]) -> list[dict]:
@@ -462,7 +480,7 @@ def pareto(rows: list[dict]) -> list[dict]:
 
 
 def dataset(store, run_ids: list[str], name: str, seed=42, features=None, targets=None, curve_points=201):
-    rows = []
+    rows: list[dict[str, Any]] = []
     groups = {}
     for rid in dict.fromkeys(run_ids):
         run = store.get("runs", rid)
@@ -487,9 +505,14 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
             "batch_id": run["batch_id"],
             "design_id": run["design_id"],
             "input_hash": run["input_hash"],
+            "physical_validation": run["quality"].get("physical_validation", "not_established"),
+            "numerical_quality": run["quality"].get("numerical_quality", "unknown"),
+            "attempt_number": run["attempts"][-1]["number"] if run["attempts"] else None,
+            "extractor_version": "0.1.0",
             **flat,
             **{k: v for k, v in run["summary"].items() if isinstance(v, (int, float, str)) or v is None},
         }
+        row.update({k: v["value"] for k, v in run["summary"].get("field_extrema", {}).items()})
         if row["input_hash"] in groups:
             continue
         groups[row["input_hash"]] = rid
@@ -508,18 +531,18 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
     }
     for row in rows:
         row["split"] = split[row["design_id"]]
-    identity = (
-        "d"
-        + digest(
-            {
-                "runs": sorted(groups),
-                "seed": seed,
-                "features": features,
-                "targets": targets,
-                "curve_points": curve_points,
-            }
-        )[:16]
+    spec_hash = digest(
+        {
+            "runs": sorted(groups),
+            "seed": seed,
+            "features": features,
+            "targets": targets,
+            "curve_points": curve_points,
+            "source_attempts": [(r["run_id"], r["attempt_number"]) for r in rows],
+            "builder_sha256": checksum(Path(__file__)),
+        }
     )
+    identity = "d" + uuid.uuid4().hex[:16]
     out = store.root / "datasets" / identity
     out.mkdir(parents=True, exist_ok=True)
     selected = []
@@ -558,18 +581,16 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
             for key in ("contact_force_N", "impactor_displacement_mm", "velocity_mm_s"):
                 sampled[key] = np.interp(grid, t, [r[key] for r in raw])
             pq.write_table(pa.table(sampled), curves / "resampled.parquet", compression="zstd")
-    dictionary = {
-        k: {
-            "role": "input" if k.startswith("input.") else "target_or_provenance",
-            "missing": "null; never imputed",
-        }
-        for k in selected[0]
-    }
+    dictionary = {k: describe_column(k) for k in selected[0]}
     write_json(out / "data-dictionary.json", dictionary)
     write_json(
         out / "dataset.json",
         {
             "id": identity,
+            "created_at": now(),
+            "export_spec_hash": spec_hash,
+            "builder_sha256": checksum(Path(__file__)),
+            "source_attempts": [{"run_id": r["run_id"], "attempt": r["attempt_number"]} for r in rows],
             "name": name,
             "seed": seed,
             "group_by": "physical design, excludes loading and mesh",

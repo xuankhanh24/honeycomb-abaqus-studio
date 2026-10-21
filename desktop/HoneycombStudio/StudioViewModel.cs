@@ -56,7 +56,8 @@ public sealed class RunRow(JsonObject document)
             }
             string cpu = p?["process_cpu_percent_of_machine"]?.GetValue<double>().ToString("0.#") ?? "—";
             double? ram = p?["process_ram_bytes"]?.GetValue<double>() / 1e9;
-            return $"{Progress:0.#}% {Phase} · {simulation * 1000:0.###} ms · {elapsed} · ETA {(eta is null ? "—" : TimeSpan.FromSeconds(eta.Value).ToString(@"hh\:mm\:ss"))} · CPU {cpu}% · RAM {ram:0.00} GB";
+            string physical = simulation is null ? "— ms" : $"{simulation * 1000:0.###} ms";
+            return $"{Progress:0.#}% {Phase} · {physical} · {elapsed} · ETA {(eta is null ? "—" : TimeSpan.FromSeconds(eta.Value).ToString(@"hh\:mm\:ss"))} · CPU {cpu}% · RAM {ram:0.00} GB";
         }
     }
     public string LibraryDescription => $"{Loading} · {Status} · ML: {(Eligible ? "đủ chất lượng số" : "chưa đủ")} · thay đổi: {Document["changes"]?.ToJsonString()}";

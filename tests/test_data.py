@@ -1,3 +1,4 @@
+import json
 import zipfile
 
 import numpy as np
@@ -91,6 +92,11 @@ def test_dataset_groups_design_and_excludes_failed_duplicate(tmp_path):
     )
     rows = pq.read_table(out["path"] + "/samples.parquet").to_pylist()
     assert len(rows) == 8
+    dictionary = json.loads(
+        (__import__("pathlib").Path(out["path"]) / "data-dictionary.json").read_text(encoding="utf-8")
+    )
+    assert dictionary["input.skin"]["unit"] == "mm"
+    assert dictionary["SEA_J_kg"]["unit"] == "J/kg"
     assert "input.energy_J" not in rows[0]
     assert all(
         len({r["split"] for r in rows if r["design_id"] == g}) == 1 for g in {r["design_id"] for r in rows}
@@ -135,3 +141,22 @@ def test_nested_manifest_is_checksums_included(tmp_path):
     (tmp_path / "nested/artifact-manifest.json").write_text("{}")
     m = manifest(tmp_path)
     assert m["files"][0]["path"] == "nested/artifact-manifest.json"
+
+
+def test_archive_never_certifies_a_file_changed_after_snapshot(tmp_path, monkeypatch):
+    import honeycomb_studio.data as data
+
+    root = tmp_path / "source"
+    root.mkdir()
+    file = root / "value.csv"
+    file.write_text("original")
+    original = data.manifest
+
+    def mutate(*args, **kwargs):
+        result = original(*args, **kwargs)
+        file.write_text("changed")
+        return result
+
+    monkeypatch.setattr(data, "manifest", mutate)
+    with pytest.raises(ValueError, match="File thay đổi"):
+        archive(root, tmp_path / "result.zip")

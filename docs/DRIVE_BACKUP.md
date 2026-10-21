@@ -23,6 +23,12 @@ Có thể dùng ZIP local hoặc Drive file ID + SHA-256 của gói trong backup
 
 ## Kiểm thử tích hợp thật
 
-Test upload/restore mạng thật cần OAuth client và người dùng đăng nhập. Không tự tạo Google Cloud credential hoặc lấy tài khoản Google từ trình duyệt. Bộ kiểm thử tự động kiểm tra archive, checksum và khôi phục local; quy trình nghiệm thu Drive thật gồm ngắt mạng giữa upload, tiếp tục, tải về và so checksum.
+Test upload/restore mạng thật cần OAuth client và người dùng đăng nhập. Credential được cấu hình trong Google Cloud với sự cho phép của chủ tài khoản; người dùng tự đăng nhập và cấp quyền. Không đọc mật khẩu hoặc đưa client JSON/token vào repo. Bộ kiểm thử tự động kiểm tra archive, checksum và khôi phục local; quy trình nghiệm thu Drive thật gồm ngắt mạng giữa upload, tiếp tục, tải về và so checksum.
 
 Nguồn: [Desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app), [resumable uploads](https://developers.google.com/workspace/drive/api/guides/manage-uploads).
+
+## Kết quả tích hợp trên máy hiện tại
+
+Ngày 21/10/2026, OAuth Desktop và Drive API đã được cấu hình trong project `honeycomb-abaqus-studio-2004` theo tài khoản chủ dự án chọn. Client JSON nằm tại `%LOCALAPPDATA%/HoneycombStudio/drive-desktop-client.json`; refresh/access token chỉ nằm trong file DPAPI riêng. Không sao chép các file này vào dữ liệu hay gói phát hành.
+
+Đã upload và restore job tổng hợp khoảng 24 MiB trên Drive thật, tiếp tục đúng offset sau khi chủ động ngắt client sau chunk 8 MiB, kiểm tra size/MD5/SHA-256 và checksum dữ liệu khôi phục. Chạy lại bằng `uv run python scripts/validate_drive.py --root C:/UET/DO_AN/honeycomb-drive-validation --account <email>`; script giữ file thử và đánh dấu không dùng cho ML, không tắt mạng của máy.

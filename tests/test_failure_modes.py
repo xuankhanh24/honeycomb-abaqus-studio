@@ -76,6 +76,7 @@ def test_cold_estimate_is_mesh_sensitive_and_measured_history_can_calibrate():
     )
     measured = predict(reference, [{"model": reference, "durations": {"solving": 1200, "extracting": 300}}])
     assert measured["solver_minutes"] == 20 and measured["other_phase_minutes"]["extracting"] == 5
+    assert predict(fine, [{"model": reference, "durations": {"solving": 1200}}])["solver_minutes"] > 20
 
 
 def test_backup_failure_cannot_turn_success_into_solver_failure(tmp_path, monkeypatch):

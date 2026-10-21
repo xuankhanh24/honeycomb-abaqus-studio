@@ -1,0 +1,101 @@
+{
+  "run_id": "b298e2dd95ef8_r00001_1c0d96a2",
+  "input_hash": "1c0d96a29ce541b8a50f1346c2fd946328ef0cc9abf9800fd04bdd53d0e1aa1f",
+  "status": "completed",
+  "quality": {
+    "solver_completed": true,
+    "numerical_quality": "passed",
+    "physical_validation": "not_established",
+    "findings": [],
+    "thresholds": {
+      "energy_drift_percent": 1.0,
+      "artificial_energy_percent": 5.0,
+      "force_crosscheck_percent": 2.0
+    },
+    "definition": "max(abs(ETOTAL-ETOTAL[0]))/KE0; max(abs(ALLAE))/max(ALLIE)",
+    "ml_eligible": true
+  },
+  "summary": {
+    "schema_version": "1",
+    "validation_status": "reconstruction_unvalidated",
+    "initial_kinetic_energy_J": 6.99998876953125,
+    "peak_raw_contact_force_N": 2842.7550375,
+    "peak_force_time_ms": 3.105027135461569,
+    "max_impactor_displacement_mm": 4.566134452819824,
+    "max_displacement_time_ms": 3.195031313225627,
+    "max_indentation_from_contact_mm": 4.462690196931362,
+    "max_top_centre_downward_mm": 4.469570159912109,
+    "max_bottom_centre_downward_mm": 0.11754551529884338,
+    "end_impactor_velocity_mm_s": 476.83892822265625,
+    "end_contact_force_N": 0.0,
+    "contact_first_above_10N_ms": 0.0450011866632849,
+    "contact_last_above_10N_ms": 3.9550536312162876,
+    "contact_duration_ms": 3.9100524445530027,
+    "maximum_energy_balance_drift_percent": 0.08061536371046689,
+    "artificial_energy_over_max_internal_percent": 4.522090365814068,
+    "plastic_dissipation_J": 6.36415478515625,
+    "physical_dissipation_J": 6.36415478515625,
+    "physical_dissipation_components_J": {
+      "ALLPD": 6.36415478515625,
+      "ALLFD": null,
+      "ALLDMD": null,
+      "ALLCD": null
+    },
+    "transferred_energy_at_last_contact_J": 6.785213760236086,
+    "panel_mass_kg": 0.0547460721934126,
+    "SEA_J_kg": 116.24860981208487,
+    "last_time_s": 0.006000000052154064,
+    "solver_completed": true,
+    "force_method": "m_tonne*(A3_mm_s2+gravity_mm_s2); +Z contact on guided rigid impactor",
+    "missing_optional_outputs": [
+      "ALLFD",
+      "ALLDMD",
+      "ALLCD"
+    ],
+    "frames": 121,
+    "contact_force_check_max_relative_percent": 7.0012369200244954e-06,
+    "field_extrema": {
+      "PEEQ_max": {
+        "value": 0.9596391916275024,
+        "step": "Impact",
+        "frame": 91,
+        "time_s": 0.004550041165202856,
+        "instance": "CORE-1",
+        "node_label": -1,
+        "element_label": 26813,
+        "integration_point": 1,
+        "section_point": 5
+      },
+      "mises_max_MPa": {
+        "value": 424.3493957519531,
+        "step": "Impact",
+        "frame": 81,
+        "time_s": 0.004050025716423988,
+        "instance": "CORE-1",
+        "node_label": -1,
+        "element_label": 26813,
+        "integration_point": 1,
+        "section_point": 5
+      },
+      "displacement_magnitude_max_mm": {
+        "value": 4.5661139488220215,
+        "step": "Impact",
+        "frame": 64,
+        "time_s": 0.0032000523060560226,
+        "instance": "IMPACTOR-1",
+        "node_label": 1379,
+        "element_label": -1,
+        "integration_point": -1,
+        "section_point": -1
+      }
+    }
+  },
+  "phase_wall_seconds": {
+    "building": 18.43895411491394,
+    "checking": 76.33299279212952,
+    "solving": 1998.0642673969269,
+    "extracting": 635.1180894374847,
+    "rendering": 156.06591749191284,
+    "reporting": 2.412720599999375
+  }
+}

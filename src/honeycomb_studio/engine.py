@@ -71,6 +71,10 @@ class Engine:
         with self.guard:
             b = self.store.get("batches", bid)
             if action in ("start", "resume"):
+                if len(self.store.list("runs", bid)) != b["runs_total"]:
+                    raise ValueError(
+                        "Job tạo chưa đầy đủ số lượt trong preview; tạo job mới từ cấu hình đã lưu"
+                    )
                 b.update(status="running", pause_requested=False, stop_immediately=False)
                 b.pop("resource_error", None)
                 for r in self.store.list("runs", bid):
@@ -359,13 +363,25 @@ class Engine:
                     "job_name": "hc" + r["input_hash"][:9] + "a" + str(num),
                     "started_at": now(),
                     "process": None,
+                    "software": {
+                        "engine_version": "0.1.0",
+                        "source_sha256": {
+                            p.name: checksum(p)
+                            for p in [*Path(__file__).parent.glob("*.py"), *ADAPTERS.glob("*.py")]
+                        },
+                    },
                 }
                 r["attempts"].append(a)
                 r["error"] = None
                 for key in ("summary", "quality", "report"):
                     r.pop(key, None)
                 r["test_only"] = self.fake
-                cfg = {**r["resolved"], "output_directory": str(attempt / "raw"), "job_name": a["job_name"]}
+                cfg = {
+                    **r["resolved"],
+                    "output_directory": str(attempt / "raw"),
+                    "job_name": a["job_name"],
+                    "studio_software": a["software"],
+                }
                 cache_spec = {
                     k: v
                     for k, v in r["resolved"].items()
@@ -449,6 +465,7 @@ class Engine:
                 if not sta.get("solver_success"):
                     raise RuntimeError("Solver chưa xác nhận hoàn tất thành công; xem .sta/.log")
                 write_json(attempt / "solver-complete.json", {"completed_at": now(), "sta": sta})
+                a["solver_progress"] = sta
             assert a is not None
             self._postprocess(r, a, batch)
         except LicenseUnavailable as exc:
@@ -494,6 +511,20 @@ class Engine:
             self.store.event(r["batch_id"], r["id"], {"type": "error", "error": str(exc)})
 
     def _postprocess(self, r: dict, a: dict, batch: dict):
+        sources = {
+            p.name: checksum(p)
+            for p in [
+                Path(__file__),
+                Path(__file__).with_name("data.py"),
+                Path(__file__).with_name("reports.py"),
+                ADAPTERS / "extract.py",
+                ADAPTERS / "render.py",
+            ]
+        }
+        if not a.get("postprocess_sources") or a["postprocess_sources"][-1]["sha256"] != sources:
+            a.setdefault("postprocess_sources", []).append(
+                {"at": now(), "version": "0.1.0", "sha256": sources}
+            )
         attempt = Path(a["path"])
         extracted = attempt / "extracted"
         odb = attempt / "raw" / (a["job_name"] + ".odb")
@@ -573,7 +604,13 @@ class Engine:
         analysis_started[0] = time.monotonic()
         manifest(
             attempt,
-            {"run_id": r["id"], "input_hash": r["input_hash"], "extractor_version": "0.1.0"},
+            {
+                "run_id": r["id"],
+                "input_hash": r["input_hash"],
+                "extractor_version": "0.1.0",
+                "software": a.get("software"),
+                "postprocess_sources": a["postprocess_sources"],
+            },
             checkpoint=checkpoint,
         )
         final_status = "completed" if q["ml_eligible"] else "review"
@@ -586,9 +623,11 @@ class Engine:
             status=final_status,
             phase="completed",
             error=None,
-            progress={**r.get("progress", {}), "solver_percent": 100.0},
+            progress={**r.get("progress", {}), **a.get("solver_progress", {}), "solver_percent": 100.0},
         )
         a["ended_at"] = now()
+        if a.get("error"):
+            a.setdefault("recovered_errors", []).append({"error": a.pop("error"), "recovered_at": now()})
         a["process"] = None
         self.store.save("runs", r)
         self.store.event(r["batch_id"], r["id"], {"type": "completed", "quality": q})

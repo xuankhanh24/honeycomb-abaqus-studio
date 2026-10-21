@@ -548,6 +548,21 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
             for p in (store.root / "datasets").glob("*/dataset.json")
         ]
 
+    @app.post("/v1/datasets/{identity}/archive/export")
+    def export_dataset(identity: str):
+        import re
+
+        if not re.fullmatch(r"d[a-f0-9]{16}", identity):
+            raise ValueError("Dataset ID không hợp lệ")
+        source = store.root / "datasets" / identity
+        if not (source / "dataset.json").exists():
+            raise ValueError("Không tìm thấy dataset")
+        destination = store.root / "exports" / (identity + ".zip")
+        destination.parent.mkdir(exist_ok=True)
+        return operation(
+            "dataset_archive", lambda: archive(source, destination) or {"path": str(destination)}
+        )
+
     @app.get("/v1/pareto")
     def pareto_front():
         from .models import digest

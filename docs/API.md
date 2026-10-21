@@ -22,6 +22,8 @@ Engine bind 127.0.0.1, cổng ngẫu nhiên. Mọi endpoint trừ `/health` cầ
 | POST /v1/batches/{id}/archive/export | ZIP64 job |
 | POST /v1/runs/{id}/archive/export | ZIP64 lượt |
 | POST /v1/runs/{id}/fields/csv?field= | CSV mọi field hoặc field chọn |
+| POST /v1/datasets/{id}/archive/export | ZIP64 dataset, dictionary và đường cong |
+| GET /v1/runs/{id}/fields/csv/preview | Số dòng và dự toán dung lượng CSV trước khi xuất |
 | POST /v1/datasets | run_ids, name, seed, features, targets |
 | GET /v1/datasets, /v1/pareto | Danh mục dataset / Pareto theo điều kiện tải |
 | GET /v1/events?after= | Sự kiện tăng dần, cursor seq |

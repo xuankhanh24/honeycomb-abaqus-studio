@@ -17,7 +17,7 @@ import zipfile
 from pathlib import Path
 
 from .data import archive, checksum
-from .store import now, write_json
+from .store import now, write_input_csv, write_json
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
@@ -460,7 +460,14 @@ class DriveBackup:
                 summary=restored.get("summary"),
                 quality=restored.get("quality"),
                 restored_from=restored["id"],
+                **{
+                    key: restored[key]
+                    for key in ("requested", "resolved", "input_hash", "design_id", "changes")
+                },
             )
+            for kind, key in (("requested-input", "requested"), ("resolved-input", "resolved")):
+                write_json(Path(new_run["path"]) / (kind + ".json"), new_run[key])
+                write_input_csv(Path(new_run["path"]) / (kind + ".csv"), new_run[key])
             new_run["attempts"] = restored["attempts"]
             for attempt in new_run["attempts"]:
                 attempt["path"] = str(Path(new_run["path"]) / "attempts" / ("%03d" % attempt["number"]))
@@ -470,4 +477,5 @@ class DriveBackup:
             self.store.save("runs", new_run)
         new.update(status="restored", restored_from=old["id"])
         self.store.save("batches", new)
+        self.store.refresh_library_index()
         return {"batch_id": new["id"], "path": str(destination), "verified": True}

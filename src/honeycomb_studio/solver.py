@@ -10,9 +10,20 @@ from pathlib import Path
 import psutil
 
 
-def command(abaqus: str, *args: str) -> list[str]:
+def command(abaqus: str, *args: str) -> str | list[str]:
     if os.name == "nt" and abaqus.lower().endswith((".bat", ".cmd")):
-        return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/c", abaqus, *args]
+        values = [abaqus, *args]
+        if any(any(c in value for c in '"%!?^&|<>\r\n') for value in values):
+            raise ValueError("Đường dẫn/lệnh Abaqus không được chứa ký tự điều khiển cmd")
+        # cmd /s strips its outer quote pair. Pass a raw command line so Python's
+        # list2cmdline does not backslash-escape cmd's own nested quote syntax.
+        return (
+            '"'
+            + os.environ.get("COMSPEC", "cmd.exe")
+            + '" /d /s /c "'
+            + " ".join('"' + v + '"' for v in values)
+            + '"'
+        )
     return [abaqus, *args]
 
 

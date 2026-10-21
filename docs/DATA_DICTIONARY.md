@@ -62,3 +62,5 @@ Field extrema lưu cả value, step, frame, time, instance, label, integration/s
 physical design ID giữ hình học và vật liệu; thay tải, lưới hoặc attempt không tạo nhóm vật lý mới. Mặc định split theo thiết kế 70/15/15; với ít thiết kế, một số split có thể trống. Không tự lấp bằng cách chia các đường cong của cùng thiết kế qua nhiều tập.
 
 Giữ cờ `physical_validation=not_established` khi huấn luyện trên mô hình chưa kiểm chứng. Không gọi đó là dữ liệu thí nghiệm.
+
+Dataset luôn ghi chất lượng số, physical validation, attempt và extractor version trong bảng đầy đủ. Cực trị PEEQ/von Mises/chuyển vị có cột scalar để chọn làm target; vị trí chi tiết giữ trong summary nguồn. data-dictionary.json ghi đơn vị, định nghĩa, nguồn và vai trò từng cột. LIBRARY.csv tại data root ánh xạ tên job sang thư mục ID.

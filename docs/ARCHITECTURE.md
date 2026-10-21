@@ -33,3 +33,5 @@ Cache dựng mô hình dùng hash resolved input không bao gồm năng lượng
 ## Nguồn sự thật
 
 Input JSON phiên bản hóa là hợp đồng với adapter; model_manifest bổ sung thông số đo sau dựng. ODB là nguồn kết quả gốc. Summary chứa định nghĩa phép đo; QualityReport tách numerical quality khỏi physical validation. ArtifactManifest ghi checksum và kích thước, không chứa credential.
+
+Mỗi attempt mới lưu phiên bản engine và SHA-256 mã nguồn engine/adapter. Mỗi lần hậu xử lý có fingerprint riêng; thay đổi bộ đọc/báo cáo không xóa provenance dựng/solver. Manifest ZIP được đối chiếu với chính các byte ghi vào ZIP; nếu file nguồn thay đổi trong lúc đóng gói, thao tác báo lỗi thay vì chứng nhận gói không nhất quán.

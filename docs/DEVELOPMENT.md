@@ -29,3 +29,5 @@ Bản phát hành được lưu trong artifacts, không commit binary. Chạy sm
 Credential OAuth, token session, ODB, CAE, training data và log lớn đều nằm ngoài Git. Khi thay đổi docs/contract, chạy lại kiểm thử liên quan; kiểm thử khoa học chỉ chạy lại khi thay đổi mô hình hoặc khi nghiệm thu preset.
 
 Đóng gói WinUI cần target `PublishProjectResources`: WindowsAppSDK bỏ sót project PRI trên luồng unpackaged publish ([upstream #6720](https://github.com/microsoft/WindowsAppSDK/issues/6720)). Target kiểm tra và sao chép PRI từ TargetDir; không bỏ qua kiểm tra mở ứng dụng sau publish. Tái tạo schema bằng `uv run python scripts/export_contracts.py`.
+
+Nhập timing đo trên cùng máy từ catalog thử nghiệm: `uv run python scripts/calibrate_estimates.py --source C:/UET/DO_AN/honeycomb-validation --target C:/UET/DO_AN/honeycomb-data`. Calibration không đổi lưới/vật lý; dự báo vẫn có khoảng heuristic theo tải máy. Adapter/Python thực đã kiểm tra đường dẫn cấu hình có khoảng trắng qua bộ launcher Windows.

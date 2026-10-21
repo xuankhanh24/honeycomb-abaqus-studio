@@ -1,5 +1,6 @@
 """Transparent estimates: geometric cold start, then comparable measured runs."""
 
+import json
 import math
 from statistics import median
 from typing import Any
@@ -14,11 +15,35 @@ def records(store):
             durations = attempt.get("durations", {})
             if durations.get("solving", 0) > 1:
                 result.append({"model": run["resolved"], "durations": durations})
+    file = store.root / "calibration.json"
+    if file.exists():
+        try:
+            known = json.loads(file.read_text(encoding="utf-8"))["records"]
+            required = {
+                "panel",
+                "core_height",
+                "skin",
+                "cell_size",
+                "foil",
+                "core_centre_seed",
+                "core_outer_seed",
+                "skin_centre_seed",
+                "skin_outer_seed",
+                "core_z_divisions",
+                "cpus",
+                "duration",
+            }
+            result.extend(
+                r
+                for r in known
+                if required <= r.get("model", {}).keys() and r.get("durations", {}).get("solving", 0) > 1
+            )
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
     return result
 
 
-def predict(model, calibration=()) -> dict[str, Any]:
-    p = model
+def mesh_work(p):
     core = (
         (p["panel"] / 100) ** 2
         * (6.35 / p["cell_size"])
@@ -30,7 +55,13 @@ def predict(model, calibration=()) -> dict[str, Any]:
     stable = min(
         p["core_centre_seed"] / 0.7, p["skin_centre_seed"] / 0.75, p["core_height"] / p["core_z_divisions"]
     )
-    cold = 25 * complexity / max(stable, 0.05) * (p["duration"] / 0.006) * 8 / p["cpus"]
+    return complexity, complexity / max(stable, 0.05)
+
+
+def predict(model, calibration=()) -> dict[str, Any]:
+    p = model
+    complexity, work = mesh_work(p)
+    cold = 25 * work * (p["duration"] / 0.006) * 8 / p["cpus"]
     weighted = []
     keys = (
         "panel",
@@ -55,6 +86,8 @@ def predict(model, calibration=()) -> dict[str, Any]:
                 / old["duration"]
                 * old["cpus"]
                 / p["cpus"]
+                * work
+                / mesh_work(old)[1]
             )
             weighted.append((distance, prediction))
     closest = sorted(weighted)[:3]

@@ -10,6 +10,90 @@ namespace Desktop.Tests;
 public sealed class ContractTests
 {
     [TestMethod]
+    public void PollingPreservesRunIdentityAndDoesNotResetTheList()
+    {
+        var vm = new StudioViewModel();
+        JsonObject Document(double progress) => JsonNode.Parse($$"""
+        {"id":"r1","index":1,"status":"solving","phase":"solving",
+         "resolved":{"energy_J":7,"velocity_m_s":2.3},"progress":{"solver_percent":{{progress}}},"attempts":[]}
+        """)!.AsObject();
+        vm.UpdateRuns([new RunRow(Document(10))]);
+        var selected = vm.Runs[0];
+        int collectionChanges = 0;
+        var changed = new List<string?>();
+        vm.Runs.CollectionChanged += (_, _) => collectionChanges++;
+        selected.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+        vm.UpdateRuns([new RunRow(Document(20))]);
+        Assert.AreSame(selected, vm.Runs[0]);
+        Assert.AreEqual(0, collectionChanges);
+        Assert.AreEqual(20d, selected.Progress);
+        CollectionAssert.Contains(changed, nameof(RunRow.Progress));
+        changed.Clear();
+        vm.UpdateRuns([new RunRow(Document(20))]);
+        Assert.AreEqual(0, collectionChanges);
+        Assert.IsFalse(changed.Contains(nameof(RunRow.Progress)));
+    }
+
+    [TestMethod]
+    public async Task ClientFollowsNewEngineSessionWithoutRestartingTheUi()
+    {
+        using var first = new LocalEngine(1);
+        using var second = new LocalEngine(2);
+        var file = Path.GetTempFileName();
+        try
+        {
+            void Session(LocalEngine engine) => File.WriteAllText(file,
+                new JsonObject { ["url"] = engine.Url, ["token"] = "test-only" }.ToJsonString());
+            Session(first);
+            var client = new EngineClient(sessionPath: file);
+            Assert.AreEqual(1, (await client.Get("/v1/status"))["instance"]!.GetValue<int>());
+            Session(second);
+            Assert.AreEqual(2, (await client.Get("/v1/status"))["instance"]!.GetValue<int>());
+            Assert.AreEqual(2, (await client.Post("/v1/action"))["instance"]!.GetValue<int>());
+            Assert.AreEqual(1, second.PostCount);
+        }
+        finally { File.Delete(file); }
+    }
+
+    private sealed class LocalEngine : IDisposable
+    {
+        private readonly HttpListener listener = new();
+        public string Url { get; }
+        public int PostCount;
+        public LocalEngine(int instance)
+        {
+            var socket = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+            socket.Start();
+            int port = ((IPEndPoint)socket.LocalEndpoint).Port;
+            socket.Stop();
+            Url = $"http://127.0.0.1:{port}";
+            listener.Prefixes.Add(Url + "/");
+            listener.Start();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    while (listener.IsListening)
+                    {
+                        var context = await listener.GetContextAsync();
+                        if (context.Request.HttpMethod == "POST") Interlocked.Increment(ref PostCount);
+                        var bytes = Encoding.UTF8.GetBytes(new JsonObject
+                        {
+                            ["service"] = "honeycomb-studio", ["instance"] = instance
+                        }.ToJsonString());
+                        context.Response.ContentType = "application/json";
+                        context.Response.ContentLength64 = bytes.Length;
+                        await context.Response.OutputStream.WriteAsync(bytes);
+                        context.Response.Close();
+                    }
+                }
+                catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException) { }
+            });
+        }
+        public void Dispose() => listener.Close();
+    }
+
+    [TestMethod]
     public void RunRowUnderstandsPythonSnakeCaseAndIndependentProgress()
     {
         var row = new RunRow(JsonNode.Parse("""

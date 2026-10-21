@@ -13,22 +13,58 @@ public partial class StudioViewModel : ObservableObject
     [ObservableProperty] public partial string ConnectionState { get; set; } = "Đang kết nối";
     [ObservableProperty] public partial string? SelectedBatchId { get; set; }
     [ObservableProperty] public partial string? SelectedRunId { get; set; }
+
+    public void UpdateBatches(IEnumerable<BatchRow> rows) => Reconcile(Batches, rows);
+    public void UpdateRuns(IEnumerable<RunRow> rows) => Reconcile(Runs, rows);
+
+    private static void Reconcile<T>(ObservableCollection<T> target, IEnumerable<T> rows) where T : DocumentRow
+    {
+        var desired = rows.ToList();
+        var ids = desired.Select(row => row.Id).ToHashSet();
+        for (int i = target.Count - 1; i >= 0; i--)
+            if (!ids.Contains(target[i].Id)) target.RemoveAt(i);
+        for (int i = 0; i < desired.Count; i++)
+        {
+            var existing = target.FirstOrDefault(row => row.Id == desired[i].Id);
+            if (existing is null) target.Insert(i, desired[i]);
+            else
+            {
+                existing.UpdateFrom(desired[i]);
+                int oldIndex = target.IndexOf(existing);
+                if (oldIndex != i) target.Move(oldIndex, i);
+            }
+        }
+    }
 }
 
-public sealed class BatchRow(JsonObject document)
+public abstract class DocumentRow(JsonObject document) : ObservableObject
 {
-    public JsonObject Document { get; } = document;
+    public JsonObject Document { get; private set; } = document;
     public string Id => Document["id"]!.GetValue<string>();
+    protected abstract Dictionary<string, object?> DisplayValues();
+    public void UpdateFrom(DocumentRow other)
+    {
+        var before = DisplayValues();
+        Document = other.Document;
+        foreach (var (name, value) in DisplayValues())
+            if (!Equals(before.GetValueOrDefault(name), value)) OnPropertyChanged(name);
+    }
+}
+
+public sealed class BatchRow(JsonObject document) : DocumentRow(document)
+{
     public string Name => Document["name"]!.GetValue<string>();
     public string Status => Document["status"]!.GetValue<string>();
     public string Counts => Document["counts"]?.ToJsonString() ?? $"{Document["runs_total"]} lượt";
     public string Percent => $"{Document["completed_percent"]?.GetValue<double>() ?? 0:0.#}%";
+    protected override Dictionary<string, object?> DisplayValues() => new()
+    {
+        [nameof(Name)] = Name, [nameof(Status)] = Status, [nameof(Counts)] = Counts, [nameof(Percent)] = Percent
+    };
 }
 
-public sealed class RunRow(JsonObject document)
+public sealed class RunRow(JsonObject document) : DocumentRow(document)
 {
-    public JsonObject Document { get; } = document;
-    public string Id => Document["id"]!.GetValue<string>();
     public string Index => Document["index"]?.ToString() ?? "";
     public string Status => Document["status"]!.GetValue<string>();
     public string Phase => Document["phase"]?.GetValue<string>() ?? "";
@@ -61,4 +97,11 @@ public sealed class RunRow(JsonObject document)
         }
     }
     public string LibraryDescription => $"{Loading} · {Status} · ML: {(Eligible ? "đủ chất lượng số" : "chưa đủ")} · thay đổi: {Document["changes"]?.ToJsonString()}";
+    protected override Dictionary<string, object?> DisplayValues() => new()
+    {
+        [nameof(Index)] = Index, [nameof(Status)] = Status, [nameof(Phase)] = Phase,
+        [nameof(Progress)] = Progress, [nameof(Indeterminate)] = Indeterminate,
+        [nameof(Attempts)] = Attempts, [nameof(Loading)] = Loading, [nameof(Energy)] = Energy,
+        [nameof(Timing)] = Timing, [nameof(Eligible)] = Eligible, [nameof(LibraryDescription)] = LibraryDescription
+    };
 }

@@ -8,7 +8,15 @@ namespace HoneycombStudio;
 public sealed class EngineClient
 {
     private HttpClient? http;
-    public EngineClient(HttpClient? transport = null) => http = transport;
+    private readonly bool discoverSession;
+    private readonly string sessionFile;
+    private string? sessionIdentity;
+    public EngineClient(HttpClient? transport = null, string? sessionPath = null)
+    {
+        http = transport;
+        discoverSession = transport is null;
+        sessionFile = sessionPath ?? Path.Combine(ConfigDirectory, "session.json");
+    }
     public static string ConfigDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HoneycombStudio");
     public static string SettingsPath => Path.Combine(ConfigDirectory, "engine-settings.json");
     public string? RepositoryRoot { get; private set; }
@@ -22,7 +30,7 @@ public sealed class EngineClient
     public async Task ConnectAsync()
     {
         Directory.CreateDirectory(ConfigDirectory);
-        var session = Path.Combine(ConfigDirectory, "session.json");
+        var session = sessionFile;
         if (await TrySession(session)) return;
         var settings = ReadSettings();
         var packaged = Path.Combine(AppContext.BaseDirectory, "runtime", "python.exe");
@@ -59,6 +67,7 @@ public sealed class EngineClient
             http?.Dispose();
             http = new HttpClient { BaseAddress = new Uri(url), Timeout = TimeSpan.FromMinutes(2) };
             http.DefaultRequestHeaders.Add("X-Honeycomb-Token", session["token"]!.GetValue<string>());
+            sessionIdentity = url + "|" + session["token"]!.GetValue<string>();
             return true;
         }
         catch (Exception ex) when (ex is IOException or HttpRequestException or TaskCanceledException or System.Text.Json.JsonException) { return false; }
@@ -66,13 +75,39 @@ public sealed class EngineClient
 
     public async Task<JsonNode> Get(string path)
     {
+        await RefreshSession();
         if (http is null) throw new InvalidOperationException("Engine chưa kết nối");
-        using var response = await http.GetAsync(path);
-        return await Read(response);
+        try
+        {
+            using var response = await http.GetAsync(path);
+            return await Read(response);
+        }
+        catch (HttpRequestException) when (discoverSession)
+        {
+            // GET is safe to replay; never replay a POST whose outcome is unknown.
+            await ConnectAsync();
+            using var response = await http!.GetAsync(path);
+            return await Read(response);
+        }
+    }
+
+    private async Task RefreshSession()
+    {
+        if (!discoverSession) return;
+        var file = sessionFile;
+        if (!File.Exists(file)) return;
+        try
+        {
+            var session = JsonNode.Parse(await File.ReadAllTextAsync(file));
+            var identity = session?["url"]?.ToString() + "|" + session?["token"]?.ToString();
+            if (identity != sessionIdentity) await TrySession(file);
+        }
+        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException) { }
     }
 
     public async Task<JsonNode> Post(string path, JsonNode? data = null)
     {
+        await RefreshSession();
         if (http is null) throw new InvalidOperationException("Engine chưa kết nối");
         using var content = new StringContent(data?.ToJsonString() ?? "{}", Encoding.UTF8, "application/json");
         using var response = await http.PostAsync(path, content);

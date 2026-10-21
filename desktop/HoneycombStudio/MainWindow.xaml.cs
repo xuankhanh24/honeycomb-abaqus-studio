@@ -43,8 +43,11 @@ public sealed partial class MainWindow : Window
 
     private void Message(string message, bool error = false)
     {
-        Banner.Title = error ? "Cần xử lý" : "Honeycomb Studio";
-        Banner.Message = message.Length > 700 ? message[..700] + "… Xem log hoặc chi tiết lượt để đọc đầy đủ." : message;
+        var title = error ? "Cần xử lý" : "Honeycomb Studio";
+        var text = message.Length > 700 ? message[..700] + "… Xem log hoặc chi tiết lượt để đọc đầy đủ." : message;
+        if (Banner.IsOpen && Banner.Title == title && Banner.Message == text) return;
+        Banner.Title = title;
+        Banner.Message = text;
         Banner.Severity = error ? InfoBarSeverity.Error : InfoBarSeverity.Informational;
         Banner.IsOpen = true;
     }
@@ -302,29 +305,36 @@ public sealed partial class MainWindow : Window
     private async void ImportDesignCsv(object sender, RoutedEventArgs e) => await Guard(async () => { var data = await client.Post("/v1/import-designs", new JsonObject { ["path"] = DesignCsvPath.Text }); DesignsJson.Text = data["designs"]!.ToJsonString(pretty); SamplingMode.SelectedIndex = 2; });
     private void ApplyJobFilter()
     {
-        ViewModel.Batches.Clear(); foreach (var b in batchRows.Where(b => b.Name.Contains(JobSearch.Text, StringComparison.OrdinalIgnoreCase))) ViewModel.Batches.Add(b);
-        JobList.SelectedItem = ViewModel.Batches.FirstOrDefault(b => b.Id == ViewModel.SelectedBatchId);
+        ViewModel.UpdateBatches(batchRows.Where(b => b.Name.Contains(JobSearch.Text, StringComparison.OrdinalIgnoreCase)));
+        var selected = ViewModel.Batches.FirstOrDefault(b => b.Id == ViewModel.SelectedBatchId);
+        if (!ReferenceEquals(JobList.SelectedItem, selected)) JobList.SelectedItem = selected;
     }
     private void FilterJobs(object sender, TextChangedEventArgs e) { if (!updatingLists) { updatingLists = true; ApplyJobFilter(); updatingLists = false; } }
     private async void SelectBatch(object sender, SelectionChangedEventArgs e)
     {
         if (updatingLists || JobList.SelectedItem is not BatchRow b) return;
-        ViewModel.SelectedBatchId = b.Id; ViewModel.SelectedRunId = null; await Guard(Refresh);
+        ViewModel.SelectedBatchId = b.Id; ViewModel.SelectedRunId = null;
+        SelectedRunTitle.Text = "Chọn một lượt để xem input và kết quả";
+        RunInputs.ItemsSource = null; RunOutputs.ItemsSource = null; RunAttempts.ItemsSource = null;
+        RunDetailJson.Text = ""; RunLogs.Text = ""; historyRows = new(); PlotHistory(); FigureGallery.Children.Clear();
+        await Guard(Refresh);
     }
     private void ApplyRunSort()
     {
         updatingLists = true;
         IEnumerable<RunRow> ordered = RunSort.SelectedIndex switch { 1 => runRows.OrderBy(r => r.Energy), 2 => runRows.OrderBy(r => r.Status), _ => runRows.OrderBy(r => int.Parse(r.Index)) };
         string filter = (RunFilter?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
-        ViewModel.Runs.Clear(); foreach (var r in ordered.Where(r => filter.Length == 0 || r.Status == filter)) ViewModel.Runs.Add(new RunRow(r.Document));
-        RunList.SelectedItem = ViewModel.Runs.FirstOrDefault(r => r.Id == ViewModel.SelectedRunId); updatingLists = false;
+        ViewModel.UpdateRuns(ordered.Where(r => filter.Length == 0 || r.Status == filter));
+        var selected = ViewModel.Runs.FirstOrDefault(r => r.Id == ViewModel.SelectedRunId);
+        if (!ReferenceEquals(RunList.SelectedItem, selected)) RunList.SelectedItem = selected;
+        updatingLists = false;
     }
     private void UpdateColumns(object sender,RoutedEventArgs e)
     {
-        ColumnSettings.Status=ShowStatusColumn.IsChecked?Visibility.Visible:Visibility.Collapsed;
-        ColumnSettings.Phase=ShowPhaseColumn.IsChecked?Visibility.Visible:Visibility.Collapsed;
-        ColumnSettings.Attempt=ShowAttemptColumn.IsChecked?Visibility.Visible:Visibility.Collapsed;
-        StatusHeader.Visibility=ColumnSettings.Status;PhaseHeader.Visibility=ColumnSettings.Phase;AttemptHeader.Visibility=ColumnSettings.Attempt;
+        ColumnSettings.Current.Status=ShowStatusColumn.IsChecked?Visibility.Visible:Visibility.Collapsed;
+        ColumnSettings.Current.Phase=ShowPhaseColumn.IsChecked?Visibility.Visible:Visibility.Collapsed;
+        ColumnSettings.Current.Attempt=ShowAttemptColumn.IsChecked?Visibility.Visible:Visibility.Collapsed;
+        StatusHeader.Visibility=ColumnSettings.Current.Status;PhaseHeader.Visibility=ColumnSettings.Current.Phase;AttemptHeader.Visibility=ColumnSettings.Current.Attempt;
         RunTable.MinWidth=1200-(ShowStatusColumn.IsChecked?0:100)-(ShowPhaseColumn.IsChecked?0:160)-(ShowAttemptColumn.IsChecked?0:100);
         ApplyRunSort();
     }
@@ -337,7 +347,9 @@ public sealed partial class MainWindow : Window
     private async Task LoadRunDetail()
     {
         if (ViewModel.SelectedRunId is null) return;
-        var run = await client.Get("/v1/runs/" + ViewModel.SelectedRunId);
+        var selectedRunId = ViewModel.SelectedRunId;
+        var run = await client.Get("/v1/runs/" + selectedRunId);
+        if (ViewModel.SelectedRunId != selectedRunId) return;
           SelectedRunTitle.Text = (batchRows.FirstOrDefault(b => b.Id == run["batch_id"]?.ToString())?.Name ?? "Job") + " · Lượt " + run["index"] + " · " + run["id"];
           ToolTipService.SetToolTip(SelectedRunTitle,SelectedRunTitle.Text);
           var inputs = new List<EvidenceRow>();
@@ -352,6 +364,7 @@ public sealed partial class MainWindow : Window
                   AddEvidence(measured,"measured.",inputs);
               }
           }
+          if (ViewModel.SelectedRunId != selectedRunId) return;
           RunInputs.ItemsSource=inputs;
           var outputs=new List<EvidenceRow>();
           AddEvidence(run["summary"],"output.",outputs);
@@ -363,8 +376,11 @@ public sealed partial class MainWindow : Window
                   AddEvidence(new JsonObject{[key]=attempt[key]?.DeepClone()},"attempt "+attempt["number"]+".",attemptsEvidence);
           RunAttempts.ItemsSource=attemptsEvidence.Count>0?attemptsEvidence:[new("Attempt","Lượt chưa được thực thi.","","")];
         RunDetailJson.Text = run.ToJsonString(pretty);
-        RunLogs.Text = (await client.Get("/v1/runs/" + ViewModel.SelectedRunId + "/logs")).ToJsonString(pretty);
-        historyRows = (await client.Get("/v1/runs/" + ViewModel.SelectedRunId + "/history")).AsArray(); PlotHistory();
+        var logs = await client.Get("/v1/runs/" + selectedRunId + "/logs");
+        var history = await client.Get("/v1/runs/" + selectedRunId + "/history");
+        if (ViewModel.SelectedRunId != selectedRunId) return;
+        RunLogs.Text = logs.ToJsonString(pretty);
+        historyRows = history.AsArray(); PlotHistory();
         FigureGallery.Children.Clear();
         var attempts = run["attempts"]!.AsArray();
         if (attempts.LastOrDefault() is JsonObject a)
@@ -375,7 +391,9 @@ public sealed partial class MainWindow : Window
                 var image = new Microsoft.UI.Xaml.Controls.Image { Width = 350, MaxHeight = 260, Stretch = Stretch.Uniform };
                 var bitmap = new BitmapImage { DecodePixelWidth = 700 };
                 var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(imageFile);
-                using var stream = await file.OpenReadAsync(); await bitmap.SetSourceAsync(stream); image.Source = bitmap;
+                using var stream = await file.OpenReadAsync(); await bitmap.SetSourceAsync(stream);
+                if (ViewModel.SelectedRunId != selectedRunId) return;
+                image.Source = bitmap;
                 var stack = new StackPanel { Spacing = 8 }; stack.Children.Add(new TextBlock { Text = Path.GetFileNameWithoutExtension(imageFile), TextWrapping = TextWrapping.Wrap, MaxWidth = 350 }); stack.Children.Add(image); FigureGallery.Children.Add(stack);
             }
         }
@@ -550,9 +568,11 @@ public sealed partial class MainWindow : Window
     private async void RestoreDrive(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation("/v1/backup/restore-drive", new JsonObject { ["file_id"] = DriveFileId.Text, ["sha256"] = RestoreSha.Text }));
 }
 
-public static class ColumnSettings
+public sealed class ColumnSettings : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
 {
-    public static Visibility Status {get;set;}=Visibility.Visible;
-    public static Visibility Phase {get;set;}=Visibility.Visible;
-    public static Visibility Attempt {get;set;}=Visibility.Visible;
+    public static ColumnSettings Current { get; } = new();
+    private Visibility status = Visibility.Visible, phase = Visibility.Visible, attempt = Visibility.Visible;
+    public Visibility Status { get => status; set => SetProperty(ref status, value); }
+    public Visibility Phase { get => phase; set => SetProperty(ref phase, value); }
+    public Visibility Attempt { get => attempt; set => SetProperty(ref attempt, value); }
 }

@@ -9,6 +9,8 @@
 
 Scope `drive.file` dùng cho file do ứng dụng tạo/quản lý. Token refresh/access được mã hóa bằng Windows DPAPI dưới người dùng hiện tại. Token không nằm trong ZIP backup và không được commit. Khôi phục trên máy khác cần đăng nhập lại.
 
+Project hiện ở trạng thái **Testing** và chỉ thêm tài khoản chủ dự án làm test user. Google giới hạn refresh token của ứng dụng External/Testing dùng Drive ở **7 ngày**; khi hết hạn, đăng nhập lại trong Cài đặt rồi tiếp tục backup đang chờ. Không tự chuyển ứng dụng sang Production. Nguồn: [Google — refresh token expiration](https://developers.google.com/identity/protocols/oauth2/#expiration).
+
 ## Upload
 
 Job được đóng gói ZIP64 với manifest và snapshot SQLite nhất quán. Chỉ snapshot kết quả khi file không đang được solver ghi. Drive dùng resumable upload 8 MiB/chunk; state lưu ở backup-manifests, có offset, bytes, speed và ETA.

@@ -2,6 +2,8 @@
 
 Ứng dụng Windows **WinUI 3 + Python** để tự động hóa khảo sát va đập tấm sandwich honeycomb bằng **Abaqus/Explicit 2017**, tạo dữ liệu có thể truy vết và báo cáo nghiên cứu.
 
+**Tiến độ cloud:** repo đã public, runner Ubuntu đã được đo thực tế (145,19 GiB tổng, 85,64 GiB trống), engine đã qua CI Linux. Abaqus Linux/license và backend mô phỏng đầy đủ chưa được nghiệm thu. Xem [bằng chứng và các điều kiện còn chặn](docs/CLOUD_STATUS.md).
+
 Mô hình nền tái dựng theo Foo, Seah & Chai, *Composite Structures* 85 (2008), DOI [10.1016/j.compstruct.2007.10.016](https://doi.org/10.1016/j.compstruct.2007.10.016). Mô hình không tự nhận là đã hội tụ hoặc tương đương thí nghiệm.
 
 ## Bản Windows x64

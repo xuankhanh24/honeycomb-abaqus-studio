@@ -35,7 +35,11 @@ Publication review covered reachable Git blobs and working-tree source using a r
 
 No `runtime-lock.json` certifying a working runtime is generated before those observations exist. No flag or TCP-port check is accepted as proof of a working licensed solver. The current locally installed Windows Abaqus and a running FlexNet server do not establish Linux/cloud entitlement or version compatibility.
 
-The previous Windows cloud draft (`abaqus-cloud.yml`, `setup-abaqus-cloud.ps1`, `run_cloud_study.py`) is an unqualified local draft, not the production Ubuntu backend; it is not published by this milestone.
+The previous Windows cloud draft (`abaqus-cloud.yml`, `setup-abaqus-cloud.ps1`, `run_cloud_study.py`) is archived locally under `output/cloud-windows-draft/`. It is not published as a qualified Ubuntu backend.
+
+## Verified engine acceptance
+
+At revision `c2b50e8`, [Linux engine acceptance](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40168769264) passed: **91 tests passed, 1 platform-specific test skipped**, plus Ruff and type checks. The local Windows suite passed all **92 Python tests** and **9 C# tests**; WinUI built with zero warnings/errors. These are software acceptance results, not licensed Linux solver acceptance.
 
 ## Next milestone after qualification
 

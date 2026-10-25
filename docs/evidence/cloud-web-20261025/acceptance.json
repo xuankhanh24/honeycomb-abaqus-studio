@@ -1,18 +1,22 @@
 {
-  "source_commit": "eaebf6cec86161a86ff97068b549f622c2ea3e59",
+  "source_commit": "6a7a8401f2008dc8eab4d587a9f8c36c498d96e2",
   "linux_acceptance": {
-    "run_id": 40172025233,
+    "run_id": 40172827903,
     "status": "success",
-    "passed": 98,
+    "passed": 99,
     "skipped": 1
   },
   "windows_acceptance": {
-    "run_id": 40172025215,
-    "status": "success"
+    "run_id": 40172827984,
+    "status": "success",
+    "python_passed": 100,
+    "desktop_tests_passed": 9,
+    "winui_build": "success"
   },
   "web_build": {
-    "run_id": 40172025198,
-    "status": "success"
+    "run_id": 40172585655,
+    "status": "success",
+    "unchanged_web_sources_at_final_worker_revision": true
   },
   "native_qualification": {
     "run_id": 40172081228,

@@ -1,6 +1,22 @@
 # Linux installation sources checked — 25 October 2026
 
-Ubuntu installation is technically plausible. A download account at Dassault is not the only possible source of installation media. No accessible, authorized Linux installer has yet been obtained for this project, so none of these references qualifies its runtime.
+A complete third-party 2020 Linux64 media candidate has now been downloaded and inventoried on a real Ubuntu runner. This replaces the earlier finding that no accessible media had been obtained. Publisher authenticity and license entitlement remain unverified; media discovery is not runtime qualification.
+
+## Measured media test
+
+[Inspection run 40198361622](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40198361622) succeeded. Its permanent [metadata receipt](evidence/linux-media-inspection-20261025.json) records each volume SHA-256 and exact byte count. The [mirror listing](https://www.softgozar.com/ds-simulia-abaqus_/) supplied five RAR volumes totaling 9801107603 bytes. Only the ISO was extracted: 10,066,642,944 bytes, SHA-256 `d0b227290b5f62ea826b08c18bde222417817fc0d04b91abb0072cb52ebe43ad`.
+
+The ISO contains `4/SIMULIA_EstablishedProducts/Linux64/1/StartTUI.sh`, alongside separate CAE CAA, license-server and Isight installers. The archive's separate activation-tool directory was listed but never extracted or executed. No installation media or activation file was uploaded to GitHub artifacts/cache/releases.
+
+The runner filesystem measured 155,897,610,240 bytes total and 91,939,274,752 bytes free initially; 72,071,540,736 bytes remained after download and ISO extraction. This is measured capacity, not a promised free-space allocation for every runner.
+
+## Repeatable offline installation test
+
+Dispatch `.github/workflows/linux-install-probe.yml`. It builds an Ubuntu 22.04 image from Ubuntu packages, downloads the same media again, verifies the previously observed ISO hash, mounts the ISO read-only and runs the unmodified Established Products installer inside a container with no network, all Linux capabilities dropped and no license or repository credentials passed in. The first-observed hash pins repeatability; it does not establish publisher authenticity.
+
+The driver selects Standard, Explicit, co-simulation, ODB API and CAE, skips installer license configuration and stops on unknown prompts. It then attempts `abaqus information=release` and `abaqus python` importing `odbAccess`. These checks do not consume solver tokens or prove a licensed simulation. Only JSON receipts and installation/command logs are uploaded. A failed test must preserve its actual error; it must not populate an accepted `runtime-lock.json`.
+
+The [original 2020 TUI installation transcript](https://gist.github.com/branfosj/f0bfa2410f7279e5c2d0dfb58bc3c2e6) documents `DSY_Force_OS=linux_a64` and the observed installer menu vocabulary. This selects the installer's existing Linux target; Ubuntu support and runtime library compatibility still require the real tests below.
 
 | Primary source | Observation | Current project consequence |
 |---|---|---|

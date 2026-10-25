@@ -60,7 +60,7 @@ The public deployment is [Honeycomb Studio](https://honeycomb-abaqus-studio.verc
 
 [Workflow 40184261860, attempt 3](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40184261860/attempts/3) succeeded. Both FlexNet TCP ports are reachable from an ephemeral Ubuntu runner; 22/445/3389 are blocked. Exact evidence is in [owner/network acceptance](evidence/cloud-web-20261025/owner-and-network-acceptance.json) and [network probe](evidence/cloud-web-20261025/license-network.json). The vendor port was fixed at 27012 without changing signed feature content. OIDC uses the repository immutable identity and main branch, only auth_keys scope, and the restricted runner tag. No activation file or long-lived Tailscale secret was exported.
 
-Native runtime, Linux token checkout and full-workload platform-policy gates remain open. The official software portal requires an entitled account; no such account or authorized Linux installer is currently available. No cloud solver ran, no runtime-lock certification was fabricated, and the research/smoke cases remain drafts.
+Native runtime, Linux token checkout and full-workload platform-policy gates remain open. The official portal still requires an entitled account. A third-party 2020 Linux64 ISO has now passed real Ubuntu download/hash/inventory checks; publisher authenticity remains unverified. See [media findings and repeatable installation probe](LINUX_MEDIA_FINDINGS.md). No cloud solver ran, no runtime-lock certification was fabricated, and the research/smoke cases remain drafts.
 
 ## Field display and transport extension
 

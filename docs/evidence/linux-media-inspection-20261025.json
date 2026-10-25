@@ -1,0 +1,75 @@
+{
+  "kind": "third-party-linux-media-inspection",
+  "source_page": "https://www.softgozar.com/ds-simulia-abaqus_/",
+  "release_claimed_by_mirror": "2020 Linux64",
+  "publisher_authenticity_verified": false,
+  "installer_executed": false,
+  "activation_tools_executed": false,
+  "license_checked_out": false,
+  "solver_executed": false,
+  "github_run_id": "40198361622",
+  "disk_before": {
+    "total": 155897610240,
+    "free": 91939274752
+  },
+  "volumes": [
+    {
+      "url": "https://dl1.softgozar.com/Files/Software/DS_SIMULIA_Suite_2020_Linux64_Softgozar.com.part1.rar?1605356",
+      "bytes": 2147483648,
+      "sha256": "9a14ad2efb98e4cfa77fc3830e606d52dd0c9928bb8b5bc82699f9fac255bc50",
+      "seconds": 144.08301404000002
+    },
+    {
+      "url": "https://dl1.softgozar.com/Files/Software/DS_SIMULIA_Suite_2020_Linux64_Softgozar.com.part2.rar?1605356",
+      "bytes": 2147483648,
+      "sha256": "957f1208a71abf017dae5a9f108cd81f223651d790f21e1124bb7195dedffbc6",
+      "seconds": 153.31061211
+    },
+    {
+      "url": "https://dl1.softgozar.com/Files/Software/DS_SIMULIA_Suite_2020_Linux64_Softgozar.com.part3.rar?1605356",
+      "bytes": 2147483648,
+      "sha256": "1dccdd1d38f3302ab643c17ac72e2ad6511303fdfee3a347378611e72482c62f",
+      "seconds": 140.865236162
+    },
+    {
+      "url": "https://dl1.softgozar.com/Files/Software/DS_SIMULIA_Suite_2020_Linux64_Softgozar.com.part4.rar?1605356",
+      "bytes": 2147483648,
+      "sha256": "5313ee8ec525e6b495893483e0a6b903ecc49a3cf2a4d35324818a8c27136002",
+      "seconds": 143.80255962299998
+    },
+    {
+      "url": "https://dl1.softgozar.com/Files/Software/DS_SIMULIA_Suite_2020_Linux64_Softgozar.com.part5.rar?1605356",
+      "bytes": 1211173011,
+      "sha256": "2ede868cfd005039f4520a54c91911105f10a251ac8eaaed160a899863f912a6",
+      "seconds": 80.75225903299997
+    }
+  ],
+  "archive_entries": [
+    "DS SIMULIA Suite 2020 Linux64/Crack/Readme.txt",
+    "DS SIMULIA Suite 2020 Linux64/Crack/Softgozar.com.url",
+    "DS SIMULIA Suite 2020 Linux64/Crack/SSQ_UniversalLicenseServer_Core_20180127074300.zip",
+    "DS SIMULIA Suite 2020 Linux64/Crack/SSQ_UniversalLicenseServer_Module_DSSimulia_20180127185300.zip",
+    "DS SIMULIA Suite 2020 Linux64/DS.SIMULIA.Suite.2020.Linux64_Softgozar.com.iso"
+  ],
+  "iso": {
+    "name": "DS.SIMULIA.Suite.2020.Linux64_Softgozar.com.iso",
+    "bytes": 10066642944,
+    "sha256": "d0b227290b5f62ea826b08c18bde222417817fc0d04b91abb0072cb52ebe43ad"
+  },
+  "linux_installer_entries": [
+    "3/EXALEAD_CloudView/Linux64/1/StartGUI.sh",
+    "3/EXALEAD_CloudView/Linux64/1/StartTUI.sh",
+    "3/EXALEAD_Search_Doc/Linux64/1/StartGUI.sh",
+    "3/EXALEAD_Search_Doc/Linux64/1/StartTUI.sh",
+    "3/SIMULIA_FLEXnet_LicenseServer/Linux64/1/StartGUI.sh",
+    "3/SIMULIA_FLEXnet_LicenseServer/Linux64/1/StartTUI.sh",
+    "4/SIMULIA_EstablishedProducts/Linux64/1/StartGUI.sh",
+    "4/SIMULIA_EstablishedProducts/Linux64/1/StartTUI.sh",
+    "4/SIMULIA_EstablishedProducts_CAA_API/Linux64/1/StartGUI.sh",
+    "4/SIMULIA_EstablishedProducts_CAA_API/Linux64/1/StartTUI.sh",
+    "5/SIMULIA_Isight/Linux64/1/StartGUI.sh",
+    "5/SIMULIA_Isight/Linux64/1/StartTUI.sh"
+  ],
+  "passed_media_inventory": true,
+  "disk_after_free": 72071540736
+}

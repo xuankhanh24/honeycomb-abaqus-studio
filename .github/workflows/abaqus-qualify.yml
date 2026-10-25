@@ -1,0 +1,39 @@
+name: Qualify native Abaqus Linux environment
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: honeycomb-licensed-solver
+  cancel-in-progress: false
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 100
+    env:
+      ABAQUS_LINUX_BUNDLE_URL: ${{ secrets.ABAQUS_LINUX_BUNDLE_URL }}
+      ABAQUS_LINUX_BUNDLE_SHA256: ${{ vars.ABAQUS_LINUX_BUNDLE_SHA256 }}
+      ABAQUS_LICENSE_ENDPOINT: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
+      ABAQUS_VENDOR_PORT: ${{ secrets.ABAQUS_VENDOR_PORT }}
+      ABAQUS_DISK_BUDGET_JSON: ${{ vars.ABAQUS_DISK_BUDGET_JSON }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Require real installation inputs before networking
+        run: |
+          test -n "$ABAQUS_LINUX_BUNDLE_URL" || { echo 'blocked_environment: no authorized Linux media'; exit 1; }
+          test -n "$ABAQUS_LICENSE_ENDPOINT" || { echo 'blocked_license: no private license endpoint'; exit 1; }
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:honeycomb-runner
+      - run: python3 scripts/audit_cloud.py --output output/cloud-audit
+      - run: python3 scripts/prepare_cloud_runtime.py
+      - run: python3 scripts/qualify_cloud_runtime.py --abaqus /opt/SIMULIA/Commands/abaqus
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: native-qualification-${{ github.run_id }}
+          path: output/
+          retention-days: 30
+          if-no-files-found: ignore

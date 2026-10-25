@@ -1,0 +1,60 @@
+name: Licensed Linux research run
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: 'Existing owner-created catalog job ID'
+        required: true
+        type: string
+permissions:
+  contents: write
+  checks: write
+concurrency:
+  group: honeycomb-licensed-solver
+  cancel-in-progress: false
+jobs:
+  simulate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 330
+    env:
+      CLOUD_JOB_ID: ${{ inputs.job_id }}
+      GITHUB_TOKEN: ${{ github.token }}
+      PLATFORM_POLICY_EVIDENCE_URL: ${{ vars.PLATFORM_POLICY_EVIDENCE_URL }}
+      ABAQUS_LINUX_BUNDLE_URL: ${{ secrets.ABAQUS_LINUX_BUNDLE_URL }}
+      ABAQUS_LINUX_BUNDLE_SHA256: ${{ vars.ABAQUS_LINUX_BUNDLE_SHA256 }}
+      ABAQUS_LICENSE_ENDPOINT: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
+      ABAQUS_VENDOR_PORT: ${{ secrets.ABAQUS_VENDOR_PORT }}
+      ABAQUS_DISK_BUDGET_JSON: ${{ vars.ABAQUS_DISK_BUDGET_JSON }}
+      HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --extra cloud
+      - name: Verify qualified runtime before installing anything
+        run: |
+          uv run --locked --extra cloud python -c 'from pathlib import Path; from scripts.cloud_worker import require_qualification; require_qualification(Path.cwd())'
+      - name: Join private license network
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:honeycomb-runner
+      - name: Install checksum-pinned Linux runtime
+        run: uv run --locked --extra cloud python scripts/prepare_cloud_runtime.py
+      - name: Run real solver and preserve research outputs
+        run: uv run --locked --extra cloud python scripts/cloud_worker.py --job-id "$CLOUD_JOB_ID" --abaqus /opt/SIMULIA/Commands/abaqus --root "$RUNNER_TEMP/honeycomb-results"
+      - name: Preserve bounded diagnostics when interrupted
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: interrupted-diagnostics-${{ github.run_id }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            output/*.json
+            ${{ runner.temp }}/honeycomb-results/**/requested-input.json
+            ${{ runner.temp }}/honeycomb-results/**/resolved-input.json
+            ${{ runner.temp }}/honeycomb-results/**/logs/*.log

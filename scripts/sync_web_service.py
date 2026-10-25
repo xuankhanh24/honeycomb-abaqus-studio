@@ -1,0 +1,25 @@
+"""Build web's lightweight service from canonical modules; never fork model validation."""
+
+import hashlib
+import json
+from pathlib import Path
+
+root = Path(__file__).resolve().parents[1]
+dest = root / "web/service"
+dest.mkdir(parents=True, exist_ok=True)
+fingerprints = {}
+for name in (
+    "__init__.py",
+    "models.py",
+    "cloud_github.py",
+    "cloud_api.py",
+    "cloud_runtime.py",
+    "adapters/reentrant.py",
+    "adapters/hexagonal.py",
+):
+    source = root / "src/honeycomb_studio" / name
+    data = source.read_bytes()
+    (dest / name).parent.mkdir(parents=True, exist_ok=True)
+    (dest / name).write_bytes(data)
+    fingerprints[name] = hashlib.sha256(data).hexdigest()
+(dest / "source-manifest.json").write_text(json.dumps(fingerprints, indent=2), encoding="utf-8")

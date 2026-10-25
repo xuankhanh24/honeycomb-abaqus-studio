@@ -94,3 +94,5 @@ Control corners, strokes and focus treatment come from WinUI defaults. Do not in
 - Don't replace the native Windows world with web styling, custom fonts or raster interface mockups.
 
 <!-- Evidence: MainWindow.xaml, MainWindow.xaml.cs, App.xaml; output/ui/review-input-fixed.png, review-settings-fixed.png, review-restore-fixed.png, review-library-fixed.png and jobs-chart-final.png. Current source supersedes older chart capture tab labels. Reviewer disposition: ship after five material fixes. Actual assistive-technology use and dark-theme appearance were not tested. -->
+
+The Vercel web extension has a separate responsive specification in [web/DESIGN.md](web/DESIGN.md). Native-only statements above apply to WinUI and do not override the web breakpoint system.

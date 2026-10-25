@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T07:05:24.4321253Z",
+  "title": "Design System: Honeycomb Studio Web Extension",
+  "extensions": {
+    "breakpoints": [
+      {
+        "name": "wide",
+        "value": "1450px"
+      },
+      {
+        "name": "compact-desktop",
+        "value": "1100px"
+      },
+      {
+        "name": "stacked",
+        "value": "800px"
+      },
+      {
+        "name": "phone",
+        "value": "520px"
+      }
+    ],
+    "shadows": [],
+    "motion": []
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Input checking and permitted execution.",
+      "html": "<button class='ds-primary'>Kiểm tra đầu vào</button>",
+      "css": ".ds-primary{font:600 13px Segoe UI,system-ui,sans-serif;min-height:38px;padding:8px 13px;border:1px solid var(--blue,#1769aa);border-radius:5px;background:var(--blue,#1769aa);color:#fff;cursor:pointer}.ds-primary:hover{background:#12558b}.ds-primary:focus-visible{outline:3px solid #267fc1;outline-offset:3px}.ds-primary:disabled{opacity:.5;cursor:not-allowed}"
+    },
+    {
+      "name": "Secondary button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Download and inspect detail.",
+      "html": "<button class='ds-secondary'>Tải input</button>",
+      "css": ".ds-secondary{font:600 13px Segoe UI,system-ui,sans-serif;min-height:38px;padding:8px 13px;border:1px solid #c7d0db;border-radius:5px;background:#fff;color:#24364b;cursor:pointer}.ds-secondary:hover{background:#eef3f8;border-color:#8fa4bb}.ds-secondary:focus-visible{outline:3px solid #267fc1;outline-offset:3px}.ds-secondary:disabled{opacity:.5;cursor:not-allowed}"
+    },
+    {
+      "name": "Unit-explicit field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Label and unit beside a numeric value.",
+      "html": "<label class='ds-field'><span>Chiều cao lõi <small>mm</small></span><input type='number' value='20'/></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:7px;font:12px Segoe UI,system-ui,sans-serif;color:#202d3d}.ds-field span{display:flex;justify-content:space-between;gap:6px;line-height:1.5}.ds-field small{font-size:11px;color:var(--muted,#566678)}.ds-field input{font:inherit;font-variant-numeric:tabular-nums;min-height:38px;padding:8px 10px;border:1px solid #bbc7d5;border-radius:4px;background:#fff;color:#24364b;caret-color:var(--blue,#1769aa)}.ds-field input:focus-visible{outline:3px solid #267fc1;outline-offset:3px}"
+    },
+    {
+      "name": "Task navigation",
+      "kind": "nav",
+      "description": "Text-bearing selected task.",
+      "html": "<nav class='ds-nav' aria-label='Điều hướng'><button aria-current='page'>Thiết lập</button><button>Công việc</button></nav>",
+      "css": ".ds-nav{display:grid;gap:5px;background:#edf1f5;padding:16px}.ds-nav button{font:400 14px Segoe UI,system-ui,sans-serif;text-align:left;min-height:43px;padding:8px 13px;border:1px solid transparent;border-radius:5px;background:transparent;color:#24364b;cursor:pointer}.ds-nav button[aria-current=page]{background:#dce8f3;color:#145a91;font-weight:600}.ds-nav button:hover{border-color:#8fa4bb}.ds-nav button:focus-visible{outline:3px solid #267fc1;outline-offset:3px}"
+    },
+    {
+      "name": "Unit tag",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "Static unit context.",
+      "html": "<span class='ds-tag'>Đơn vị mm · N · s</span>",
+      "css": ".ds-tag{display:inline-block;font:11px Segoe UI,system-ui,sans-serif;color:var(--muted,#566678);background:#eef3f7;padding:5px 8px;border-radius:4px;white-space:nowrap}"
+    },
+    {
+      "name": "Inspector panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Flat bordered readiness container.",
+      "html": "<section class='ds-panel'><h2>Điều kiện chạy cloud</h2><p>Chưa đủ bằng chứng nghiệm thu Linux/license để chạy thật.</p></section>",
+      "css": ".ds-panel{font-family:Segoe UI,system-ui,sans-serif;background:#fff;border:1px solid var(--line,#dbe1e8);border-radius:8px;padding:20px;color:#202d3d}.ds-panel h2{font-size:16px;font-weight:650;margin:0 0 14px}.ds-panel p{font-size:12px;line-height:1.65;color:#536174}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Reproducible Research Workbench",
+    "overview": "This document records the separate web surface in Operate mode. The native WinUI 3 application remains governed by [the root design system](../DESIGN.md); this extension carries its restrained Fluent character into browser controls. It does not redefine native theme resources or desktop layout.\n\nQuiet blue actions, system sans typography and dense labeled inputs keep the model readable. Geometry and runtime readiness sit beside the parameter sheet so a researcher can inspect inputs before preparing a job. This implements candidate 5, the workbench direction, from seed `d139dc8f`; the first body comment in `index.html` records the direction contract.",
+    "keyCharacteristics": [
+      "Flat light surfaces, restrained blue actions and clear keyboard focus.",
+      "Vietnamese task language, explicit units and tabular numeric values.",
+      "Adjacent geometry and execution evidence with truthful scope labels.",
+      "Public inspection and owner-controlled writes."
+    ],
+    "rules": [
+      {
+        "section": "colors",
+        "name": "The Evidence Color Rule",
+        "body": "Pair status color with text and scientific color with labels, legends or stroke differences."
+      },
+      {
+        "section": "typography",
+        "name": "The Unit Adjacency Rule",
+        "body": "Keep field units alongside their labels and result units alongside values. JSON is supplementary detail rather than the primary model editor."
+      }
+    ],
+    "dos": [
+      "Do preserve the native application's root design authority while extending this browser surface.",
+      "Do keep units, model choices, provenance and runtime gates visible near the affected action.",
+      "Do preserve keyboard focus, skip navigation, text status and horizontal access to wide tables.",
+      "Do use actual geometry, measured status and recorded scientific data with their scope labels."
+    ],
+    "donts": [
+      "Don't present public inspection as permission to save or control jobs.",
+      "Don't imply Linux, license or platform-policy acceptance from a successful input preview.",
+      "Don't call solver completion physical validation or geometry preview a solver result.",
+      "Don't add decorative shadows, display fonts or imagery that obscures the dense research workflow."
+    ]
+  }
+}

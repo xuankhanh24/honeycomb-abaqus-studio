@@ -46,6 +46,7 @@ class Engine:
         self.abaqus = abaqus
         self.fake = fake
         self.shutdown = threading.Event()
+        self.runtime_fingerprint = "native-unqualified"
         self.wake = threading.Event()
         self.guard = threading.RLock()
         self.worker = None
@@ -391,6 +392,7 @@ class Engine:
                 cache_key = digest(
                     {
                         "input": cache_spec,
+                        "runtime": self.runtime_fingerprint,
                         "builder": checksum(ADAPTERS / "build.py"),
                         "reentrant_geometry": checksum(ADAPTERS / "reentrant.py"),
                         "hexagonal_geometry": checksum(ADAPTERS / "hexagonal.py"),

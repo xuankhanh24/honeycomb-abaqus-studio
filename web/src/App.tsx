@@ -1,0 +1,1245 @@
+import { useEffect, useState, useRef, lazy, Suspense } from "react";
+import {
+    Box,
+    SlidersHorizontal,
+    ListChecks,
+    Database,
+    Link2,
+    ArrowRight,
+    Download,
+    ExternalLink,
+    LogIn,
+    RefreshCw,
+} from "lucide-react";
+const HistoryChart = lazy(() => import("./HistoryChart"));
+
+type Doc = Record<string, any>;
+type Geometry = {
+    plane: string;
+    width: number;
+    height: number;
+    depth: number;
+    walls: [number[], number[], boolean][];
+};
+function number(value: unknown, digits = 3) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toFixed(digits) : "Chưa có";
+}
+const repo = "https://github.com/xuankhanh24/honeycomb-abaqus-studio";
+async function api(path: string, body?: unknown, csrf?: string): Promise<Doc> {
+    const r = await fetch(path, {
+        method: body === undefined ? "GET" : "POST",
+        headers: {
+            "Content-Type": "application/json",
+            ...(csrf ? { "X-Honeycomb-CSRF": csrf } : {}),
+        },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+    const d = await r.json();
+    if (!r.ok)
+        throw new Error(
+            typeof d.detail === "string"
+                ? d.detail
+                : JSON.stringify(d.detail ?? d),
+        );
+    return d;
+}
+function download(name: string, data: unknown) {
+    const u = URL.createObjectURL(
+        new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+    );
+    const a = document.createElement("a");
+    a.href = u;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(u);
+}
+const groups: [string, string[]][] = [
+    ["Tấm sandwich", ["panel", "core_height", "skin", "bottom_skin", "foil"]],
+    [
+        "Ô lõi",
+        [
+            "core_topology",
+            "cell_size",
+            "reentrant_cell_height",
+            "reentrant_indent",
+            "hex_geometry",
+            "hex_b",
+            "hex_l",
+            "hex_theta_deg",
+            "core_angle",
+        ],
+    ],
+    [
+        "Viên bi và tải",
+        [
+            "ball_size_mode",
+            "ball_radius",
+            "ball_diameter",
+            "mass_kg",
+            "loading",
+            "energy_J",
+            "velocity_m_s",
+            "impact_x",
+            "impact_y",
+        ],
+    ],
+    [
+        "Ngàm và thời gian",
+        [
+            "clamp_mode",
+            "clamp_diameter",
+            "duration",
+            "mesh_preset",
+            "field_intervals",
+            "history_intervals",
+        ],
+    ],
+];
+const choices: Record<string, [string, string][]> = {
+    core_topology: [
+        ["reentrant_0", "Tổ ong lõm Re-entrant · 0°"],
+        ["hexagonal", "Tổ ong lục giác"],
+    ],
+    hex_geometry: [
+        ["regular", "Ô đều"],
+        ["parametric", "Nhập b, l, θ"],
+    ],
+    ball_size_mode: [
+        ["radius", "Bán kính R"],
+        ["diameter", "Đường kính D"],
+    ],
+    loading: [
+        ["energy", "Năng lượng"],
+        ["velocity", "Vận tốc"],
+    ],
+    clamp_mode: [
+        ["perimeter", "Chỉ bốn cạnh ngoài"],
+        ["circular", "Ngoài lỗ tròn"],
+    ],
+    mesh_preset: [
+        ["reference", "Tham chiếu"],
+        ["quick", "Nhanh"],
+        ["fine", "Mịn"],
+        ["custom", "Tùy chỉnh"],
+    ],
+};
+const tabs = [
+    ["model", "Thiết lập", SlidersHorizontal],
+    ["jobs", "Công việc", ListChecks],
+    ["data", "Dữ liệu", Database],
+    ["setup", "Kết nối", Link2],
+] as const;
+
+export default function App() {
+    const [tab, setTab] = useState("model"),
+        [spec, setSpec] = useState<Doc | null>(null),
+        [params, setParams] = useState<Doc[]>([]),
+        [status, setStatus] = useState<Doc>({ gates: [] }),
+        [session, setSession] = useState<Doc>({}),
+        [geometry, setGeometry] = useState<Geometry | null>(null),
+        [geoError, setGeoError] = useState(""),
+        [error, setError] = useState(""),
+        [busy, setBusy] = useState(false),
+        [preview, setPreview] = useState<Doc | null>(null),
+        [jobs, setJobs] = useState<Doc[]>([]),
+        [selected, setSelected] = useState<Doc | null>(null),
+        [profile, setProfile] = useState("research"),
+        [json, setJson] = useState(""),
+        [setup, setSetup] = useState<Doc | null>(null),
+        [references, setReferences] = useState<Doc[]>([]),
+        [reference, setReference] = useState(0),
+        [curve, setCurve] = useState<Doc[]>([]);
+    const selectedId = useRef<string | null>(null);
+    useEffect(() => {
+        selectedId.current = selected?.id ?? null;
+    }, [selected]);
+    async function refresh() {
+        try {
+            const [s, u, j] = await Promise.all([
+                api("/api/status"),
+                api("/api/session"),
+                api("/api/jobs"),
+            ]);
+            setStatus(s);
+            setSession(u);
+            setJobs(j.jobs);
+            const id = selectedId.current;
+            if (id) {
+                const detail = await api("/api/jobs/" + id);
+                if (selectedId.current === id) setSelected(detail);
+            }
+        } catch (e) {
+            setError(String(e));
+        }
+    }
+    useEffect(() => {
+        api("/api/template")
+            .then((t) => {
+                setSpec(t.spec);
+                setJson(JSON.stringify(t.spec, null, 2));
+                setParams(t.parameters);
+            })
+            .catch((e) => setError(String(e)));
+        void refresh();
+        fetch("/reference/index.json")
+            .then((r) => (r.ok ? r.json() : []))
+            .then(setReferences)
+            .catch(() => {});
+    }, []);
+    useEffect(() => {
+        const active = jobs.some((j) =>
+            ["running", "dispatching", "preflight"].includes(j.status),
+        );
+        const timer = setInterval(() => void refresh(), active ? 15000 : 60000);
+        return () => clearInterval(timer);
+    }, [jobs]);
+    useEffect(() => {
+        if (!spec) return;
+        const abort = new AbortController();
+        setGeometry(null);
+        const timer = setTimeout(() => {
+            fetch("/api/geometry", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(spec.model),
+                signal: abort.signal,
+            })
+                .then(async (r) => {
+                    const d = await r.json();
+                    if (!r.ok) throw new Error(d.detail);
+                    setGeometry(d);
+                    setGeoError("");
+                })
+                .catch((e) => {
+                    if (e.name !== "AbortError") setGeoError(String(e));
+                });
+        }, 350);
+        return () => {
+            clearTimeout(timer);
+            abort.abort();
+        };
+    }, [spec]);
+    useEffect(() => {
+        setCurve([]);
+        if (!references[reference]) return;
+        const abort = new AbortController();
+        fetch(references[reference].history, { signal: abort.signal })
+            .then((r) => {
+                if (!r.ok)
+                    throw new Error(
+                        "Không tải được history. Chọn lại bài để thử lại.",
+                    );
+                return r.text();
+            })
+            .then((text) => {
+                if (abort.signal.aborted) return;
+                const lines = text.trim().split(/\r?\n/),
+                    keys = lines.shift()!.split(",");
+                setCurve(
+                    lines.map((l) =>
+                        Object.fromEntries(
+                            l.split(",").map((v, i) => [keys[i], Number(v)]),
+                        ),
+                    ),
+                );
+            })
+            .catch((e) => {
+                if (e.name !== "AbortError") setError(String(e));
+            });
+        return () => abort.abort();
+    }, [references, reference]);
+    function update(key: string, value: unknown) {
+        setSpec((s) => {
+            const n = { ...s!, model: { ...s!.model, [key]: value } };
+            setJson(JSON.stringify(n, null, 2));
+            return n;
+        });
+        setPreview(null);
+    }
+    async function openJob(id: string) {
+        selectedId.current = id;
+        const d = await api("/api/jobs/" + id);
+        if (selectedId.current === id) setSelected(d);
+    }
+    async function act(f: () => Promise<void>) {
+        setError("");
+        setBusy(true);
+        try {
+            await f();
+        } catch (e) {
+            setError(String(e));
+        } finally {
+            setBusy(false);
+        }
+    }
+    const model = spec?.model ?? {};
+    function visible(k: string) {
+        if (k.startsWith("hex_"))
+            return (
+                model.core_topology === "hexagonal" &&
+                (k === "hex_geometry" || model.hex_geometry === "parametric")
+            );
+        if (k.startsWith("reentrant_"))
+            return model.core_topology === "reentrant_0";
+        if (k === "core_angle") return model.core_topology === "hexagonal";
+        if (k === "cell_size")
+            return (
+                model.core_topology !== "hexagonal" ||
+                model.hex_geometry === "regular"
+            );
+        if (k === "clamp_diameter") return model.clamp_mode === "circular";
+        if (k === "ball_radius" || k === "ball_diameter")
+            return (
+                k ===
+                (model.ball_size_mode === "radius"
+                    ? "ball_radius"
+                    : "ball_diameter")
+            );
+        if (k === "energy_J" || k === "velocity_m_s")
+            return (
+                k === (model.loading === "energy" ? "energy_J" : "velocity_m_s")
+            );
+        return true;
+    }
+    function field(k: string) {
+        const p =
+            k === "mesh_preset"
+                ? { title: "Cấu hình lưới" }
+                : (params.find((p) => p.key === k) ?? {
+                      title:
+                          (
+                              { mesh_preset: "Cấu hình lưới" } as Record<
+                                  string,
+                                  string
+                              >
+                          )[k] ?? k,
+                  });
+        return (
+            <label className="field" key={k}>
+                <span>
+                    {p.title}
+                    {p.unit && <small>{p.unit}</small>}
+                </span>
+                {choices[k] ? (
+                    <select
+                        value={model[k]}
+                        onChange={(e) => update(k, e.target.value)}
+                    >
+                        {choices[k].map(([v, l]) => (
+                            <option key={v} value={v}>
+                                {l}
+                            </option>
+                        ))}
+                    </select>
+                ) : (
+                    <input
+                        type="number"
+                        step="any"
+                        value={model[k] ?? ""}
+                        placeholder={
+                            k === "bottom_skin" ? "Bằng mặt trên" : undefined
+                        }
+                        onChange={(e) =>
+                            update(
+                                k,
+                                e.target.value === ""
+                                    ? null
+                                    : Number(e.target.value),
+                            )
+                        }
+                    />
+                )}
+            </label>
+        );
+    }
+    return (
+        <div className="shell">
+            <a className="skip" href="#main">
+                Đến nội dung chính
+            </a>
+            <aside className="sidebar">
+                <a href="/" className="brand">
+                    <Box size={28} />
+                    <span>
+                        Honeycomb<strong>Studio</strong>
+                    </span>
+                </a>
+                <p className="workspace">Không gian nghiên cứu</p>
+                <nav aria-label="Điều hướng">
+                    {tabs.map(([id, label, Icon]) => (
+                        <button
+                            key={id}
+                            aria-current={tab === id ? "page" : undefined}
+                            onClick={() => {
+                                setTab(id);
+                                setError("");
+                            }}
+                        >
+                            <Icon size={18} />
+                            {label}
+                        </button>
+                    ))}
+                </nav>
+                <div className="sidebar-foot">
+                    <a href={repo} target="_blank" rel="noreferrer">
+                        Repo công khai <ExternalLink size={14} />
+                    </a>
+                    <span>Windows · Ubuntu cloud</span>
+                </div>
+            </aside>
+            <div className="body">
+                <header className="topbar">
+                    <span>Sandwich / Va chạm viên bi</span>
+                    <button
+                        onClick={() =>
+                            session.login_available
+                                ? location.assign("/auth/login")
+                                : setTab("setup")
+                        }
+                    >
+                        <LogIn size={16} />
+                        {session.owner ? "Chủ dự án" : "Đăng nhập quản trị"}
+                    </button>
+                </header>
+                <main id="main">
+                    <div className="page-heading">
+                        <div>
+                            <h1>{tabs.find((t) => t[0] === tab)?.[1]}</h1>
+                            <p>
+                                {tab === "model"
+                                    ? "Dựng lõi, kiểm tra thông số và chuẩn bị bài va chạm."
+                                    : tab === "jobs"
+                                      ? "Theo dõi từng lần chạy và giữ lại nguồn gốc dữ liệu."
+                                      : tab === "data"
+                                        ? "Đọc kết quả thật, kiểm tra phạm vi và tải dữ liệu."
+                                        : "Kết nối dịch vụ và kiểm tra điều kiện chạy Linux."}
+                            </p>
+                        </div>
+                        <div className="heading-actions">
+                            {tab === "model" && (
+                                <button
+                                    className="primary"
+                                    disabled={busy || !spec}
+                                    onClick={() =>
+                                        void act(async () =>
+                                            setPreview(
+                                                await api("/api/preview", spec),
+                                            ),
+                                        )
+                                    }
+                                >
+                                    Kiểm tra đầu vào
+                                    <ArrowRight size={16} />
+                                </button>
+                            )}
+                            <button
+                                className="icon-button"
+                                aria-label="Cập nhật trạng thái"
+                                onClick={() => void refresh()}
+                            >
+                                <RefreshCw size={18} />
+                            </button>
+                        </div>
+                    </div>
+                    {error && (
+                        <div role="alert" className="error">
+                            {error}
+                            <button onClick={() => setError("")}>Đóng</button>
+                        </div>
+                    )}
+                    {tab === "model" && (
+                        <div className="workbench">
+                            <section className="sheet">
+                                <div className="sheet-title">
+                                    <h2>Mô hình va chạm</h2>
+                                    <span className="tag">
+                                        Đơn vị mm · N · s
+                                    </span>
+                                </div>
+                                {spec ? (
+                                    <>
+                                        <label className="name-field">
+                                            Tên bài
+                                            <input
+                                                value={spec.name}
+                                                onChange={(e) =>
+                                                    setSpec({
+                                                        ...spec,
+                                                        name: e.target.value,
+                                                    })
+                                                }
+                                            />
+                                        </label>
+                                        {groups.map(([title, keys]) => (
+                                            <section
+                                                className="parameter-group"
+                                                key={title}
+                                            >
+                                                <h3>{title}</h3>
+                                                <div className="fields">
+                                                    {keys
+                                                        .filter(visible)
+                                                        .map(field)}
+                                                </div>
+                                            </section>
+                                        ))}
+                                        <section className="parameter-group">
+                                            <h3>Dữ liệu đầu ra</h3>
+                                            <label className="field">
+                                                <span>
+                                                    Profile xuất dữ liệu
+                                                </span>
+                                                <select
+                                                    value={profile}
+                                                    onChange={(e) =>
+                                                        setProfile(
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                >
+                                                    <option value="smoke">
+                                                        Smoke · thử môi trường
+                                                        ngắn
+                                                    </option>
+                                                    <option value="research">
+                                                        Research · ODB, history,
+                                                        thống kê, báo cáo
+                                                    </option>
+                                                    <option value="full">
+                                                        Full · thêm toàn bộ
+                                                        trường/frame sang
+                                                        Parquet
+                                                    </option>
+                                                </select>
+                                            </label>
+                                            <p className="hint">
+                                                Giữ double precision và không
+                                                mass scaling. Full tạo thêm dữ
+                                                liệu ngoài ODB; cần đo dung
+                                                lượng trước khi chạy.
+                                            </p>
+                                        </section>
+                                        <details>
+                                            <summary>
+                                                Toàn bộ input, vật liệu và khảo
+                                                sát nhiều lượt
+                                            </summary>
+                                            <p className="hint">
+                                                Hợp đồng JSON dùng chung với
+                                                worker; tối đa 10 lượt mỗi
+                                                batch. Thay đổi nâng cao được áp
+                                                dụng khi bạn bấm nút bên dưới.
+                                            </p>
+                                            <label className="json-label">
+                                                Input JSON
+                                                <textarea
+                                                    spellCheck={false}
+                                                    value={json}
+                                                    onChange={(e) =>
+                                                        setJson(e.target.value)
+                                                    }
+                                                    rows={14}
+                                                />
+                                            </label>
+                                            <button
+                                                onClick={() => {
+                                                    try {
+                                                        setSpec(
+                                                            JSON.parse(json),
+                                                        );
+                                                        setPreview(null);
+                                                        setError("");
+                                                    } catch {
+                                                        setError(
+                                                            "JSON chưa hợp lệ. Kiểm tra dấu ngoặc và dấu phẩy.",
+                                                        );
+                                                    }
+                                                }}
+                                            >
+                                                Áp dụng JSON
+                                            </button>
+                                        </details>
+                                        <div className="actions">
+                                            <button
+                                                className="primary"
+                                                disabled={busy}
+                                                onClick={() =>
+                                                    void act(async () =>
+                                                        setPreview(
+                                                            await api(
+                                                                "/api/preview",
+                                                                spec,
+                                                            ),
+                                                        ),
+                                                    )
+                                                }
+                                            >
+                                                {busy
+                                                    ? "Đang kiểm tra…"
+                                                    : "Kiểm tra đầu vào"}
+                                                <ArrowRight size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() =>
+                                                    download(
+                                                        "requested-input.json",
+                                                        spec,
+                                                    )
+                                                }
+                                            >
+                                                <Download size={16} />
+                                                Tải input
+                                            </button>
+                                            <button
+                                                disabled={
+                                                    !session.owner ||
+                                                    !preview ||
+                                                    busy
+                                                }
+                                                title={
+                                                    !session.owner
+                                                        ? "Đăng nhập chủ dự án để lưu bài"
+                                                        : "Kiểm tra đầu vào trước khi lưu"
+                                                }
+                                                onClick={() =>
+                                                    void act(async () => {
+                                                        const j = await api(
+                                                            "/api/jobs",
+                                                            {
+                                                                request_id:
+                                                                    crypto
+                                                                        .randomUUID()
+                                                                        .replaceAll(
+                                                                            "-",
+                                                                            "",
+                                                                        ),
+                                                                profile,
+                                                                spec,
+                                                            },
+                                                            session.csrf,
+                                                        );
+                                                        setSelected(j);
+                                                        setTab("jobs");
+                                                        await refresh();
+                                                    })
+                                                }
+                                            >
+                                                Lưu bài
+                                            </button>
+                                        </div>
+                                        {!session.owner && (
+                                            <p className="hint">
+                                                Mọi người có thể kiểm tra input.
+                                                Chỉ chủ dự án được lưu và điều
+                                                khiển job.
+                                            </p>
+                                        )}
+                                        {preview && (
+                                            <div
+                                                role="status"
+                                                className="preview-result"
+                                            >
+                                                <h3>
+                                                    {preview.count} lượt hợp lệ
+                                                </h3>
+                                                <p className="hint">
+                                                    Thông số đã được quy đổi
+                                                    theo cùng quy tắc với
+                                                    worker.
+                                                </p>
+                                                <div className="table-scroll">
+                                                    <table>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Lượt</th>
+                                                                <th>
+                                                                    Năng lượng
+                                                                    (J)
+                                                                </th>
+                                                                <th>
+                                                                    Vận tốc
+                                                                    (m/s)
+                                                                </th>
+                                                                <th>
+                                                                    Input hash
+                                                                </th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {preview.runs.map(
+                                                                (r: Doc) => (
+                                                                    <tr
+                                                                        key={
+                                                                            r.input_hash
+                                                                        }
+                                                                    >
+                                                                        <td>
+                                                                            {
+                                                                                r.index
+                                                                            }
+                                                                        </td>
+                                                                        <td>
+                                                                            {Number(
+                                                                                r
+                                                                                    .resolved
+                                                                                    .energy_J,
+                                                                            ).toFixed(
+                                                                                3,
+                                                                            )}
+                                                                        </td>
+                                                                        <td>
+                                                                            {Number(
+                                                                                r
+                                                                                    .resolved
+                                                                                    .velocity_m_s,
+                                                                            ).toFixed(
+                                                                                4,
+                                                                            )}
+                                                                        </td>
+                                                                        <td>
+                                                                            <code
+                                                                                title={
+                                                                                    r.input_hash
+                                                                                }
+                                                                            >
+                                                                                {r.input_hash.slice(
+                                                                                    0,
+                                                                                    12,
+                                                                                )}
+                                                                            </code>
+                                                                        </td>
+                                                                    </tr>
+                                                                ),
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <p role="status">
+                                        Đang tải hợp đồng thông số…
+                                    </p>
+                                )}
+                            </section>
+                            <aside className="inspector">
+                                <section className="geometry">
+                                    <div className="sheet-title">
+                                        <h2>Mặt cắt lõi</h2>
+                                        <span>{geometry?.plane ?? "—"}</span>
+                                    </div>
+                                    {geometry ? (
+                                        <>
+                                            <svg
+                                                role="img"
+                                                aria-label={`Hình học lõi mặt ${geometry.plane}, ${geometry.walls.length} đoạn vách`}
+                                                viewBox={`-5 -5 ${geometry.width + 10} ${geometry.height + 10}`}
+                                            >
+                                                <rect
+                                                    width={geometry.width}
+                                                    height={geometry.height}
+                                                    fill="#f4f7fa"
+                                                    stroke="#aeb9c7"
+                                                    strokeWidth="0.15"
+                                                />
+                                                {geometry.walls.map(
+                                                    ([u, v, d], i) => (
+                                                        <line
+                                                            key={i}
+                                                            x1={
+                                                                u[0] +
+                                                                geometry.width /
+                                                                    2
+                                                            }
+                                                            y1={
+                                                                geometry.height /
+                                                                    2 -
+                                                                u[1]
+                                                            }
+                                                            x2={
+                                                                v[0] +
+                                                                geometry.width /
+                                                                    2
+                                                            }
+                                                            y2={
+                                                                geometry.height /
+                                                                    2 -
+                                                                v[1]
+                                                            }
+                                                            stroke={
+                                                                d
+                                                                    ? "#174e80"
+                                                                    : "#527995"
+                                                            }
+                                                            strokeWidth={
+                                                                d ? 0.38 : 0.22
+                                                            }
+                                                        />
+                                                    ),
+                                                )}
+                                            </svg>
+                                            <dl className="facts">
+                                                <div>
+                                                    <dt>Kích thước mặt cắt</dt>
+                                                    <dd>
+                                                        {geometry.width} ×{" "}
+                                                        {geometry.height} mm
+                                                    </dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Chiều sâu đùn</dt>
+                                                    <dd>{geometry.depth} mm</dd>
+                                                </div>
+                                                <div>
+                                                    <dt>Đoạn vách hình học</dt>
+                                                    <dd>
+                                                        {geometry.walls.length}
+                                                    </dd>
+                                                </div>
+                                            </dl>
+                                        </>
+                                    ) : (
+                                        <p role="status">
+                                            {geoError || "Đang dựng hình học…"}
+                                        </p>
+                                    )}
+                                    <p className="hint">
+                                        Preview hình học, chưa phải lưới hoặc
+                                        kết quả solver. Vách đậm biểu diễn foil
+                                        kép.
+                                    </p>
+                                </section>
+                                <section className="readiness">
+                                    <h2>Điều kiện chạy cloud</h2>
+                                    {status.gates.map((g: Doc) => (
+                                        <div className="gate" key={g.status}>
+                                            <span className="status-dot" />
+                                            <p>{g.message}</p>
+                                        </div>
+                                    ))}
+                                    <button
+                                        className="text-button"
+                                        onClick={() => setTab("setup")}
+                                    >
+                                        Xem kết nối và bằng chứng{" "}
+                                        <ArrowRight size={16} />
+                                    </button>
+                                </section>
+                                <p className="inspector-note">
+                                    Ngàm bốn cạnh chỉ khóa viền ngoài hai tấm
+                                    mặt. Ngàm ngoài lỗ tròn là cấu hình tham
+                                    chiếu cũ.
+                                </p>
+                            </aside>
+                        </div>
+                    )}
+                    {tab === "jobs" && (
+                        <section className="sheet">
+                            <div className="sheet-title">
+                                <h2>Danh sách bài</h2>
+                                <span>{jobs.length} bài đã lưu</span>
+                            </div>
+                            {jobs.length ? (
+                                <div className="table-scroll">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Tên bài</th>
+                                                <th>Profile</th>
+                                                <th>Trạng thái</th>
+                                                <th>Chi tiết</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {jobs.map((j) => (
+                                                <tr key={j.id}>
+                                                    <td>{j.name}</td>
+                                                    <td>{j.profile}</td>
+                                                    <td>{j.status}</td>
+                                                    <td>
+                                                        <button
+                                                            onClick={() =>
+                                                                void act(
+                                                                    async () =>
+                                                                        openJob(
+                                                                            j.id,
+                                                                        ),
+                                                                )
+                                                            }
+                                                        >
+                                                            Mở bài
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="empty">
+                                    <ListChecks size={30} />
+                                    <h3>Chưa có bài cloud được lưu</h3>
+                                    <p>
+                                        Kiểm tra đầu vào trong Thiết lập, sau đó
+                                        đăng nhập chủ dự án để lưu bài. Chạy
+                                        thật sẽ mở khi các bước nghiệm thu hoàn
+                                        tất.
+                                    </p>
+                                    <button onClick={() => setTab("model")}>
+                                        Về thiết lập
+                                    </button>
+                                </div>
+                            )}
+                            {selected && (
+                                <section className="job-detail">
+                                    <h3>{selected.name}</h3>
+                                    <p>
+                                        Trạng thái:{" "}
+                                        <strong>{selected.status}</strong> ·{" "}
+                                        {selected.profile}
+                                    </p>
+                                    <div className="actions">
+                                        <button
+                                            className="primary"
+                                            disabled={
+                                                !session.owner ||
+                                                !!status.gates.length ||
+                                                selected.status !== "draft" ||
+                                                busy
+                                            }
+                                            onClick={() =>
+                                                void act(async () => {
+                                                    await api(
+                                                        `/api/jobs/${selected.id}/dispatch`,
+                                                        {},
+                                                        session.csrf,
+                                                    );
+                                                    await refresh();
+                                                })
+                                            }
+                                        >
+                                            Chạy trên Ubuntu
+                                        </button>
+                                        <button
+                                            disabled={
+                                                !session.owner ||
+                                                ![
+                                                    "running",
+                                                    "dispatching",
+                                                    "preflight",
+                                                ].includes(selected.status) ||
+                                                busy
+                                            }
+                                            onClick={() =>
+                                                void act(async () => {
+                                                    await api(
+                                                        `/api/jobs/${selected.id}/cancel`,
+                                                        {},
+                                                        session.csrf,
+                                                    );
+                                                    await refresh();
+                                                })
+                                            }
+                                        >
+                                            Yêu cầu dừng
+                                        </button>
+                                        <button
+                                            onClick={() =>
+                                                download(
+                                                    `${selected.id}.json`,
+                                                    selected,
+                                                )
+                                            }
+                                        >
+                                            Tải lịch sử và thiết đặt
+                                        </button>
+                                        {selected.release_url && (
+                                            <a
+                                                className="button"
+                                                href={selected.release_url}
+                                            >
+                                                Kết quả trên GitHub{" "}
+                                                <ExternalLink size={14} />
+                                            </a>
+                                        )}
+                                    </div>
+                                    {!!status.gates.length && (
+                                        <p className="hint">
+                                            Chưa đủ bằng chứng nghiệm thu
+                                            Linux/license để chạy thật. Input đã
+                                            lưu vẫn được giữ.
+                                        </p>
+                                    )}
+                                    <details>
+                                        <summary>
+                                            Input, nguồn gốc và trạng thái đầy
+                                            đủ
+                                        </summary>
+                                        <pre>
+                                            {JSON.stringify(selected, null, 2)}
+                                        </pre>
+                                    </details>
+                                </section>
+                            )}
+                        </section>
+                    )}
+                    {tab === "data" && (
+                        <section className="sheet">
+                            <div className="sheet-title">
+                                <h2>Kết quả tham chiếu</h2>
+                                <span className="tag">
+                                    Dữ liệu thật · Windows
+                                </span>
+                            </div>
+                            <p className="measure">
+                                Các bài 7 J dưới đây dùng ngàm ngoài lỗ tròn.
+                                Chúng là tham chiếu cũ, chưa chứng minh kết quả
+                                của ngàm bốn cạnh hoặc Ubuntu.
+                            </p>
+                            {references.length ? (
+                                <>
+                                    <label className="field">
+                                        <span>Bài tham chiếu</span>
+                                        <select
+                                            value={reference}
+                                            onChange={(e) => {
+                                                setCurve([]);
+                                                setReference(
+                                                    Number(e.target.value),
+                                                );
+                                            }}
+                                        >
+                                            {references.map((r, i) => (
+                                                <option value={i} key={r.id}>
+                                                    {r.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <div className="chart">
+                                        {!curve.length && (
+                                            <p role="status">
+                                                Đang tải đường cong của bài đã
+                                                chọn…
+                                            </p>
+                                        )}
+                                        <Suspense
+                                            fallback={
+                                                <p role="status">
+                                                    Đang nạp biểu đồ…
+                                                </p>
+                                            }
+                                        >
+                                            <HistoryChart curve={curve} />
+                                        </Suspense>
+                                    </div>
+                                    <dl className="result-facts">
+                                        <div>
+                                            <dt>Lực đỉnh</dt>
+                                            <dd>
+                                                {Number(
+                                                    references[reference]
+                                                        ?.summary
+                                                        ?.peak_raw_contact_force_N,
+                                                ).toFixed(1)}{" "}
+                                                N
+                                            </dd>
+                                        </div>
+                                        <div>
+                                            <dt>
+                                                Tiêu tán dẻo cuối · toàn tấm
+                                            </dt>
+                                            <dd>
+                                                {number(
+                                                    references[reference]
+                                                        ?.summary
+                                                        ?.final_total_plastic_dissipation_J ??
+                                                        curve.at(-1)?.ALLPD_J,
+                                                )}{" "}
+                                                J
+                                            </dd>
+                                        </div>
+                                        <div>
+                                            <dt>
+                                                Dịch chuyển viên bi lớn nhất
+                                            </dt>
+                                            <dd>
+                                                {Number(
+                                                    references[reference]
+                                                        ?.summary
+                                                        ?.max_impactor_displacement_mm,
+                                                ).toFixed(3)}{" "}
+                                                mm
+                                            </dd>
+                                        </div>
+                                    </dl>
+                                    <p className="hint">
+                                        ALLPD là tiêu tán dẻo toàn sandwich;
+                                        không đồng nhất với năng lượng hấp thụ
+                                        riêng của lõi. Dữ liệu so sánh chưa qua
+                                        nghiệm thu tương đương thực nghiệm.
+                                    </p>
+                                    <div className="actions">
+                                        <a
+                                            className="button"
+                                            href={references[reference].history}
+                                            download
+                                        >
+                                            <Download size={16} />
+                                            History CSV đầy đủ
+                                        </a>
+                                        <button
+                                            onClick={() =>
+                                                download(
+                                                    "reference-provenance.json",
+                                                    references[reference],
+                                                )
+                                            }
+                                        >
+                                            Nguồn và checksum
+                                        </button>
+                                    </div>
+                                    <details>
+                                        <summary>
+                                            Toàn bộ chỉ số và phạm vi kiểm chứng
+                                        </summary>
+                                        <pre>
+                                            {JSON.stringify(
+                                                references[reference].summary,
+                                                null,
+                                                2,
+                                            )}
+                                        </pre>
+                                    </details>
+                                </>
+                            ) : (
+                                <p>
+                                    Chưa nạp được bảng tham chiếu.{" "}
+                                    <button onClick={() => location.reload()}>
+                                        Tải lại
+                                    </button>
+                                </p>
+                            )}
+                            <section className="parameter-group">
+                                <h3>Dữ liệu cloud</h3>
+                                <p>
+                                    ODB, CAE, INP, bảng số và báo cáo của mỗi
+                                    lượt nằm trong Releases. Manifest ghi
+                                    SHA-256 từng phần; chỉ bộ đủ phần mới được
+                                    công bố hoàn chỉnh.
+                                </p>
+                                <a href={repo + "/releases"}>
+                                    Mở kho kết quả công khai{" "}
+                                    <ExternalLink size={14} />
+                                </a>
+                            </section>
+                        </section>
+                    )}
+                    {tab === "setup" && (
+                        <section className="sheet">
+                            <h2>Trạng thái nghiệm thu</h2>
+                            {status.gates.map((g: Doc) => (
+                                <div className="setup-row" key={g.status}>
+                                    <code>{g.status}</code>
+                                    <p>{g.message}</p>
+                                </div>
+                            ))}
+                            <h3>Runner đã đo</h3>
+                            <dl className="facts">
+                                <div>
+                                    <dt>Ubuntu public</dt>
+                                    <dd>
+                                        {status.runner?.cpu ?? "—"} CPU ·{" "}
+                                        {status.runner?.ram_gib ?? "—"} GiB RAM
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt>Tổng đĩa / còn trống khi đo</dt>
+                                    <dd>
+                                        {status.runner?.disk_total_gib ?? "—"} /{" "}
+                                        {status.runner?.disk_free_gib ?? "—"}{" "}
+                                        GiB
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt>Thời điểm đo</dt>
+                                    <dd>{status.runner?.measured_at ?? "—"}</dd>
+                                </div>
+                            </dl>
+                            <a href={status.evidence_url}>
+                                Xem workflow đo tài nguyên{" "}
+                                <ExternalLink size={14} />
+                            </a>
+                            <h3>Quản trị và lưu trữ</h3>
+                            <p className="measure">
+                                Web chỉ chuẩn bị và điều phối bài. Worker chạy
+                                tuần tự trên Actions; license server ở máy chủ
+                                dự án cần bật và có mạng. Chỉ tài khoản chủ dự
+                                án được điều khiển.
+                            </p>
+                            <dl className="facts">
+                                <div>
+                                    <dt>GitHub App</dt>
+                                    <dd>
+                                        {status.github_app_connected
+                                            ? "Đã cấu hình"
+                                            : "Chưa cấu hình"}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt>Đăng nhập quản trị</dt>
+                                    <dd>
+                                        {session.login_available
+                                            ? "Sẵn sàng"
+                                            : "Chưa cấu hình OAuth"}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt>Giới hạn</dt>
+                                    <dd>
+                                        10 lượt / batch · 1 solver · 330 phút
+                                    </dd>
+                                </div>
+                            </dl>
+                            <div className="actions">
+                                <a
+                                    className="button"
+                                    href={
+                                        repo + "/blob/main/docs/CLOUD_STATUS.md"
+                                    }
+                                >
+                                    Tài liệu triển khai{" "}
+                                    <ExternalLink size={14} />
+                                </a>
+                                <button
+                                    disabled={!session.owner}
+                                    onClick={() =>
+                                        void act(async () =>
+                                            setSetup(await api("/api/setup")),
+                                        )
+                                    }
+                                >
+                                    Kiểm tra cấu hình quản trị
+                                </button>
+                            </div>
+                            {setup && (
+                                <pre>{JSON.stringify(setup, null, 2)}</pre>
+                            )}
+                        </section>
+                    )}
+                </main>
+                <footer>
+                    Honeycomb Studio{" "}
+                    <span>
+                        Dữ liệu công khai, quyền điều khiển theo tài khoản.
+                    </span>
+                    <a href={repo}>
+                        Mã nguồn <ExternalLink size={12} />
+                    </a>
+                </footer>
+            </div>
+        </div>
+    );
+}

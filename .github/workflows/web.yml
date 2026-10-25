@@ -1,0 +1,23 @@
+name: Cloud web acceptance
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'scripts/sync_web_service.py', '.github/workflows/web.yml']
+  pull_request:
+    paths: ['web/**', 'scripts/sync_web_service.py', '.github/workflows/web.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web

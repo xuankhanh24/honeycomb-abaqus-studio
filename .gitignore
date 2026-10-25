@@ -55,3 +55,4 @@ catalog.sqlite*
 *.key
 .vercel/
 node_modules/
+web/public/

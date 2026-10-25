@@ -81,7 +81,7 @@ def test_packaged_service_matches_canonical():
     for name, checksum in manifest.items():
         assert (root / "web/service" / name).read_bytes() == (
             root / "src/honeycomb_studio" / name
-        ).read_bytes()
+        ).read_bytes().replace(b"\r\n", b"\n")
         assert hashlib.sha256((root / "web/service" / name).read_bytes()).hexdigest() == checksum
 
 

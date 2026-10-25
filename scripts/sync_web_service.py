@@ -18,7 +18,7 @@ for name in (
     "adapters/hexagonal.py",
 ):
     source = root / "src/honeycomb_studio" / name
-    data = source.read_bytes()
+    data = source.read_bytes().replace(b"\r\n", b"\n")
     (dest / name).parent.mkdir(parents=True, exist_ok=True)
     (dest / name).write_bytes(data)
     fingerprints[name] = hashlib.sha256(data).hexdigest()

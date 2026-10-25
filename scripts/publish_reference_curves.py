@@ -16,7 +16,8 @@ cases = [
 index = []
 for identity, name, folder in cases:
     source = base / folder
-    history = (source / "impact_history.csv").read_bytes()
+    source_bytes = (source / "impact_history.csv").read_bytes()
+    history = source_bytes.replace(b"\r\n", b"\n")
     summary = json.loads((source / "simulation_summary.json").read_text())
     if not summary.get("solver_completed"):
         raise ValueError("Only completed reference solver outputs can be published")
@@ -27,6 +28,7 @@ for identity, name, folder in cases:
             "name": name,
             "history": "/reference/" + identity + ".csv",
             "sha256": hashlib.sha256(history).hexdigest(),
+            "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
             "source": "mo_phong/" + folder,
             "platform": "Windows Abaqus 2017",
             "clamp_mode": "circular",

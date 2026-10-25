@@ -1,12 +1,12 @@
 # Web and licensed Linux worker
 
-The public web is a React/TypeScript extension of Honeycomb Studio. Vercel hosts static assets and lightweight FastAPI routes. The service imports shared input contracts and geometry, never Engine, SQLite, Abaqus, pyarrow or a background solver. `scripts/sync_web_service.py` generates its deployable service snapshot; tests compare it byte-for-byte with canonical source.
+The public web is a React/TypeScript extension of Honeycomb Studio. Vercel hosts static assets and lightweight FastAPI routes. The service imports shared input contracts and geometry, never Engine, SQLite, Abaqus, pyarrow or a background solver. `scripts/sync_web_service.py` generates its deployable service snapshot; tests compare it with LF-normalized canonical source.
 
 ## Actual delivery and remaining setup
 
 The first deployment responds successfully at `/api/health` and `/api/template`. Project: `wukong-rom-studio/honeycomb-studio`. Git integration is not connected: the currently authenticated Vercel account lacks access to the GitHub repository. CLI deployments work; unattended deployment from repo changes is not yet configured.
 
-Public preview, geometry and the three actual Windows 7-J reference histories work without credentials. References use the old circular clamp; they are not cloud acceptance or perimeter-clamp results. The web is not yet an ODB field/deformation viewer. Owner login and dispatch need the service credentials below; until then the service rejects writes.
+Public preview, geometry and the three actual Windows 7-J reference histories work without credentials. References use the old circular clamp; they are not cloud acceptance or perimeter-clamp results. The web is not yet an ODB field/deformation viewer. GitHub App login and owner-created catalog writes are now connected and verified on production. Two actual drafts exist: a research 7-J perimeter-clamp case and an explicitly separate smoke case. Anonymous writes remain rejected. Solver dispatch stays blocked by native runtime, Linux checkout and platform-policy qualification.
 
 ## Vercel settings
 
@@ -34,10 +34,26 @@ The API does not treat a URL environment flag as solver acceptance. A validated 
 | ABAQUS_DISK_BUDGET_JSON (variable) | Measured byte budgets: download, extracted, installed, scratch, odb, export, upload, reserve |
 | ABAQUS_LICENSE_ENDPOINT (secret) | `manager-port@private-host` |
 | ABAQUS_VENDOR_PORT (secret) | Fixed vendor daemon port, verified on license server |
-| TS_OAUTH_CLIENT_ID / TS_OAUTH_SECRET (secrets) | Ephemeral runner network identity, tag `honeycomb-runner` |
+| TS_OAUTH_CLIENT_ID / TS_AUDIENCE (secrets) | OIDC client identifier and audience; tag `honeycomb-runner`, no stored Tailscale OAuth secret |
 | HONEYCOMB_DRIVE_CREDENTIALS_JSON (optional secret) | Authorized Google OAuth credential, drive.file scope |
 
-Keep the actual activation file on the Windows license server. Do not copy it to GitHub cache, repository, artifacts or Vercel. Tailscale ACLs should allow runner access to only license manager and vendor ports; do not enable a public tunnel or router port forwarding. Browser login was completed, but Windows currently reports `NoState` and service restart was denied by Windows permissions. A connected private network is not yet established. No Tailscale runner OAuth credential or vendor fixed-port configuration has been created.
+Keep the actual activation file on the Windows license server. Do not copy it to GitHub cache, repository, artifacts or Vercel. Tailscale is now Running after an explicitly approved administrative service restart. FlexNet manager uses TCP 27011; the vendor port is fixed to 27012. The license service was restarted only after confirming no tokens were in use; comparison with the private backup confirms every byte outside the vendor configuration line is unchanged. No Windows firewall rule, public tunnel or router forwarding was added.
+
+The saved Tailscale policy grants `tag:honeycomb-runner` access only to those two TCP ports on the license host and includes deny tests for 22/445/3389. A successful real Ubuntu run verified both positive connections and the three blocked negative controls. The ephemeral runner was removed after logout. See [network receipt](evidence/cloud-web-20261025/license-network.json) and [workflow attempt 3](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40184261860/attempts/3). This proves TCP reachability, **not** Linux CAE/Explicit checkout, entitlement, or solver execution.
+
+### OIDC subject binding
+
+The federated identity has only `auth_keys` scope, restricted to `tag:honeycomb-runner`, with issuer `https://token.actions.githubusercontent.com`. Query the repository's actual OIDC configuration before constructing its subject:
+
+```shell
+gh api repos/xuankhanh24/honeycomb-abaqus-studio/actions/oidc/customization/sub
+```
+
+This repository uses immutable subjects. Its accepted subject is `repo:xuankhanh24@273490538/honeycomb-abaqus-studio@1427757326:ref:refs/heads/main`. The older name-only format was rejected by Tailscale. The successful run followed an exact subject correction, preserving all scope, tag and network restrictions. All three Linux workflows use `id-token: write`, the generated audience and `tailscale/github-action@v4`; no long-lived Tailscale secret is copied to GitHub.
+
+### Linux media still unavailable
+
+The [official download portal](https://www.3ds.com/support/software-downloads) was opened and requires a 3DEXPERIENCE login with access to the licensed media. No authorized Linux media or entitled portal session is available. The user reports not having an account entitled to download it. Existing Windows activation metadata and successful TCP probes cannot replace a Linux installer or establish Linux checkout. No qualified runtime lock is generated and no real cloud solver job has been started.
 
 `Qualify native Abaqus Linux environment` is the first real solver workflow, independent of the full research gate. It requires genuine media/network settings, runs a tiny CAE model, datacheck, Explicit and ODB reopen, and records only observed results. It does not manufacture `runtime-lock.json` or assume success when inputs are absent. The probe adapter has not been executed in Abaqus Linux yet.
 

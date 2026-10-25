@@ -31,5 +31,7 @@
     "private_connectivity_verified": false
   },
   "owner_auth": "blocked_github_reauthentication",
-  "solver_cloud_completed": false
+  "solver_cloud_completed": false,
+  "observation_stage": "earlier_pre_credentials",
+  "superseded_by_for_owner_and_network": "owner-and-network-acceptance.json"
 }

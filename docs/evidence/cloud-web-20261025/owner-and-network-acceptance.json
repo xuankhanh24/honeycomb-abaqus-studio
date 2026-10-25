@@ -1,0 +1,58 @@
+{
+  "source_commit": "c9b7b670df3dd88d6e13e41a2fa6de43e3fbd233",
+  "github_app": {
+    "installed_repositories": [
+      "xuankhanh24/honeycomb-abaqus-studio"
+    ],
+    "permissions": {
+      "actions": "write",
+      "checks": "write",
+      "contents": "write",
+      "metadata": "read"
+    },
+    "production_connection_verified": true
+  },
+  "owner_auth": {
+    "login_available": true,
+    "actual_owner_browser_login_verified": true,
+    "actual_job_creation_verified": true,
+    "anonymous_write_status": 403
+  },
+  "jobs": [
+    {
+      "id": "15be239996db42d0856d2c178e0a2b3e",
+      "profile": "smoke",
+      "status": "draft"
+    },
+    {
+      "id": "884c84c4160f401291587eba7f4fdd6a",
+      "profile": "research",
+      "status": "draft"
+    }
+  ],
+  "tailscale": {
+    "windows_backend": "Running",
+    "administrative_restart_approved": true,
+    "scope": "auth_keys",
+    "tag": "tag:honeycomb-runner",
+    "subject": "repo:xuankhanh24@273490538/honeycomb-abaqus-studio@1427757326:ref:refs/heads/main",
+    "tcp_ports": [
+      27011,
+      27012
+    ],
+    "network_run_id": 40184261860,
+    "successful_attempt": 3,
+    "signed_feature_content_unchanged": true,
+    "activation_file_exported": false,
+    "firewall_rule_added": false,
+    "ephemeral_peer_count_after_workflow": 0
+  },
+  "linux_media": {
+    "available": false,
+    "official_portal_requires_login": true,
+    "entitled_account_available": false
+  },
+  "linux_license_checkout": false,
+  "solver_executed": false,
+  "temporary_secret_file_cleanup": "blocked_by_automatic_review; file remains outside repository"
+}

@@ -71,4 +71,4 @@ Repo chứa mã nguồn, tài liệu, schema và cấu hình nhỏ. CAE/ODB, d�
 
 ## Public web preview
 
-[Open Honeycomb Studio](https://honeycomb-abaqus-studio.vercel.app) to inspect inputs, geometry and genuine Windows circular-clamp reference curves. The licensed Ubuntu solver and owner login are not yet qualified/configured. See [measured cloud status](docs/CLOUD_STATUS.md) and [deployment settings and remaining acceptance](docs/CLOUD_WEB.md).
+[Open Honeycomb Studio](https://honeycomb-abaqus-studio.vercel.app) to inspect inputs, geometry and genuine Windows circular-clamp reference curves. Owner login and private runner connectivity are verified. The licensed Ubuntu solver remains blocked pending authorized Linux media and native qualification. See [measured cloud status](docs/CLOUD_STATUS.md) and [deployment settings and remaining acceptance](docs/CLOUD_WEB.md).

@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "kind": "private-license-network-probe",
+  "tcp_reachable": {
+    "manager": true,
+    "vendor": true
+  },
+  "negative_tcp_checks_blocked": {
+    "22": true,
+    "445": true,
+    "3389": true
+  },
+  "network_passed": true,
+  "linux_license_checkout": false,
+  "solver_executed": false,
+  "scope": "TCP only; a blocked negative probe does not identify which network layer denied it.",
+  "github_run_id": "40184261860"
+}

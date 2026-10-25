@@ -10,7 +10,10 @@ RUN sed -i -e 's|^mirrorlist=|#mirrorlist=|' \
     file hostname which findutils tar gzip \
     && python3 -m pip install --no-cache-dir pexpect==4.9.0 \
     && yum clean all
+RUN useradd -u 1000 -m abaqus && mkdir -p /opt/SIMULIA && chown 1000:1000 /opt/SIMULIA
 COPY tui_probe.py /probe/tui_probe.py
 ENV DSY_Force_OS=linux_a64
+ENV HOME=/home/abaqus
+USER 1000:1000
 WORKDIR /tmp
 CMD ["python3", "-u", "/probe/tui_probe.py"]

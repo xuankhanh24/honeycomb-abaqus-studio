@@ -35,6 +35,7 @@ def main():
     child.logfile_read = log
     started = time.monotonic()
     skip_selected = False
+    showing_error_details = False
     try:
         for _ in range(100):
             index = child.expect(
@@ -51,8 +52,14 @@ def main():
                 result["installer_exit_code"] = child.exitstatus
                 break
             print(page[-4000:], flush=True)
+            if showing_error_details:
+                raise RuntimeError("Installer failed; technical details captured in installer.log")
             answer = ""
             if index == 2:
+                if "[T] Show technical details" in page:
+                    child.sendline("T")
+                    showing_error_details = True
+                    continue
                 if "[1] Continue" not in page:
                     raise RuntimeError("Unrecognized installer action")
                 answer = "1"
@@ -129,6 +136,13 @@ def main():
             child.sendline("!q")
             child.close(force=True)
         result["seconds"] = time.monotonic() - started
+        diagnostics = []
+        for path in Path("/opt/SIMULIA/EstProducts/2020/InstallData/log").rglob("*"):
+            if path.is_file() and path.suffix.lower() in (".log", ".txt"):
+                diagnostics.append(str(path) + "\n" + path.read_text(errors="replace")[-30000:])
+                if sum(map(len, diagnostics)) > 500000:
+                    break
+        Path("/results/installer-diagnostics.log").write_text("\n\n".join(diagnostics))
         Path("/results/install-probe.json").write_text(json.dumps(result, indent=2))
         log.close()
 

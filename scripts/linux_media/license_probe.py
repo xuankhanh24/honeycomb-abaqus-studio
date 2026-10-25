@@ -34,7 +34,7 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     config = output / "abaqus_v6.env"
     config.write_text("license_server_type=FLEXNET\nabaquslm_license_file=" + repr(endpoint) + "\n")
-    run("sudo", "chown", "-R", "0:0", str(output))
+    run("sudo", "chown", "-R", "1000:1000", str(output))
     network = "honeycomb-license-probe"
     subnet = "172.29.231.0/24"
     drop = ["-s", subnet, "-j", "DROP"]

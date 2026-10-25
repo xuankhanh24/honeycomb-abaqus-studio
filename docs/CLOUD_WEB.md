@@ -4,13 +4,15 @@ The public web is a React/TypeScript extension of Honeycomb Studio. Vercel hosts
 
 ## Actual delivery and remaining setup
 
-The first deployment responds successfully at `/api/health` and `/api/template`. Project: `wukong-rom-studio/honeycomb-studio`. Git integration is not connected: the currently authenticated Vercel account lacks access to the GitHub repository. CLI deployments work; unattended deployment from repo changes is not yet configured.
+The deployment responds successfully at `/api/health` and `/api/template`. Project: `wukong-rom-studio/honeycomb-studio`. Git integration is now connected to `xuankhanh24/honeycomb-abaqus-studio`, production branch `main`, root directory `web`. The owner explicitly approved replacing the Vercel account's GitHub login connection with `xuankhanh24`; no collaborator invitation was sent. Vercel App installation `175123101` is restricted to this one repository. A real Git-triggered deployment must pass before automatic production delivery is marked accepted.
 
 Public preview, geometry, three actual Windows 7-J reference histories and reduced ODB field displays work without credentials. References use the old circular clamp; they are not cloud acceptance or perimeter-clamp results. The display viewer supports recorded frames, instances, ISO/XY/XZ/YZ projection, displacement scale, U3, displacement magnitude, von Mises and PEEQ. GitHub App login and owner-created catalog writes are connected and verified on production. Two actual drafts exist: a research 7-J perimeter-clamp case and an explicitly separate smoke case. Anonymous writes remain rejected. Solver dispatch stays blocked by native runtime, Linux checkout and platform-policy qualification.
 
 ## Vercel settings
 
 Deploy root `web/`, Node 24, Python >=3.13. Build: `npm ci && npm run build`. FastAPI entry: `app.py`; static frontend: generated `dist/`, registered as a literal `app.frontend` directory. CDN promotion is explicitly enabled for public assets; API middleware still protects writes. Do not mount Vercel's reserved `public/` directory. The direction contract remains in emitted HTML. Project deployment SSO is disabled for the requested public site; owner-only API authorization stays active.
+
+The public hostname `honeycomb-abaqus-studio.vercel.app` is now a verified project domain, so production deployments can assign it automatically. The project-level Ignored Build Step is set to **Only build production**; catalog updates on `cloud-data` and other non-production branches must not perform application builds. This project-level setting also covers the older source snapshot on the data branch. See [web deployment operations](../web/DEPLOYMENT.md). No Vercel token is copied to Actions.
 
 Set only encrypted environment values, never public `VITE_` variables:
 

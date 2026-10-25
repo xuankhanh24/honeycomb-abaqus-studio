@@ -27,6 +27,7 @@ def main():
         raise SystemExit("Expected the configured private IPv4 license endpoint")
     manager, host = match.groups()
     ipaddress.IPv4Address(host)
+    print("::add-mask::" + host, flush=True)
     vendor = int(os.environ["ABAQUS_VENDOR_PORT"])
     if not all(1 <= int(port) <= 65535 for port in (manager, vendor)):
         raise SystemExit("Invalid license port")

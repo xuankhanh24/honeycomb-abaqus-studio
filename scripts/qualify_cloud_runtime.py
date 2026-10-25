@@ -42,10 +42,22 @@ def main():
         report["features"].append("cae")
         command(
             "datacheck",
-            ["job=CloudProbe_check", "input=CloudProbe.inp", "datacheck", "interactive", "cpus=4"],
+            [
+                "job=CloudProbe_check",
+                "input=CloudProbe.inp",
+                "datacheck",
+                "interactive",
+                "cpus=4",
+                "mp_mode=threads",
+                "domains=4",
+            ],
             300,
         )
-        command("solver", ["job=CloudProbe", "interactive", "cpus=4", "double=both"], 600)
+        command(
+            "solver",
+            ["job=CloudProbe", "interactive", "cpus=4", "double=both", "mp_mode=threads", "domains=4"],
+            600,
+        )
         status = (output / "CloudProbe.sta").read_text(errors="replace")
         if "THE ANALYSIS HAS COMPLETED SUCCESSFULLY" not in status:
             raise RuntimeError("Explicit did not confirm completion")

@@ -50,3 +50,12 @@ def test_actual_reference_display_exports_match_manifest():
         assert len(data["frames"]) == 13
         assert data["frames"][-1]["time_s"] > 0.00599
         assert data["sampling"]["display_elements"] <= 1000
+        verification = (root / view["verification_url"].lstrip("/")).read_bytes()
+        assert hashlib.sha256(verification).hexdigest() == view["verification_sha256"]
+        receipt = json.loads(verification)
+        assert receipt["passed"] is True
+        assert receipt["solver_executed"] is False
+        assert receipt["linux_qualification"] is False
+        assert receipt["odb_sha256"] == data["source"]["odb_sha256"]
+        assert receipt["display_sha256"] == view["sha256"]
+        assert len(receipt["comparisons"]) == 81

@@ -188,3 +188,11 @@ Preview tables preserve resolved energy, velocity and input identity. Job tables
 - Don't add decorative shadows, display fonts or imagery that obscures the dense research workflow.
 
 <!-- Scan evidence: web/src/style.css, web/src/App.tsx, web/index.html; direction seed d139dc8f / candidate 5. Documents implemented web behavior; no independent browser verification was performed by the documenter. -->
+
+## Reduced field display extension
+
+The existing Data task now includes a lazy-loaded canvas viewer below the reference history. This is an Operate feature within the same visual system. Four labeled controls select the field, instance, orthographic projection and displacement scale. A fixed range across all displayed frames prevents color changes caused solely by legend rescaling. A sequential scientific palette interpolates navy `(36,55,111)`, blue `(40,116,166)`, cyan `(67,174,189)`, amber `(234,201,99)` and ochre `(194,103,33)`; gray `#e1e5ea` means an unrecorded value, accompanied by text. These are scientific encodings, separate from action/status colors.
+
+The canvas preserves its fitted viewport over time and exposes a textual field/time description. A labeled slider and explicit play/pause button control frames; animation starts paused. The adjacent scale states units, missing-data behavior and deformation exaggeration. A disclosure table gives sampled element/node identities and values. Copy explicitly identifies sparse sampling, original Windows/circular-clamp provenance and the difference between sampled and whole-ODB extremes.
+
+Controls use four columns on desktop, two below 800px and one below 520px. Timeline controls wrap on narrow screens. A file-open control remains keyboard focusable with the shared visible focus treatment. Loading, malformed-file, checksum-failure and missing-field states have readable feedback. Desktop and 390px mobile were inspected in the actual browser; mobile document width did not exceed the viewport. See `output/cloud-web/field-desktop.png` and `field-mobile.png`. The mechanical detector found advisory mismatches in pre-existing stylesheet colors/type ramp; these were recorded without altering the established surface outside this extension.

@@ -41,7 +41,7 @@
       "sha256": "7bdd0a84ff04628c75f49be1fe0a05402a97cc6404c71683b2ec0ad65a656bda",
       "bytes": 2396364,
       "verification_url": "/reference/hexagonal-fields.json.verification.json",
-      "verification_sha256": "0ea4d934120619b7e543d3c96a618427da1fc85cc28221dd165c6d787996e70b"
+      "verification_sha256": "4bb4edb890d55b19ffa1e681da08adb94caf0949ea4b2261bcb72e28d6bd2d04"
     }
   },
   {
@@ -95,7 +95,7 @@
       "sha256": "f8cf18b8fde9f6cc7ba97c30538dd242160b47d37bc695eb8c89d4bc6fc680a4",
       "bytes": 2346551,
       "verification_url": "/reference/reentrant_0-fields.json.verification.json",
-      "verification_sha256": "e7739c2f1cbf6a880c53d84c9df7abe139d21a038b527037f1195e1d036b3a53"
+      "verification_sha256": "962fa2f2e9fad86914792a140a65bb467b223ec27d31f8f845458a3f809f87e7"
     }
   },
   {
@@ -149,7 +149,7 @@
       "sha256": "39803ceb82894c5f2568f9530684d37068268635ec8937d09049a9e62abef044",
       "bytes": 2319575,
       "verification_url": "/reference/reentrant_90-fields.json.verification.json",
-      "verification_sha256": "1cb8f3f4cc45e5904e6b4add05e28be17dc36cfb52b77ddaab34a233e4edca75"
+      "verification_sha256": "0bdbe5339f8507e1644cdd85153e8caf332b224beecf5a776f3ee3c11b7612f7"
     }
   }
 ]

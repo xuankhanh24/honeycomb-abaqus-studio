@@ -1,0 +1,20 @@
+{
+  "source_commit": "c77c21a1034cae83604fab6fcceefc42639ffbb4",
+  "browser": "Brave",
+  "desktop_inspected": true,
+  "mobile_viewport_width_px": 390,
+  "mobile_document_width_px": 380,
+  "horizontal_overflow": false,
+  "reference_switch_verified": true,
+  "original_frame_120_at_6ms_verified": true,
+  "stress_field_selection_verified": true,
+  "production_owner_session_verified": true,
+  "image_paths": [
+    "output/cloud-web/field-desktop.png",
+    "output/cloud-web/field-mobile.png",
+    "output/cloud-web/field-production.png"
+  ],
+  "scope": "sparse reduced display, not full-resolution ODB rendering",
+  "linux_solver_executed": false,
+  "mechanical_detector": "advisories in pre-existing stylesheet palette/type declarations; no redesign performed"
+}

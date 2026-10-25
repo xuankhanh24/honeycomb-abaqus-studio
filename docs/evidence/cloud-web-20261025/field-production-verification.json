@@ -1,0 +1,31 @@
+{
+  "deployment_id": "dpl_39udkTHak5JjXMLAndNZ6kv8xjaK",
+  "production_alias": "https://honeycomb-abaqus-studio.vercel.app",
+  "checks": [
+    {
+      "reference_id": "hexagonal",
+      "display_bytes": 2396364,
+      "frames": 13,
+      "comparisons": 81,
+      "display_and_receipt_sha256_verified": true
+    },
+    {
+      "reference_id": "reentrant0",
+      "display_bytes": 2346551,
+      "frames": 13,
+      "comparisons": 81,
+      "display_and_receipt_sha256_verified": true
+    },
+    {
+      "reference_id": "reentrant90",
+      "display_bytes": 2319575,
+      "frames": 13,
+      "comparisons": 81,
+      "display_and_receipt_sha256_verified": true
+    }
+  ],
+  "anonymous_write_status": 403,
+  "github_app_connected": true,
+  "owner_login_available": true,
+  "native_linux_solver_qualified": false
+}

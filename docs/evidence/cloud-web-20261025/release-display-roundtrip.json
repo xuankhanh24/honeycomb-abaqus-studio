@@ -1,0 +1,12 @@
+{
+  "kind": "actual-public-release-roundtrip",
+  "source_commit": "c77c21a1034cae83604fab6fcceefc42639ffbb4",
+  "release_url": "https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/reference-display-20261025",
+  "files": 7,
+  "parts": 13,
+  "part_limit_bytes": 1048576,
+  "all_files_verified": true,
+  "dataset_scope": "reduced-field-display-only",
+  "solver_executed": false,
+  "linux_qualification": false
+}

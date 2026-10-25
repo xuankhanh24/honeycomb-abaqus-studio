@@ -6,7 +6,7 @@ The public web is a React/TypeScript extension of Honeycomb Studio. Vercel hosts
 
 The first deployment responds successfully at `/api/health` and `/api/template`. Project: `wukong-rom-studio/honeycomb-studio`. Git integration is not connected: the currently authenticated Vercel account lacks access to the GitHub repository. CLI deployments work; unattended deployment from repo changes is not yet configured.
 
-Public preview, geometry and the three actual Windows 7-J reference histories work without credentials. References use the old circular clamp; they are not cloud acceptance or perimeter-clamp results. The web is not yet an ODB field/deformation viewer. GitHub App login and owner-created catalog writes are now connected and verified on production. Two actual drafts exist: a research 7-J perimeter-clamp case and an explicitly separate smoke case. Anonymous writes remain rejected. Solver dispatch stays blocked by native runtime, Linux checkout and platform-policy qualification.
+Public preview, geometry, three actual Windows 7-J reference histories and reduced ODB field displays work without credentials. References use the old circular clamp; they are not cloud acceptance or perimeter-clamp results. The display viewer supports recorded frames, instances, ISO/XY/XZ/YZ projection, displacement scale, U3, displacement magnitude, von Mises and PEEQ. GitHub App login and owner-created catalog writes are connected and verified on production. Two actual drafts exist: a research 7-J perimeter-clamp case and an explicitly separate smoke case. Anonymous writes remain rejected. Solver dispatch stays blocked by native runtime, Linux checkout and platform-policy qualification.
 
 ## Vercel settings
 
@@ -65,6 +65,24 @@ Each run retains requested/resolved settings and history. Engine cache includes 
 
 Drive readable backup happens after the verified GitHub archive; failure is recorded separately. Credential refresh stays in memory. Private credentials and resumable-upload manifests are excluded from public archives. Drive cloud backup is implemented but not connected or end-to-end tested. Existing readable exports include tables, reports and settings/history through the shared retained-data pipeline.
 
-Not yet accepted: real Linux 7-J comparison, interrupted large upload recovery across fresh runners, long-run cancellation/timeout preservation, full field web viewer, native solver restart across runners, and complete cloud failure-injection matrix. An interrupted active ODB cannot be guaranteed durable if Actions kills the process before upload; completed run checkpoints reduce but do not eliminate that risk. Current code uploads incrementally after runs; it does not yet evict all exported Parquet incrementally during extraction.
+Not yet accepted: real Linux 7-J comparison, interrupted large upload recovery across fresh runners, long-run cancellation/timeout preservation, full-resolution ODB web rendering, native solver restart across runners, and complete cloud failure-injection matrix. An interrupted active ODB cannot be guaranteed durable if Actions kills the process before upload; completed run checkpoints reduce but do not eliminate that risk. Current code uploads incrementally after runs; it does not yet evict all exported Parquet incrementally during extraction.
 
 Release manifests are the durable source of truth. Short-lived Actions diagnostic artifacts are supplementary only. No successful Linux research job, license compatibility or platform-policy approval is claimed.
+
+## Field display and archive restore acceptance
+
+`adapters/viewer.py` opens ODB read-only using Abaqus Python 2.7/3, with a default budget of 1,000 shell elements and 13 frames. It preserves original connectivity, labels and nodal coordinates; display field values use eight significant digits. Missing field values stay null. U contours show the mean of the displayed element's nodal values; stress/PEEQ show maximum recorded integration/section point values without nodal extrapolation. Unsupported element types are inventoried, not silently reinterpreted. Units follow the mm-N-s model contract; ODB does not identify physical units itself. Original ODB and full numerical exports are unchanged.
+
+The three public reference displays were extracted from completed Windows ODBs. Each passed 81 independent ODB comparisons at the first/middle/final displayed frames (coordinates, U and element maxima); this is extraction acceptance, not physical or Linux acceptance. Their JSON, ODB hashes and cross-check receipts are under `web/static/reference/`. Rendering is a sparse element sample, not a complete surface or full ODB viewer. The browser verifies SHA-256, units, connectivity, frame lengths and bounded sizes before rendering; imported JSON is processed locally. Canvas has a textual range and a table of sampled element labels/values. Display extremes are explicitly not full-ODB extrema.
+
+Future qualified cloud runs retain `extracted/field-view.json`. The worker uploads a separate display asset when it fits 4 MiB; a catalog-bound API verifies its size and SHA-256 before serving it. The client cannot choose upstream URLs or asset IDs. Large numerical results still download directly from Releases. A display convenience-upload failure does not invalidate the primary numerical archive.
+
+Download a release's `*-artifact-manifest.json`, then reconstruct its files with:
+
+```shell
+uv run python scripts/restore_cloud_archive.py artifact-manifest.json restored-results
+```
+
+The restorer streams each part, validates its size/SHA-256, verifies the reconstructed file and publishes it only afterward. On another invocation, completed partial-file segments are rechecked and reused. Different existing files, unsafe paths, symlinks, foreign repository URLs and malformed part inventories are rejected. Incomplete checkpoints require explicit `--allow-incomplete` and remain marked incomplete. No solver is launched.
+
+A real [public release roundtrip](https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/reference-display-20261025) uploaded and restored 7 display/receipt files in 13 one-MiB parts, with all file hashes verified. This deliberately small multipart test does not certify GiB-scale ODB transfer, fresh-runner upload recovery, or native ODB reopening. [Receipt](evidence/cloud-web-20261025/release-display-roundtrip.json).

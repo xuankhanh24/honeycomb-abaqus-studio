@@ -1,0 +1,11 @@
+{
+  "installer_executed": true,
+  "activation_tools_executed": false,
+  "network_enabled": false,
+  "license_checked_out": false,
+  "solver_executed": false,
+  "installation_completed": false,
+  "installer_exit_code": 6,
+  "error": "Installer did not create a successful Abaqus installation",
+  "seconds": 0.1738205790001075
+}

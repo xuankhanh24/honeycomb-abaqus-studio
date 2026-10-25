@@ -1,0 +1,15 @@
+{
+  "installer_executed": true,
+  "activation_tools_executed": false,
+  "network_enabled": false,
+  "license_checked_out": false,
+  "solver_executed": false,
+  "installation_completed": false,
+  "error": "Installer failed; technical details captured in installer.log",
+  "seconds": 30.015386391999982,
+  "github_run_id": "40201614502",
+  "observed_failure_stage": "Multi Territorial Account: addCompLocFalse",
+  "observed_message": "Creating child process failed. Log ID is 0003",
+  "required_command": "perl",
+  "vendor_script": "inst/common/installationFiles/code/compLocation.pl"
+}

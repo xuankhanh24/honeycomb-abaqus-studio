@@ -1,0 +1,27 @@
+{
+  "github_run_id": "40203102544",
+  "host": "Ubuntu 22.04",
+  "userspace": "CentOS 7",
+  "release": "Abaqus 2020",
+  "cae_model_built": true,
+  "cae_checkout_observed": true,
+  "explicit_checkout_observed": true,
+  "explicit_tokens_observed": 8,
+  "mesh_elements": 8,
+  "domains": 4,
+  "cpus": 4,
+  "packager_completed": true,
+  "explicit_completed": false,
+  "odb_reopen_verified": false,
+  "observed_failure": "mpirun: ssh: Command not found",
+  "next_probe_execution_mode": "mp_mode=threads; cpus=4; domains=4; double=both",
+  "license_entitlement_verified": false,
+  "publisher_media_authenticity_verified": false,
+  "log_sha256": {
+    "cae.log": "1d1ca5f9cda213d36f4befa6fde229691de50ea986614591af8fd04cf6b2f6bf",
+    "container.log": "668a99e54ccc0260d2849149a98ef7c79b6c5dee414d8eee6cae72adbc8cba1b",
+    "datacheck.log": "6a7f4bfd245f7b0d9ec807fc4ff5f01f9637d29f6472ca314d9bb121eb3db060",
+    "release.log": "bd7128d9811a6e6aef351031537513f6c9766645322aa72bfd933474d7d72525",
+    "solver.log": "120717b4d23baaaa6d1c63e305fc61ee12d2c43cebec35e7b1db9b83184d4bfe"
+  }
+}

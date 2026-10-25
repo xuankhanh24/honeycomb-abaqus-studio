@@ -12,9 +12,24 @@ The runner filesystem measured 155,897,610,240 bytes total and 91,939,274,752 by
 
 ## Repeatable offline installation test
 
-Dispatch `.github/workflows/linux-install-probe.yml`. It builds an Ubuntu 22.04 image from Ubuntu packages, downloads the same media again, verifies the previously observed ISO hash, mounts the ISO read-only and runs the unmodified Established Products installer inside a container with no network, all Linux capabilities dropped and no license or repository credentials passed in. The first-observed hash pins repeatability; it does not establish publisher authenticity.
+Dispatch `.github/workflows/linux-install-probe.yml`. The initial Ubuntu 22.04 image test reached the real installer, which exited 6 with `Ubuntu is not an authorized OS.` ([run 40200190584](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40200190584), [receipt](evidence/linux-ubuntu22-install-probe-20261025.json)). This failed before CAE or solver execution. `Dockerfile.ubuntu22` preserves that recipe.
+
+The next candidate uses the official CentOS 7 container and signed CentOS Vault packages, with Ubuntu 22.04 remaining the GitHub runner host. CentOS 7 is archived/EOL; this userspace is a bounded compatibility test, not a production server commitment. No vendor installer file or OS-check binary is changed. The first CentOS attempt ([40200874592](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40200874592)) passed OS detection and copied CAE/solver files, but stopped at Multi Territorial Account configuration. Its [failure receipt](evidence/linux-centos7-initial-install-probe-20261025.json) is retained. The regular-user diagnostic attempt ([40201614502](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40201614502)) captured the actual failure: the installer could not spawn `perl` for its `compLocation.pl` configuration step ([receipt](evidence/linux-centos7-perl-diagnostic-20261025.json)). Perl is now an explicit image prerequisite, verified during image build. File copying alone is not accepted as successful installation. The workflow downloads the same media again, verifies the previously observed ISO hash, mounts the ISO read-only and runs the unmodified Established Products installer inside a container with no network, all Linux capabilities dropped and no license or repository credentials passed in. The first-observed hash pins repeatability; it does not establish publisher authenticity.
 
 The driver selects Standard, Explicit, co-simulation, ODB API and CAE, skips installer license configuration and stops on unknown prompts. It then attempts `abaqus information=release` and `abaqus python` importing `odbAccess`. These checks do not consume solver tokens or prove a licensed simulation. Only JSON receipts and installation/command logs are uploaded. A failed test must preserve its actual error; it must not populate an accepted `runtime-lock.json`.
+
+To repeat from the repository with GitHub CLI:
+
+```sh
+# Offline installation, version and ODB-library checks only:
+gh workflow run linux-install-probe.yml -f license_smoke=false
+# Add the owner's restricted private-server smoke test after offline success:
+gh workflow run linux-install-probe.yml -f license_smoke=true
+```
+
+The optional smoke stage joins Tailscale only after offline checks succeed. A separate container network permits outbound TCP solely to the configured manager/vendor ports, blocks connections from that subnet into runner-host services, and disables external DNS for the container. The existing activation file remains on the owner's computer. A temporary FlexNet client configuration is removed before artifact upload; private endpoint strings are redacted from text logs. A tiny 8-element mesh supports the four-CPU Explicit test; the research model is unchanged.
+
+Inspect `install-probe.json`, `release.log`, `odb_import.log`, then (when requested) `qualification.json` and CAE/datacheck/solver/ODB logs. Read stage exit codes and real solver completion/ODB-reopen evidence; a successful archive inventory alone is insufficient.
 
 The [original 2020 TUI installation transcript](https://gist.github.com/branfosj/f0bfa2410f7279e5c2d0dfb58bc3c2e6) documents `DSY_Force_OS=linux_a64` and the observed installer menu vocabulary. This selects the installer's existing Linux target; Ubuntu support and runtime library compatibility still require the real tests below.
 
@@ -27,3 +42,11 @@ The [original 2020 TUI installation transcript](https://gist.github.com/branfosj
 | [Abaqus 2025 / Ubuntu 24.04 author guide](https://github.com/simfinite-engineering/Abaqus-Installation-Instructions-for-Ubuntu) and [author's explanation](https://www.simfinite.be/blog/simfinite-notes-1/installing-abaqus-2025-on-linux-2) | Author reports newer installer checks and a different OS-detection setting than older CentOS guides. Requires already-present installation folders. | Do not reuse 2017/2022 workarounds blindly for 2025. Native headless installation and library compatibility still require actual media and tests. |
 
 Next technical acceptance remains unchanged: checksum the complete original media, inspect its Linux components and version-specific silent-install mechanism, measure disk use, select compatible runtime libraries, connect to the owner's private FlexNet server, perform real CAE/Explicit checkout, datacheck, solver smoke and ODB reopen. A reachable TCP server does not establish license/version compatibility. Never generate a successful runtime lock from documentation alone.
+
+## Successful installation and first real CAE checkout
+
+[Run 40202327962](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40202327962) completed the unmodified installer with exit code 0, reported Abaqus 2020 build `2019_09_13-17.49.31 163176`, and imported `odbAccess` using Abaqus Python 2.7.15. These ran in CentOS 7 userspace on an Ubuntu 22.04 Actions host. The offline receipt continues to report no license checkout because that stage deliberately had no network.
+
+The subsequent restricted-network stage observed a real `cae` checkout from the owner's existing FlexNet server. Model/job creation then failed because the probe's default domain count was 1 while its CPU count was 4. The next probe explicitly sets four domains. [Permanent receipt](evidence/linux-installed-cae-checkout-20261025.json) distinguishes this partial success from a completed Explicit analysis. No runtime lock is certified from it, and functional checkout does not establish publisher license entitlement.
+
+[Run 40203102544](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40203102544) built the CAE model, observed real Explicit checkout of eight tokens, and completed packaging with four domains of two elements each. The MPI launcher then failed with `ssh: Command not found`; no complete analysis or ODB reopening is claimed ([receipt](evidence/linux-explicit-checkout-20261025.json)). The next probe uses four shared-memory threads with the same four domains and double precision. [The vendor's Explicit parallel-execution guide](https://abaqus.uclouvain.be/English/SIMACAEEXCRefMap/simaexc-c-parallelexecution.htm) documents thread-based domain decomposition on one shared-memory machine. No SSH service or extra private-network port is enabled.

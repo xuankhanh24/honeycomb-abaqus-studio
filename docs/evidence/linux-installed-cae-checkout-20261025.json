@@ -1,0 +1,32 @@
+{
+  "github_run_id": "40202327962",
+  "host": "Ubuntu 22.04 GitHub-hosted runner",
+  "container_userspace": "CentOS 7",
+  "media_publisher_authenticity_verified": false,
+  "release": "Abaqus 2020",
+  "build": "2019_09_13-17.49.31 163176",
+  "solver_python": "2.7.15",
+  "offline": {
+    "installer_executed": true,
+    "activation_tools_executed": false,
+    "network_enabled": false,
+    "license_checked_out": false,
+    "solver_executed": false,
+    "installation_completed": true,
+    "installer_exit_code": 0,
+    "release_exit_code": 0,
+    "odb_import_exit_code": 0,
+    "seconds": 44.48473614000005
+  },
+  "cae_checkout_observed": true,
+  "cae_model_build_completed": false,
+  "explicit_completed": false,
+  "observed_failure": "Number of domains must be a multiple of the number of processors for domain level parallelization.",
+  "next_probe_fix": "numDomains=4 with numCpus=4",
+  "activation_tools_executed": false,
+  "log_sha256": {
+    "install-probe/release.log": "a2b43667578d9a671347d4d278fa94cf70cc66540d274a7270a072f7da93ebda",
+    "install-probe/odb_import.log": "600766eb6e79e35762fabc2a114aca9474dc4c603a0b110733e99e995b9e7cae",
+    "native-qualification/cae.log": "e1a37ce50290436f71fe2d89cdc3e275aa450184193a3a4720281b86a2042ef7"
+  }
+}

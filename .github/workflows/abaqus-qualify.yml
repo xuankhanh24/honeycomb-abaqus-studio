@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  id-token: write
 concurrency:
   group: honeycomb-licensed-solver
   cancel-in-progress: false
@@ -25,8 +26,9 @@ jobs:
       - uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:honeycomb-runner
+      - run: python3 scripts/check_license_network.py
       - run: python3 scripts/audit_cloud.py --output output/cloud-audit
       - run: python3 scripts/prepare_cloud_runtime.py
       - run: python3 scripts/qualify_cloud_runtime.py --abaqus /opt/SIMULIA/Commands/abaqus

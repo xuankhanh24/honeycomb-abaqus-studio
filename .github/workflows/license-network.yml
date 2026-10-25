@@ -1,0 +1,33 @@
+name: Private license network acceptance
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: honeycomb-license-network-probe
+  cancel-in-progress: false
+jobs:
+  network:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      ABAQUS_LICENSE_ENDPOINT: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
+      ABAQUS_VENDOR_PORT: ${{ secrets.ABAQUS_VENDOR_PORT }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:honeycomb-runner
+      - name: Check both license ports and blocked control ports
+        run: python3 scripts/check_license_network.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: private-license-network-${{ github.run_id }}
+          path: output/license-network.json
+          retention-days: 30
+          if-no-files-found: ignore

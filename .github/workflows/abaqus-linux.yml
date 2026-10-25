@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   checks: write
+  id-token: write
 concurrency:
   group: honeycomb-licensed-solver
   cancel-in-progress: false
@@ -40,8 +41,10 @@ jobs:
         uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:honeycomb-runner
+      - name: Verify private license network before installing
+        run: uv run --locked --extra cloud python scripts/check_license_network.py
       - name: Install checksum-pinned Linux runtime
         run: uv run --locked --extra cloud python scripts/prepare_cloud_runtime.py
       - name: Run real solver and preserve research outputs

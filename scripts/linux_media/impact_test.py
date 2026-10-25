@@ -10,14 +10,14 @@ import tempfile
 import time
 from pathlib import Path
 
+from publication import prepare
+
 from honeycomb_studio.cloud_archive import ALLOWED, ReleaseArchive
 from honeycomb_studio.cloud_github import Github
 from honeycomb_studio.data import manifest
 from honeycomb_studio.engine import ADAPTERS, Engine
 from honeycomb_studio.models import BatchSpec, digest
 from honeycomb_studio.store import Store, write_json
-
-from publication import prepare
 
 
 def run(*args):

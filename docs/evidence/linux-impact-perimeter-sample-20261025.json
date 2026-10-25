@@ -1,0 +1,17 @@
+{
+  "scope": "Sparse field-view samples only, not an all-node ODB boundary audit",
+  "samples": [
+    {
+      "instance": "BOTTOM-1",
+      "sampled_perimeter_nodes": 4,
+      "sampled_frames": 13,
+      "max_absolute_U_mm": 0.0
+    },
+    {
+      "instance": "TOP-1",
+      "sampled_perimeter_nodes": 4,
+      "sampled_frames": 13,
+      "max_absolute_U_mm": 0.0
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "kind": "linux-impact-release-roundtrip",
+  "source_run_id": "40206764997",
+  "verification_run_id": "40213288753",
+  "all_release_parts_verified": true,
+  "reduced_records_restored": 2057,
+  "export_checks": [
+    {
+      "passed": true,
+      "mode": "research_reduced",
+      "rows_definition": "source field samples processed; reduced mode stores statistics and extrema, not these rows",
+      "parts": 2057,
+      "field_frame_pairs": 605,
+      "rows": 106351135,
+      "mismatches": {}
+    }
+  ],
+  "odbs": [
+    {
+      "name": "hc6e049e8eea1_check.odb",
+      "bytes": 36195204,
+      "sha256": "93e79d356fae06fb9057d9b9f74bf9d3011b858cb32d127fa9937938d8145f4d"
+    },
+    {
+      "name": "hc6e049e8eea1.odb",
+      "bytes": 2099076684,
+      "sha256": "2337be13c5846e7184e0e925300ddf3eec7585070745577fe0d11b940f9c8036"
+    }
+  ],
+  "status": "review",
+  "solver_success": true,
+  "fresh_solver_or_license_used": false,
+  "original_full_6ms_input_verified": true
+}

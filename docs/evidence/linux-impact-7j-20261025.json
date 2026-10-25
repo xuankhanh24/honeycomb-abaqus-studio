@@ -1,0 +1,244 @@
+{
+  "kind": "linux-7j-impact-acceptance",
+  "workflow_run_id": "40206764997",
+  "source_commit": "0a3e9a3c0be21dcb38d0e506261e05fdfc250ae8",
+  "solver_success": true,
+  "production_runtime_qualified": false,
+  "input_hash": "63f7e52abc495566bfa4fb5ecdadb533c9ac0e297ffc52851a0eefa5fc91112e",
+  "status": "review",
+  "summary": {
+    "schema_version": "1",
+    "validation_status": "reconstruction_unvalidated",
+    "initial_kinetic_energy_J": 6.99998876953125,
+    "peak_raw_contact_force_N": 2257.59230625,
+    "peak_force_time_ms": 4.190052859485149,
+    "max_impactor_displacement_mm": 6.593728542327881,
+    "max_displacement_time_ms": 4.465057514607906,
+    "max_indentation_from_contact_mm": 6.490238212049007,
+    "max_top_centre_downward_mm": 6.515500545501709,
+    "max_bottom_centre_downward_mm": 0.05288046598434448,
+    "end_impactor_velocity_mm_s": 830.5368041992188,
+    "end_impactor_velocity_m_s": 0.8305368041992187,
+    "end_contact_force_N": 311.04495078125,
+    "contact_first_above_10N_ms": 0.045021228288533166,
+    "contact_last_above_10N_ms": 6.000000052154064,
+    "contact_duration_ms": 5.954978823865531,
+    "maximum_energy_balance_drift_percent": 0.0028669130816829447,
+    "artificial_energy_over_max_internal_percent": 0.5413042709328495,
+    "plastic_dissipation_J": 5.97963720703125,
+    "physical_dissipation_J": 5.97963720703125,
+    "physical_dissipation_components_J": {
+      "ALLPD": 5.97963720703125,
+      "ALLFD": null,
+      "ALLDMD": null,
+      "ALLCD": null
+    },
+    "transferred_energy_at_last_contact_J": 6.236858620178785,
+    "panel_mass_kg": 0.06313506209484682,
+    "SEA_J_kg": 94.71182903167394,
+    "last_time_s": 0.006000000052154064,
+    "solver_completed": true,
+    "force_method": "m_tonne*(A3_mm_s2+gravity_mm_s2); +Z contact on guided rigid impactor",
+    "missing_optional_outputs": [
+      "ALLFD",
+      "ALLDMD",
+      "ALLCD"
+    ],
+    "frames": 121,
+    "field_storage": "reduced",
+    "contact_force_check_max_relative_percent": 5.337210709066213e-06,
+    "field_extrema": {
+      "PEEQ_max": {
+        "value": 0.47467464208602905,
+        "step": "Impact",
+        "frame": 90,
+        "time_s": 0.00450002821162343,
+        "instance": "TOP-1",
+        "node_label": -1,
+        "element_label": 528,
+        "integration_point": 1,
+        "section_point": 1
+      },
+      "mises_max_MPa": {
+        "value": 378.5445556640625,
+        "step": "Impact",
+        "frame": 112,
+        "time_s": 0.005600050091743469,
+        "instance": "CORE-1",
+        "node_label": -1,
+        "element_label": 59503,
+        "integration_point": 1,
+        "section_point": 1
+      },
+      "displacement_magnitude_max_mm": {
+        "value": 6.593630313873291,
+        "step": "Impact",
+        "frame": 89,
+        "time_s": 0.004450011067092419,
+        "instance": "IMPACTOR-1",
+        "node_label": 1399,
+        "element_label": -1,
+        "integration_point": -1,
+        "section_point": -1
+      }
+    },
+    "field_statistics": {
+      "CNORMF   General_Contact_Domain": {
+        "components": [
+          "CNORMF1",
+          "CNORMF2",
+          "CNORMF3"
+        ],
+        "count": [
+          14968426,
+          14968426,
+          14968426
+        ],
+        "min": [
+          -75.73246765136719,
+          -62.82075881958008,
+          -188.54974365234375
+        ],
+        "max": [
+          63.645118713378906,
+          43.85730743408203,
+          231.7581329345703
+        ],
+        "rows": 14968426,
+        "mean": [
+          4.1239764334214676e-12,
+          1.5277903130976972e-12,
+          -1.0133675536519567e-11
+        ],
+        "unit": "N"
+      },
+      "CSHEARF  General_Contact_Domain": {
+        "components": [
+          "CSHEARF1",
+          "CSHEARF2",
+          "CSHEARF3"
+        ],
+        "count": [
+          14968426,
+          14968426,
+          14968426
+        ],
+        "min": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "max": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rows": 14968426,
+        "mean": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "unit": "N"
+      },
+      "PEEQ": {
+        "components": [
+          "value"
+        ],
+        "count": [
+          30671564
+        ],
+        "min": [
+          0.0
+        ],
+        "max": [
+          0.47467464208602905
+        ],
+        "rows": 30671564,
+        "mean": [
+          0.0016110899047829899
+        ],
+        "unit": "1"
+      },
+      "S": {
+        "components": [
+          "S11",
+          "S22",
+          "S33",
+          "S12"
+        ],
+        "count": [
+          30671564,
+          30671564,
+          30671564,
+          30671564
+        ],
+        "min": [
+          -428.8913879394531,
+          -396.6300964355469,
+          0.0,
+          -206.08642578125
+        ],
+        "max": [
+          420.6500549316406,
+          422.9178466796875,
+          0.0,
+          205.77838134765625
+        ],
+        "rows": 30671564,
+        "mean": [
+          3.920131192264874,
+          10.728855303349905,
+          0.0,
+          -0.031118143041649265
+        ],
+        "unit": "MPa"
+      },
+      "U": {
+        "components": [
+          "U1",
+          "U2",
+          "U3"
+        ],
+        "count": [
+          15071155,
+          15071155,
+          15071155
+        ],
+        "min": [
+          -2.0224063396453857,
+          -0.32500821352005005,
+          -6.593630313873291
+        ],
+        "max": [
+          1.931509017944336,
+          0.3318065106868744,
+          2.0960381031036377
+        ],
+        "rows": 15071155,
+        "mean": [
+          -0.0022835144392385166,
+          5.965468773451027e-06,
+          -0.16905496443058463
+        ],
+        "unit": "mm"
+      }
+    }
+  },
+  "quality": {
+    "solver_completed": true,
+    "numerical_quality": "review",
+    "physical_validation": "not_established",
+    "findings": [
+      "Cuối step còn tiếp xúc >10 N; cần xem xét tăng thời gian vật lý"
+    ],
+    "thresholds": {
+      "energy_drift_percent": 1.0,
+      "artificial_energy_percent": 5.0,
+      "force_crosscheck_percent": 2.0
+    },
+    "definition": "max(abs(ETOTAL-ETOTAL[0]))/KE0; max(abs(ALLAE))/max(ALLIE)",
+    "ml_eligible": false
+  },
+  "error": null
+}

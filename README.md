@@ -68,3 +68,7 @@ CI dùng solver giả lập chỉ để kiểm tra điều phối; kiểm thử 
 - [Phát triển và phát hành](docs/DEVELOPMENT.md)
 
 Repo chứa mã nguồn, tài liệu, schema và cấu hình nhỏ. CAE/ODB, dữ liệu huấn luyện, credential và bản phát hành được lưu riêng.
+
+## Public web preview
+
+[Open Honeycomb Studio](https://honeycomb-abaqus-studio.vercel.app) to inspect inputs, geometry and genuine Windows circular-clamp reference curves. The licensed Ubuntu solver and owner login are not yet qualified/configured. See [measured cloud status](docs/CLOUD_STATUS.md) and [deployment settings and remaining acceptance](docs/CLOUD_WEB.md).

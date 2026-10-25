@@ -1,0 +1,38 @@
+"""Bundle tiny field-reduction files, hard-link large outputs without duplicating ODB."""
+
+import os
+import tarfile
+from pathlib import Path
+
+from honeycomb_studio.cloud_archive import ALLOWED
+
+
+def prepare(source: Path, target: Path):
+    reductions = []
+    for path in sorted(source.rglob("*")):
+        relative = path.relative_to(source)
+        if path.is_symlink() or not path.is_file() or path.suffix.lower() not in ALLOWED:
+            continue
+        if any(p in ("cache", "spool", "credentials", "backup-manifests", ".git") for p in relative.parts):
+            continue
+        if path.name in ("session.json", "engine-settings.json"):
+            continue
+        if "reduced-fields" in relative.parts:
+            reductions.append((path, relative))
+            continue
+        dest = target / relative
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        os.link(path, dest)
+    if reductions:
+        with tarfile.open(target / "field-reductions.tar", "w") as bundle:
+            for path, relative in reductions:
+                bundle.add(path, arcname=relative.as_posix(), recursive=False)
+    (target / "RESTORE-README.txt").write_text(
+        "Restore release parts using scripts/restore_cloud_archive.py. Then, if present, "
+        "extract field-reductions.tar into the restored root with Python 3.12+ "
+        "tarfile.extractall(path=restored_root, filter='data'). It preserves the original "
+        "relative paths and bytes of every reduced-field JSON. Original CAE/INP/ODB "
+        "and numerical exports are unchanged. Attempt artifact-manifest.json files "
+        "refer to the fully restored tree. Research quality remains separate from "
+        "transport completeness.\n"
+    )

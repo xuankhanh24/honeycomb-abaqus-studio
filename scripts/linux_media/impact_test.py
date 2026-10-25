@@ -6,15 +6,18 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
-from honeycomb_studio.cloud_archive import ReleaseArchive
+from honeycomb_studio.cloud_archive import ALLOWED, ReleaseArchive
 from honeycomb_studio.cloud_github import Github
 from honeycomb_studio.data import manifest
 from honeycomb_studio.engine import ADAPTERS, Engine
 from honeycomb_studio.models import BatchSpec, digest
 from honeycomb_studio.store import Store, write_json
+
+from publication import prepare
 
 
 def run(*args):
@@ -209,7 +212,17 @@ def publish():
         },
     )
     archive = ReleaseArchive(github, release["id"])
-    archive.publish(output, attempt="impact", complete=receipt.get("status") in ("completed", "review"))
+    # Thousands of small reduction records must not exhaust Release asset limits.
+    # Large binaries are hard-linked into this view; only small records are packed.
+    with tempfile.TemporaryDirectory(
+        dir=os.environ["RUNNER_TEMP"], prefix="impact-publication-"
+    ) as temporary:
+        publication = Path(temporary)
+        prepare(output, publication)
+        ALLOWED.add(".tar")
+        archive.publish(
+            publication, attempt="impact", complete=receipt.get("status") in ("completed", "review")
+        )
     print("Results release: " + release["html_url"], flush=True)
     write_json(Path("output/impact-release.json"), {"url": release["html_url"]})
 

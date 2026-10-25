@@ -675,6 +675,94 @@ footer span {
     gap: 8px;
     align-items: center;
 }
+.field-controls {
+    display: grid;
+    grid-template-columns: 2fr 2fr 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+}
+.field-controls > *,
+.field-timeline > * {
+    min-width: 0;
+}
+.field-figure {
+    margin: 0;
+}
+.field-figure canvas {
+    display: block;
+    width: 100%;
+    height: clamp(280px, 45vw, 480px);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+}
+.field-figure figcaption {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+}
+.field-legend {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 12px;
+    margin: 14px 0;
+}
+.field-legend > div {
+    display: flex;
+    flex: 1;
+    height: 14px;
+}
+.field-legend i {
+    flex: 1;
+}
+.field-timeline {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin: 18px 0;
+}
+.field-timeline .field {
+    flex: 1;
+}
+.field-file {
+    position: relative;
+    overflow: hidden;
+}
+.field-file:focus-within {
+    outline: 3px solid #267fc1;
+    outline-offset: 3px;
+}
+.field-file input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+}
+.field-error {
+    color: #8c2727;
+}
+@media (max-width: 800px) {
+    .field-controls {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+@media (max-width: 520px) {
+    .field-controls {
+        grid-template-columns: 1fr;
+    }
+    .field-timeline {
+        flex-wrap: wrap;
+    }
+    .field-timeline .field {
+        flex-basis: 100%;
+        order: -1;
+    }
+    .field-view .sheet-title {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+}
 .page-heading {
     position: sticky;
     top: 0;

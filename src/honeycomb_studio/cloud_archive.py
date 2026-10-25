@@ -87,7 +87,12 @@ class ReleaseArchive:
             if asset["name"] == name:
                 if asset.get("digest") != expected or asset["size"] != path.stat().st_size:
                     raise ValueError("An existing release asset failed digest verification")
-                return {"url": asset["browser_download_url"], "digest": expected, "bytes": asset["size"]}
+                return {
+                    "url": asset["browser_download_url"],
+                    "digest": expected,
+                    "bytes": asset["size"],
+                    "asset_id": asset["id"],
+                }
         if len(assets) >= 1000:
             raise ValueError(
                 "Release asset limit reached; preserve incomplete manifest and use another release"
@@ -111,7 +116,12 @@ class ReleaseArchive:
         asset = response.json()
         if asset.get("digest") != expected or asset["size"] != path.stat().st_size:
             raise ValueError("GitHub did not confirm the uploaded asset SHA-256 and size")
-        return {"url": asset["browser_download_url"], "digest": expected, "bytes": asset["size"]}
+        return {
+            "url": asset["browser_download_url"],
+            "digest": expected,
+            "bytes": asset["size"],
+            "asset_id": asset["id"],
+        }
 
     def publish(self, root: Path, *, attempt: str, complete: bool, checkpoint: str | None = None):
         files = []

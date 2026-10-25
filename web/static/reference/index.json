@@ -35,6 +35,13 @@
       "solver_completed": true,
       "top_centre_displacement_at_end_mm": -4.235502243041992,
       "validation_status": "Reconstruction; mesh convergence and experimental equivalence not established"
+    },
+    "field_view": {
+      "url": "/reference/hexagonal-fields.json",
+      "sha256": "7bdd0a84ff04628c75f49be1fe0a05402a97cc6404c71683b2ec0ad65a656bda",
+      "bytes": 2396364,
+      "verification_url": "/reference/hexagonal-fields.json.verification.json",
+      "verification_sha256": "0ea4d934120619b7e543d3c96a618427da1fc85cc28221dd165c6d787996e70b"
     }
   },
   {
@@ -82,6 +89,13 @@
       "solver_status_success": true,
       "top_centre_displacement_at_end_mm": -5.689420223236084,
       "validation_status": "Re-entrant core design; mesh convergence and experimental equivalence not established"
+    },
+    "field_view": {
+      "url": "/reference/reentrant_0-fields.json",
+      "sha256": "f8cf18b8fde9f6cc7ba97c30538dd242160b47d37bc695eb8c89d4bc6fc680a4",
+      "bytes": 2346551,
+      "verification_url": "/reference/reentrant_0-fields.json.verification.json",
+      "verification_sha256": "e7739c2f1cbf6a880c53d84c9df7abe139d21a038b527037f1195e1d036b3a53"
     }
   },
   {
@@ -129,6 +143,13 @@
       "solver_status_success": true,
       "top_centre_displacement_at_end_mm": -4.908306121826172,
       "validation_status": "Re-entrant core design; mesh convergence and experimental equivalence not established"
+    },
+    "field_view": {
+      "url": "/reference/reentrant_90-fields.json",
+      "sha256": "39803ceb82894c5f2568f9530684d37068268635ec8937d09049a9e62abef044",
+      "bytes": 2319575,
+      "verification_url": "/reference/reentrant_90-fields.json.verification.json",
+      "verification_sha256": "1cb8f3f4cc45e5904e6b4add05e28be17dc36cfb52b77ddaab34a233e4edca75"
     }
   }
 ]

@@ -525,6 +525,7 @@ class Engine:
                 Path(__file__).with_name("research_report.py"),
                 Path(__file__).with_name("research.py"),
                 ADAPTERS / "extract.py",
+                ADAPTERS / "viewer.py",
                 ADAPTERS / "render.py",
             ]
         }
@@ -600,6 +601,27 @@ class Engine:
             q.update(numerical_quality="review", ml_eligible=False)
         r.update(summary=summary, quality=q)
         write_json(extracted / "quality.json", q)
+        if not self.fake and odb.is_file() and not (extracted / "field-view.json").exists():
+            self._phase(r, "rendering")
+            viewer_config = attempt / "viewer-config.json"
+            write_json(
+                viewer_config,
+                {
+                    "odb": str(odb),
+                    "output": str(extracted / "field-view.json"),
+                    "source": {
+                        "run_id": r["id"],
+                        "input_hash": r["input_hash"],
+                        "clamp_mode": r["resolved"]["clamp_mode"],
+                        "energy_J": r["resolved"]["energy_J"],
+                        "runtime_fingerprint": self.runtime_fingerprint,
+                        "test_only": False,
+                    },
+                },
+            )
+            self._monitor(r, a, "rendering", ["python", str(ADAPTERS / "viewer.py"), str(viewer_config)])
+            if not (extracted / "field-view.json").exists():
+                raise RuntimeError("Chưa xuất được dữ liệu hiển thị ODB")
         if batch["spec"]["render_images"] and not (attempt / "figures" / "render-manifest.json").exists():
             self._phase(r, "rendering")
             cfg = attempt / "render-config.json"

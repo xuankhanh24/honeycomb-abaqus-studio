@@ -12,6 +12,7 @@ import {
     RefreshCw,
 } from "lucide-react";
 const HistoryChart = lazy(() => import("./HistoryChart"));
+const FieldView = lazy(() => import("./FieldView"));
 
 type Doc = Record<string, any>;
 type Geometry = {
@@ -972,6 +973,23 @@ export default function App() {
                                             lưu vẫn được giữ.
                                         </p>
                                     )}
+                                    <Suspense
+                                        fallback={<p>Đang mở bộ xem trường…</p>}
+                                    >
+                                        {selected.runs?.map(
+                                            (run: Doc) =>
+                                                run.field_view && (
+                                                    <FieldView
+                                                        key={run.id}
+                                                        src={`/api/jobs/${selected.id}/field-view/${run.id}`}
+                                                        sha256={
+                                                            run.field_view
+                                                                .sha256
+                                                        }
+                                                    />
+                                                ),
+                                        )}
+                                    </Suspense>
                                     <details>
                                         <summary>
                                             Input, nguồn gốc và trạng thái đầy
@@ -1113,6 +1131,21 @@ export default function App() {
                                             )}
                                         </pre>
                                     </details>
+                                    <Suspense
+                                        fallback={<p>Đang mở bộ xem trường…</p>}
+                                    >
+                                        <FieldView
+                                            key={references[reference].id}
+                                            src={
+                                                references[reference].field_view
+                                                    ?.url
+                                            }
+                                            sha256={
+                                                references[reference].field_view
+                                                    ?.sha256
+                                            }
+                                        />
+                                    </Suspense>
                                 </>
                             ) : (
                                 <p>

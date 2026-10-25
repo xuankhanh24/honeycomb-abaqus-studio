@@ -117,7 +117,19 @@ def run(args):
                 )
             engine._execute(run, batch)
             finished = store.get("runs", run["id"])
-            completed.append({k: finished.get(k) for k in ("id", "status", "summary", "quality", "error")})
+            record = {k: finished.get(k) for k in ("id", "status", "summary", "quality", "error")}
+            attempt = finished.get("attempts", [])
+            view = Path(attempt[-1]["path"]) / "extracted/field-view.json" if attempt else None
+            if view and view.is_file() and view.stat().st_size <= 4 * 1024**2:
+                try:
+                    uploaded = ReleaseArchive(github, release_id).upload(
+                        view, f"workflow-{workflow_id}-{run['id']}-field-view.json"
+                    )
+                    record["field_view"] = {**uploaded, "sha256": uploaded["digest"].removeprefix("sha256:")}
+                except Exception:
+                    # Display convenience is secondary to the complete numerical archive.
+                    record["field_view_status"] = "direct_view_upload_failed; use verified archive"
+            completed.append(record)
             catalog.update(
                 key,
                 lambda old: {

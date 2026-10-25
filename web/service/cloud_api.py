@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import secrets
 from typing import Literal
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -251,6 +253,42 @@ def create_app(github: Github | None = None) -> FastAPI:
         if value.get("workflow_run_id"):
             value["workflow"] = github.repo("GET", "/actions/runs/" + str(value["workflow_run_id"]))
         return value
+
+    @app.get("/api/jobs/{identity}/field-view/{run_id}")
+    def field_view(identity: str, run_id: str):
+        # The caller cannot supply a URL or asset ID. Both come from the trusted catalog.
+        if not JOB_ID.fullmatch(identity):
+            raise HTTPException(404)
+        value, _ = catalog.get("jobs/" + identity)
+        record = next((r for r in (value or {}).get("runs", []) if r["id"] == run_id), {})
+        asset = record.get("field_view", {})
+        asset_id = asset.get("asset_id")
+        limit = 4 * 1024**2
+        if not isinstance(asset_id, int) or not 0 < asset.get("bytes", 0) <= limit:
+            raise HTTPException(404, "Chưa có bản hiển thị đủ điều kiện tải.")
+        headers = {"Accept": "application/octet-stream"}
+        token = github.access_token()
+        if token:
+            headers["Authorization"] = "Bearer " + token
+        content = bytearray()
+        with github.client.stream(
+            "GET", f"https://api.github.com/repos/{REPOSITORY}/releases/assets/{asset_id}", headers=headers
+        ) as response:
+            response.raise_for_status()
+            for chunk in response.iter_bytes(65536):
+                content.extend(chunk)
+                if len(content) > limit:
+                    raise HTTPException(
+                        502, "Bản hiển thị vượt giới hạn; tải bộ dữ liệu trực tiếp từ Releases."
+                    )
+        if len(content) != asset["bytes"] or hashlib.sha256(content).hexdigest() != asset.get("sha256"):
+            raise HTTPException(502, "Checksum bản hiển thị không khớp; dữ liệu chưa được hiển thị.")
+        data = json.loads(content)
+        if data.get("kind") != "honeycomb-field-view":
+            raise HTTPException(502, "Asset không phải dữ liệu trường.")
+        return Response(
+            bytes(content), media_type="application/json", headers={"Cache-Control": "public, max-age=300"}
+        )
 
     @app.post("/api/jobs", status_code=201)
     def submit(body: Submission, request: Request):

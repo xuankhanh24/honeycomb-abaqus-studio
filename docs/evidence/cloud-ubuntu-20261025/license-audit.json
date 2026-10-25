@@ -1,0 +1,40 @@
+{
+  "checked_at": "2026-10-25",
+  "configuration": "local FlexNet",
+  "server_responded": true,
+  "features": [
+    {
+      "feature": "cae",
+      "vendor": "ABAQUSLM",
+      "version": "70.0",
+      "expiry": "31-dec-2055",
+      "count": "1024"
+    },
+    {
+      "feature": "explicit",
+      "vendor": "ABAQUSLM",
+      "version": "70.0",
+      "expiry": "31-dec-2055",
+      "count": "1024"
+    },
+    {
+      "feature": "standard",
+      "vendor": "ABAQUSLM",
+      "version": "70.0",
+      "expiry": "31-dec-2055",
+      "count": "1024"
+    },
+    {
+      "feature": "viewer",
+      "vendor": "ABAQUSLM",
+      "version": "70.0",
+      "expiry": "31-dec-2055",
+      "count": "1024"
+    }
+  ],
+  "third_party_activation_marker": true,
+  "linux_checkout_verified": false,
+  "publisher_authorization_verified": false,
+  "status": "blocked_license",
+  "note": "Feature version 70.0 is an internal license field, not evidence of Abaqus release compatibility. Neither activation keys nor host IDs are included."
+}

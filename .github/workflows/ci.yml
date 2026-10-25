@@ -1,7 +1,9 @@
 name: Windows acceptance
 on:
   push:
+    paths-ignore: ['docs/**', 'README.md']
   pull_request:
+    paths-ignore: ['docs/**', 'README.md']
 permissions:
   contents: read
 jobs:

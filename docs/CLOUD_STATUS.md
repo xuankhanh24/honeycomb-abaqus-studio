@@ -35,6 +35,8 @@ Publication review covered reachable Git blobs and working-tree source using a r
 
 No `runtime-lock.json` certifying a working runtime is generated before those observations exist. No flag or TCP-port check is accepted as proof of a working licensed solver. The current locally installed Windows Abaqus and a running FlexNet server do not establish Linux/cloud entitlement or version compatibility.
 
+The owner's requested local license inspection was performed read-only: FlexNet responded, with CAE/Explicit/Standard features reporting 1,024 tokens each and a 31 December 2055 expiry. The activation file contains a SolidSQUAD marker. This is evidence of a functioning local activation setup, not verified publisher authorization or Linux checkout. The internal feature version `70.0` is not an Abaqus release qualification. See the [redacted license audit](evidence/cloud-ubuntu-20261025/license-audit.json); no activation keys, signatures or host IDs were published.
+
 The previous Windows cloud draft (`abaqus-cloud.yml`, `setup-abaqus-cloud.ps1`, `run_cloud_study.py`) is archived locally under `output/cloud-windows-draft/`. It is not published as a qualified Ubuntu backend.
 
 ## Verified engine acceptance

@@ -16,7 +16,7 @@ m.HomogeneousSolidSection(name='Solid', material='Aluminium', thickness=None)
 p.Set(name='All', cells=p.cells)
 p.SectionAssignment(region=p.sets['All'], sectionName='Solid')
 p.setElementType(regions=(p.cells,), elemTypes=(mesh.ElemType(elemCode=C3D8R, elemLibrary=EXPLICIT),))
-p.seedPart(size=1.)
+p.seedPart(size=.5)
 p.generateMesh()
 a = m.rootAssembly
 a.DatumCsysByDefault(CARTESIAN)

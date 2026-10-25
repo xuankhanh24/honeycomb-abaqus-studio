@@ -1,8 +1,17 @@
 name: Test Linux media installation offline
 on:
   workflow_dispatch:
+    inputs:
+      license_smoke:
+        description: After offline checks, try a tiny real job using the owner's private license server
+        type: boolean
+        default: false
 permissions:
   contents: read
+  id-token: write
+concurrency:
+  group: honeycomb-licensed-solver
+  cancel-in-progress: false
 jobs:
   install:
     runs-on: ubuntu-22.04
@@ -23,6 +32,7 @@ jobs:
           media="$RUNNER_TEMP/abaqus-media-inspection/iso/DS.SIMULIA.Suite.2020.Linux64_Softgozar.com.iso"
           echo "d0b227290b5f62ea826b08c18bde222417817fc0d04b91abb0072cb52ebe43ad  $media" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/abaqus-mount" output/install-probe
+          sudo chown 0:0 output/install-probe
           sudo mount -o loop,ro "$media" "$RUNNER_TEMP/abaqus-mount"
           docker volume create honeycomb-install
           docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
@@ -31,6 +41,18 @@ jobs:
             --mount "type=bind,source=$PWD/output/install-probe,target=/results" \
             --mount type=volume,source=honeycomb-install,target=/opt \
             honeycomb-install-probe
+      - uses: tailscale/github-action@v4
+        if: inputs.license_smoke
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:honeycomb-runner
+      - name: Try real CAE, datacheck, Explicit and ODB reopen through restricted egress
+        if: inputs.license_smoke
+        env:
+          ABAQUS_LICENSE_ENDPOINT: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
+          ABAQUS_VENDOR_PORT: ${{ secrets.ABAQUS_VENDOR_PORT }}
+        run: python3 scripts/linux_media/license_probe.py
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
@@ -39,5 +61,13 @@ jobs:
             output/media-inspection/inspection.json
             output/install-probe/*.json
             output/install-probe/*.log
+            output/native-qualification/*.json
+            output/native-qualification/*.log
+            output/native-qualification/*.sta
+            output/native-qualification/*.msg
+            output/native-qualification/*.dat
+            output/native-qualification/*.inp
+            output/native-qualification/*.cae
+            output/native-qualification/*.odb
           retention-days: 30
           if-no-files-found: error

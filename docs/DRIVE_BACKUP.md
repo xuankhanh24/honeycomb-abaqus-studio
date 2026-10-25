@@ -13,7 +13,22 @@ Project hiện ở trạng thái **Testing** và chỉ thêm tài khoản chủ 
 
 ## Upload
 
+Mỗi bản backup mới lưu **hai phần trong thư mục job trên Drive**:
+
+- ZIP dữ liệu mô phỏng gốc, dùng khi cần khôi phục CAE/ODB và toàn bộ job.
+- Thư mục **PDF và dữ liệu huấn luyện [backup ID]**, chứa tệp thường ở ngoài ZIP: reports/batch-report.pdf và DOCX; run-reports chứa PDF/DOCX từng lượt đã có; training chứa samples.csv/Parquet, từ điển cột, đường cong, dữ liệu truy vết và job-coverage.csv. PDF và CSV có thể mở trực tiếp, không cần giải nén ZIP. Parquet dành cho phần mềm huấn luyện đọc.
+
+Ứng dụng tự tạo bản giữ lại ở thư mục **`<data-root>-retained/<job-id>/<backup-id>`**, nằm cạnh và ngoài data root. Ví dụ `C:/UET/DO_AN/honeycomb-data-retained`. Vì vậy xóa thư mục mô phỏng `honeycomb-data` sẽ không xóa bản giữ lại. Giữ thư mục `*-retained` khi dọn dẹp; `drive-index.json` lưu link Drive, danh sách tệp và checksum đã xác minh. Nút **Bản giữ lại** mở thư mục này kể cả khi danh mục mô phỏng đã được tạo lại.
+
+Backup mới chỉ báo `verified` khi ZIP và mọi tệp riêng đều đã được kiểm tra kích thước/MD5. `archive_verified` cho biết ZIP đã xong nhưng thư mục riêng chưa xong; `waiting_readable` cho biết cần tiếp tục các tệp riêng. Tiếp tục sẽ giữ nguyên ZIP đã xác minh và các tệp riêng đã thành công. Không dọn tệp mô phỏng trước khi xác nhận đúng bản backup của job đã hoàn tất cả hai phần.
+
+Với ZIP cũ đã có trên Drive, dùng nút **Backup PDF/ML riêng** để bổ sung các tệp nhỏ mà không tải lại ZIP. Đây là bản sao tài liệu/dữ liệu, không thay thế một ZIP đầy đủ. Lệnh tương đương: `honeycomb-studio publish-readable --data-root <root> --batch-id <id>`. Lệnh `retain-products` tạo bản giữ lại ở máy mà chưa upload. Các lệnh này không xóa dữ liệu.
+
+Nếu không có lượt đạt điều kiện huấn luyện, báo cáo và input/kết quả vẫn được giữ. training/dataset.json ghi `samples: 0` và job-coverage.csv giải thích lý do; không tạo bảng mẫu huấn luyện giả.
+
 Job được đóng gói ZIP64 với manifest và snapshot SQLite nhất quán. Chỉ snapshot kết quả khi file không đang được solver ghi. Drive dùng resumable upload 8 MiB/chunk; state lưu ở backup-manifests, có offset, bytes, speed và ETA.
+
+Nút **Kiểm tra kết nối Drive** thực hiện yêu cầu chỉ đọc và kiểm tra quota hiện tại. Có token chưa đủ để xác nhận kết nối hoặc backup thành công. Khi chuẩn bị, stage `hashing` là kiểm tra SHA-256, `archiving` là tạo ZIP; processed_bytes/total_bytes và updated_at cho biết tiến độ. Chỉ trạng thái `verified` xác nhận upload khớp kích thước và checksum. Sau khi engine khởi động lại, yêu cầu chưa hoàn tất chuyển sang waiting_resume; dùng Tiếp tục upload để phục hồi.
 
 Mất mạng hoặc lỗi tạm thời được retry có backoff; nếu chưa hoàn tất, chọn backup ID và **Tiếp tục upload**. Session hết hạn sẽ tạo session mới ở lần tiếp tục. Không đánh dấu hoàn tất trước khi Drive trả kích thước và MD5 trùng bản local. Manifest SHA-256 dùng để kiểm tra khi tải về/khôi phục.
 

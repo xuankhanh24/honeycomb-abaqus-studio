@@ -50,10 +50,18 @@ def mesh_work(p):
         * (p["core_z_divisions"] / 20)
         * (1.3 / p["core_outer_seed"])
     )
+    reentrant = p.get("core_topology", "hexagonal") == "reentrant_0"
+    if reentrant:
+        core = (
+            (105000 / 59160) * (p["panel"] / 100) ** 2 * (p["core_height"] / 20)
+            * (6.35 / p["cell_size"]) * (5 / p["reentrant_cell_height"])
+            * (1 / p["reentrant_depth_seed"]) * (1.3 / p["core_outer_seed"])
+        )
     face = (p["panel"] / 100) ** 2 * (1.25 / p["skin_outer_seed"]) ** 2
     complexity = 0.75 * core + 0.25 * face
     stable = min(
-        p["core_centre_seed"] / 0.7, p["skin_centre_seed"] / 0.75, p["core_height"] / p["core_z_divisions"]
+        p["core_centre_seed"] / 0.7, p["skin_centre_seed"] / 0.75,
+        p["reentrant_depth_seed"] if reentrant else p["core_height"] / p["core_z_divisions"]
     )
     return complexity, complexity / max(stable, 0.05)
 
@@ -77,7 +85,16 @@ def predict(model, calibration=()) -> dict[str, Any]:
     )
     for record in calibration:
         old = record["model"]
+        if old.get("core_topology", "hexagonal") != p.get("core_topology", "hexagonal"):
+            continue
+        if p.get("core_topology") == "reentrant_0" and any(
+            key not in old for key in ("reentrant_cell_height", "reentrant_indent", "reentrant_depth_seed")
+        ):
+            continue
         distance = sum(abs(math.log(p[k] / old[k])) for k in keys)
+        if p.get("core_topology") == "reentrant_0":
+            distance += sum(abs(math.log(p[k] / old[k])) for k in
+                            ("reentrant_cell_height", "reentrant_indent", "reentrant_depth_seed"))
         if distance < 1.5:
             prediction = (
                 record["durations"]["solving"]

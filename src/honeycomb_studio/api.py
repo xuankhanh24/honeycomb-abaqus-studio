@@ -149,7 +149,11 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
 
     @app.get("/health")
     def health():
-        return {"service": "honeycomb-studio", "version": "0.2.0"}
+        return {
+            "service": "honeycomb-studio",
+            "version": "0.2.0",
+            "capabilities": ["readable_backup", "batch_dataset_export", "docx_reports", "reentrant_core_0deg"],
+        }
 
     @app.post("/v1/engine/shutdown")
     def shutdown_engine():
@@ -201,7 +205,7 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
     @app.get("/v1/template")
     def template():
         return {
-            "spec": BatchSpec().model_dump(),
+            "spec": BatchSpec(model=ModelSpec(clamp_mode="perimeter", hex_geometry="parametric", ball_size_mode="radius")).model_dump(),
             "parameters": catalogue(),
             "schema": BatchSpec.model_json_schema(),
             "presets": {
@@ -234,10 +238,18 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
                     "changes": r["changes"],
                     "energy_J": p["energy_J"],
                     "velocity_m_s": p["velocity_m_s"],
+                    "ball_radius_mm": p["ball_radius"],
+                    "ball_diameter_mm": p["ball_diameter"],
+                    "periodic_density_kg_m3": p["periodic_density_kg_m3"],
+                    "hex_b_mm": p["hex_b"] if p["core_topology"] == "hexagonal" else None,
+                    "hex_l_mm": p["hex_l"] if p["core_topology"] == "hexagonal" else None,
+                    "hex_theta_deg": p["hex_theta_deg"] if p["core_topology"] == "hexagonal" else None,
                     "mass_kg": p["mass_kg"],
                     "skin_mm": p["skin"],
                     "core_height_mm": p["core_height"],
                     "cell_size_mm": p["cell_size"],
+                    "core_topology": p["core_topology"],
+                    "core_cell_plane": p.get("core_cell_plane", "XY"),
                     "foil_mm": p["foil"],
                     "estimate": predict(p, calibration),
                 }
@@ -393,7 +405,12 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
     @app.post("/v1/open")
     def open_artifact(body: PathRequest):
         path = Path(body.path).resolve()
-        if not path.is_relative_to(store.root) or not path.exists():
+        from .retained import retained_root
+
+        if (
+            not (path.is_relative_to(store.root) or path.is_relative_to(retained_root(store)))
+            or not path.exists()
+        ):
             raise ValueError("Chỉ mở file trong thư viện dữ liệu")
         if path.is_file() and path.suffix.lower() not in (".pdf", ".png", ".csv", ".json", ".txt", ".zip"):
             raise ValueError("Định dạng này dùng công cụ xuất hoặc Abaqus")
@@ -430,10 +447,54 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
         return {"designs": result}
 
     @app.post("/v1/batches/{bid}/report/export")
-    def export_batch_report(bid: str):
+    def export_batch_report(bid: str, format: Literal["pdf", "docx"] = "pdf"):
         return operation(
-            "batch_report", lambda: {"path": batch_report(store.get("batches", bid), store.list("runs", bid))}
+            "batch_report",
+            lambda: {"path": batch_report(store.get("batches", bid), store.list("runs", bid), format=format)},
         )
+
+    @app.post("/v1/batches/{bid}/dataset/export")
+    def export_batch_dataset(bid: str):
+        batch = store.get("batches", bid)
+        runs = store.list("runs", bid)
+
+        def export():
+            result = dataset(store, [r["id"] for r in runs], "Dữ liệu huấn luyện " + batch["name"])
+            source = Path(result["path"])
+            included = set(json.loads((source / "dataset.json").read_text(encoding="utf-8"))["run_ids"])
+            audit = []
+            for run in runs:
+                reason = "Đã xuất"
+                if run["id"] not in included:
+                    if run.get("test_only"):
+                        reason = "Dữ liệu thử nghiệm giả lập"
+                    elif run["status"] != "completed":
+                        reason = "Lượt chưa hoàn tất"
+                    elif not (run.get("quality") or {}).get("ml_eligible"):
+                        reason = "Chưa đạt chất lượng số"
+                    else:
+                        reason = "Trùng đầu vào"
+                audit.append(
+                    {
+                        "run_id": run["id"],
+                        "index": run["index"],
+                        "included": run["id"] in included,
+                        "reason": reason,
+                    }
+                )
+            write_rows(source / "job-coverage.csv", audit)
+            destination = store.root / "exports" / (result["id"] + ".zip")
+            destination.parent.mkdir(exist_ok=True)
+            archive(source, destination)
+            return {
+                **result,
+                "directory": str(source),
+                "path": str(destination),
+                "total_runs": len(runs),
+                "excluded_runs": len(runs) - len(included),
+            }
+
+        return operation("batch_dataset", export)
 
     @app.post("/v1/batches/{bid}/archive/export")
     def export_batch_archive(bid: str):
@@ -469,7 +530,7 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
         return operation("archive", lambda: archive(Path(r["path"]), dest) or {"path": str(dest)})
 
     @app.post("/v1/runs/{rid}/report/export")
-    def export_run_report(rid: str):
+    def export_run_report(rid: str, format: Literal["pdf", "docx"] = "pdf"):
         run = store.get("runs", rid)
 
         def export():
@@ -481,8 +542,8 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
                         rows = [
                             {k: float(v) if v else None for k, v in row.items()} for row in csv.DictReader(f)
                         ]
-                    return {"path": run_report(run, root, rows)}
-            return {"path": incomplete_report(run)}
+                    return {"path": run_report(run, root, rows, format=format)}
+            return {"path": incomplete_report(run, format=format)}
 
         return operation("run_report", export)
 
@@ -493,7 +554,9 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
             raise ValueError("Chưa có dữ liệu")
         root = Path(r["attempts"][-1]["path"]) / "extracted"
         if not (root / "fields").exists():
-            raise ValueError("Lượt dùng dữ liệu nghiên cứu gọn. Chọn Dữ liệu ML gọn; dữ liệu trường đầy đủ vẫn có trong ODB gốc.")
+            raise ValueError(
+                "Lượt dùng dữ liệu nghiên cứu gọn. Chọn Dữ liệu ML gọn; dữ liệu trường đầy đủ vẫn có trong ODB gốc."
+            )
 
         def export():
             import pyarrow.parquet as pq
@@ -522,7 +585,9 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
             raise ValueError("Chưa có dữ liệu")
         root = Path(run["attempts"][-1]["path"]) / "extracted"
         if not (root / "fields").exists():
-            raise ValueError("Không lưu bản sao trường Parquet ở chế độ nghiên cứu gọn. Chọn Dữ liệu ML gọn; ODB gốc vẫn được giữ.")
+            raise ValueError(
+                "Không lưu bản sao trường Parquet ở chế độ nghiên cứu gọn. Chọn Dữ liệu ML gọn; ODB gốc vẫn được giữ."
+            )
         inventory = json.loads((root / "inventory.json").read_text())
         fields = {}
         for item in inventory["fields"]:
@@ -631,9 +696,26 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
     def connect(body: PathRequest):
         return operation("oauth", lambda: backup.connect(Path(body.path)))
 
+    @app.post("/v1/backup/check")
+    def check_backup():
+        return operation("backup_check", backup.check_connection)
+
     @app.post("/v1/backup/batches/{bid}")
     def backup_batch(bid: str):
         return backup.enqueue(bid)
+
+    @app.post("/v1/backup/batches/{bid}/readable")
+    def backup_readable_batch(bid: str):
+        return backup.enqueue_readable(bid)
+
+    @app.get("/v1/retained")
+    def retained_copies():
+        from .retained import retained_root
+
+        return [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in retained_root(store).glob("*/*/drive-index.json")
+        ]
 
     @app.post("/v1/backup/resume/{identity}")
     def resume_backup(identity: str):

@@ -18,7 +18,9 @@ Engine bind 127.0.0.1, cổng ngẫu nhiên. Mọi endpoint trừ `/health` cầ
 | POST /v1/runs/{id}/open/{odb,cae,pdf,folder} | Mở artifact đúng lượt |
 | POST /v1/import-reference | Copy ODB/CAE/INP tham chiếu chỉ đọc nguồn và đăng ký |
 | POST /v1/import-designs | Nhập CSV; tên cột là dotted parameter path |
-| POST /v1/batches/{id}/report/export | PDF toàn job và run index |
+| POST /v1/batches/{id}/report/export?format=pdf hoặc docx | Báo cáo toàn job và run index; mặc định PDF |
+| POST /v1/runs/{id}/report/export?format=pdf hoặc docx | Báo cáo từng lượt; mặc định PDF |
+| POST /v1/batches/{id}/dataset/export | ZIP dữ liệu huấn luyện mọi lượt đủ điều kiện trong job; job-coverage.csv ghi nhận mọi lượt và lý do loại |
 | POST /v1/batches/{id}/archive/export | ZIP64 job |
 | POST /v1/runs/{id}/archive/export | ZIP64 lượt |
 | POST /v1/runs/{id}/fields/csv?field= | CSV mọi field hoặc field chọn |
@@ -31,7 +33,10 @@ Engine bind 127.0.0.1, cổng ngẫu nhiên. Mọi endpoint trừ `/health` cầ
 | GET /v1/operations/{id} | Trạng thái thao tác hậu xử lý nền |
 | GET /v1/backup | Kết nối và các phiên upload |
 | POST /v1/backup/connect | path tới OAuth client JSON |
+| POST /v1/backup/check | Kiểm tra credential, kết nối và quota Drive chỉ đọc; trả operation |
 | POST /v1/backup/batches/{id} | Xếp backup |
+| POST /v1/backup/batches/{id}/readable | Bổ sung PDF và dataset dạng tệp thường trên Drive, không upload lại ZIP |
+| GET /v1/retained | Danh sách bản giữ lại ngoài data root và link/checksum Drive |
 | POST /v1/backup/resume/{id} | Tiếp tục phiên upload |
 | POST /v1/backup/restore-local | path ZIP |
 | POST /v1/backup/restore-drive | file_id + sha256 |

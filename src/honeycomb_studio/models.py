@@ -67,19 +67,37 @@ class Material(StrictModel):
 
 
 class ModelSpec(StrictModel):
+    core_topology: Literal["hexagonal", "reentrant_0"] = parameter(
+        "hexagonal", "Cấu trúc lõi", source="Hexagonal reference / re-entrant image 1, 0 degrees"
+    )
     panel: float = parameter(100.0, "Cạnh tấm vuông", "mm", "Paper section 2", gt=0)
     core_height: float = parameter(20.0, "Chiều cao lõi", "mm", "Paper section 3", gt=0)
     skin: float = parameter(0.75, "Chiều dày mặt trên", "mm", "Paper section 3", gt=0)
     bottom_skin: float | None = parameter(None, "Chiều dày mặt dưới (null = bằng mặt trên)", "mm", gt=0)
     cell_size: float = parameter(
-        6.35, "Kích thước ô đối diện cạnh", "mm", "Paper; reconstruction convention", gt=0
+        6.35, "Kích thước ô / bề rộng ô lõm", "mm", "Hexagon across flats; re-entrant bounding width", gt=0
     )
-    foil: float = parameter(0.0635, "Chiều dày foil đơn", "mm", "Paper section 3", gt=0)
+    hex_geometry: Literal["regular", "parametric"] = parameter(
+        "regular", "Cách nhập ô lục giác", source="Ô đều theo kích thước ô hoặc nhập b, l, θ theo hình 7"
+    )
+    hex_b: float = parameter(6.35 / math.sqrt(3), "b — chiều dài vách đứng", "mm", "Hình 7, công thức (8); vách đứng dày 2t", gt=0)
+    hex_l: float = parameter(6.35 / math.sqrt(3), "l — chiều dài vách nghiêng", "mm", "Hình 7, công thức (8)", gt=0)
+    hex_theta_deg: float = parameter(60.0, "θ — góc vách nghiêng với phương đứng", "deg", "Hình 7; ô đều θ=60°", gt=0, lt=90)
+    reentrant_cell_height: float = parameter(5.0, "Chiều cao ô lõm", "mm", "Assumed image-1 geometry", gt=0)
+    reentrant_indent: float = parameter(1.25, "Độ lõm mỗi bên ô", "mm", "Assumed image-1 geometry", gt=0)
+    reentrant_depth_seed: float = parameter(1.0, "Seed lõi theo chiều sâu Y", "mm", "Image-1 reference mesh", gt=0)
+    phase_z: float = parameter(0.0, "Dịch pha ô lõm Z", "mm")
+    foil: float = parameter(0.0635, "t — chiều dày foil đơn", "mm", "Paper section 3; vách kép dày 2t", gt=0)
     core_angle: float = parameter(0.0, "Góc hướng ô", "deg")
     phase_x: float = parameter(0.0, "Dịch pha ô X", "mm")
     phase_y: float = parameter(0.0, "Dịch pha ô Y", "mm")
-    clamp_diameter: float = parameter(76.4, "Đường kính lỗ kẹp", "mm", "Paper section 3", gt=0)
+    clamp_mode: Literal["circular", "perimeter"] = parameter(
+        "circular", "Vị trí ngàm", source="Ngàm hai tấm mặt: ngoài lỗ tròn hoặc chỉ bốn cạnh ngoài"
+    )
+    clamp_diameter: float = parameter(76.4, "Đường kính lỗ kẹp", "mm", "Paper section 3; chỉ dùng với ngàm ngoài lỗ tròn", gt=0)
     ball_diameter: float = parameter(13.1, "Đường kính đầu va đập", "mm", "Paper section 2", gt=0)
+    ball_size_mode: Literal["diameter", "radius"] = parameter("diameter", "Cách nhập kích thước viên bi", source="D = 2R")
+    ball_radius: float = parameter(6.55, "Bán kính viên bi R", "mm", "D = 2R; độc lập với khối lượng chuyển động", gt=0)
     impactor_young: Literal[200000] = parameter(
         200000.0,
         "E vật liệu đầu rigid (không chi phối biến dạng rigid)",
@@ -93,7 +111,7 @@ class ModelSpec(StrictModel):
         0.05, "Ngưỡng bỏ đoạn vách cực ngắn ở biên", "mm", "Reconstruction geometry tolerance", gt=0, le=0.1
     )
     mass_kg: float = parameter(2.65, "Khối lượng chuyển động", "kg", "Paper section 2", gt=0)
-    loading: Literal["energy", "velocity"] = "energy"
+    loading: Literal["energy", "velocity"] = parameter("energy", "Cách nhập va đập", source="Nhập năng lượng hoặc vận tốc; E = ½mv²")
     energy_J: float = parameter(7.0, "Năng lượng ban đầu", "J", "Paper Fig.6", gt=0)
     velocity_m_s: float = parameter(2.29848186156091, "Vận tốc ban đầu (độ lớn)", "m/s", gt=0)
     impact_x: float = parameter(0.0, "Vị trí va đập X", "mm")
@@ -137,18 +155,35 @@ class ModelSpec(StrictModel):
 
     @model_validator(mode="after")
     def geometry(self):
-        if self.clamp_diameter >= self.panel or self.cell_size >= self.clamp_diameter:
+        cell_width = self.cell_size
+        if self.core_topology == "hexagonal" and self.hex_geometry == "parametric":
+            cell_width = 2 * self.hex_l * math.sin(math.radians(self.hex_theta_deg))
+            if self.foil * 2 >= min(self.hex_b, self.hex_l, cell_width) / 4:
+                raise ValueError("Foil quá dày so với b, l hoặc bề rộng ô")
+        if self.clamp_mode == "circular" and (self.clamp_diameter >= self.panel or cell_width >= self.clamp_diameter):
             raise ValueError("Lỗ kẹp phải nhỏ hơn tấm, ô phải nhỏ hơn lỗ kẹp")
-        if self.foil * 2 >= self.cell_size / 4:
+        if cell_width >= self.panel:
+            raise ValueError("Ô phải nhỏ hơn tấm")
+        if self.foil * 2 >= cell_width / 4:
             raise ValueError("Foil quá dày so với ô")
-        if abs(self.phase_x) > self.cell_size or abs(self.phase_y) > self.cell_size:
+        if self.core_topology == "reentrant_0":
+            if self.reentrant_indent >= self.cell_size / 2:
+                raise ValueError("Độ lõm phải nhỏ hơn nửa bề rộng ô để eo ô còn mở")
+            if self.foil * 2 >= min(self.reentrant_cell_height, self.cell_size - 2 * self.reentrant_indent) / 4:
+                raise ValueError("Vách quá dày so với chiều cao hoặc eo ô lõm")
+            if self.core_angle != 0 or self.phase_y != 0:
+                raise ValueError("Lõi tổ ong lõm Re-entrant cố định hướng 0° trong XZ; dùng phase_x và phase_z để dịch pha")
+            if abs(self.phase_z) > self.reentrant_cell_height:
+                raise ValueError("Dịch pha Z giới hạn trong ±một chiều cao ô lõm")
+        if abs(self.phase_x) > cell_width or abs(self.phase_y) > cell_width:
             raise ValueError("Dịch pha giới hạn trong ±một kích thước ô")
         if self.shell_points % 2 != 1:
             raise ValueError("Số điểm Simpson phải lẻ")
-        if abs(self.impact_x) + self.skin_patch_half >= self.clamp_diameter / 2 / math.sqrt(2) or abs(
+        free_half = self.clamp_diameter / 2 / math.sqrt(2) if self.clamp_mode == "circular" else self.panel / 2
+        if abs(self.impact_x) + self.skin_patch_half >= free_half or abs(
             self.impact_y
-        ) + self.skin_patch_half >= self.clamp_diameter / 2 / math.sqrt(2):
-            raise ValueError("Vùng tinh lưới mặt phải nằm trong vùng tự do của lỗ kẹp")
+        ) + self.skin_patch_half >= free_half:
+            raise ValueError("Vùng tinh lưới mặt phải nằm trong vùng tự do bên trong ngàm")
         return self
 
     def resolved(self) -> dict:
@@ -161,10 +196,15 @@ class ModelSpec(StrictModel):
                 "skin_centre_seed": 0.75,
                 "skin_outer_seed": 1.25,
                 "ball_seed": 1.0,
+                "reentrant_depth_seed": 1.0,
             }.items():
                 d[key] = value * factor
             d["core_z_divisions"] = round(20 / factor)
         d["bottom_skin"] = self.bottom_skin or self.skin
+        if self.ball_size_mode == "radius":
+            d["ball_diameter"] = 2 * self.ball_radius
+        else:
+            d["ball_radius"] = self.ball_diameter / 2
         if self.loading == "energy":
             d["velocity_m_s"] = math.sqrt(2 * self.energy_J / self.mass_kg)
         else:
@@ -172,12 +212,35 @@ class ModelSpec(StrictModel):
         d["velocity"] = d["velocity_m_s"] * 1000
         d["impact_mass"] = self.mass_kg / 1000
         d["impactor_effective_density_tonne_mm3"] = (
-            2.25e-6 * (d["impact_mass"] / 0.00265) * (13.1 / self.ball_diameter) ** 3
+            2.25e-6 * (d["impact_mass"] / 0.00265) * (13.1 / d["ball_diameter"]) ** 3
         )
         if self.friction and "ALLFD" not in d["history_variables"]:
             d["history_variables"].append("ALLFD")
-        d["side"] = self.cell_size / math.sqrt(3)
-        d["periodic_density_kg_m3"] = 8 * self.foil * self.core_material.density / (3 * self.cell_size)
+        if self.core_topology == "reentrant_0":
+            length = math.hypot(self.reentrant_indent, self.reentrant_cell_height / 2)
+            d["side"] = None
+            d["periodic_density_kg_m3"] = (
+                (2 * self.cell_size + 2 * length) * self.foil * self.core_material.density
+                / ((self.cell_size - self.reentrant_indent) * self.reentrant_cell_height)
+            )
+            d["core_cell_plane"] = "XZ"
+            d["core_extrusion_axis"] = "Y"
+            d["reentrant_inclined_length_mm"] = length
+            d["reentrant_angle_to_z_deg"] = math.degrees(math.atan2(self.reentrant_indent, self.reentrant_cell_height / 2))
+        else:
+            if self.hex_geometry == "regular":
+                d["hex_b"] = d["hex_l"] = self.cell_size / math.sqrt(3)
+                d["hex_theta_deg"] = 60.0
+            b, length, theta = d["hex_b"], d["hex_l"], math.radians(d["hex_theta_deg"])
+            d["side"] = length
+            d["cell_size"] = 2 * length * math.sin(theta) if self.hex_geometry == "parametric" else self.cell_size
+            d["hex_pitch_y_mm"] = b + length * math.cos(theta)
+            d["hex_cell_height_mm"] = b + 2 * length * math.cos(theta)
+            d["periodic_density_kg_m3"] = (
+                2 * (b + length) * self.foil * self.core_material.density
+                / ((b + length * math.cos(theta)) * (2 * length * math.sin(theta)))
+            )
+            d["density_formula"] = "HD = 2(b+l)tρ / [(b+l cosθ)(2l sinθ)]"
         d["face_plastic_table"] = self.face_material.table()
         d["core_plastic_table"] = self.core_material.table()
         d["units"] = {
@@ -188,7 +251,7 @@ class ModelSpec(StrictModel):
             "stress": "MPa",
             "energy": "N.mm",
         }
-        d["validation_status"] = "reconstruction_unvalidated"
+        d["validation_status"] = "reentrant_geometry_unvalidated" if self.core_topology == "reentrant_0" else "reconstruction_unvalidated"
         return d
 
 
@@ -277,6 +340,22 @@ def set_parameter(data: dict, key: str, value: Any):
 
 def expand(spec: BatchSpec) -> list[dict]:
     keys = [a.parameter for a in spec.axes]
+    if spec.model.core_topology != "hexagonal" and any(k.startswith("hex_") for k in keys):
+        raise ValueError("Tham số b, l, θ chỉ áp dụng cho lõi lục giác")
+    if spec.model.core_topology == "hexagonal":
+        inactive = {"cell_size"} if spec.model.hex_geometry == "parametric" else {"hex_b", "hex_l", "hex_theta_deg"}
+        if inactive.intersection(keys):
+            raise ValueError("Chọn đúng cách nhập ô lục giác trước khi khảo sát b, l, θ hoặc kích thước ô")
+    if ("ball_radius" if spec.model.ball_size_mode == "diameter" else "ball_diameter") in keys:
+        raise ValueError("Chọn đúng cách nhập bán kính/đường kính trước khi khảo sát viên bi")
+    if spec.model.clamp_mode == "perimeter" and "clamp_diameter" in keys:
+        raise ValueError("Ngàm bốn cạnh không dùng đường kính lỗ kẹp")
+    if spec.model.core_topology == "hexagonal" and any(k.startswith("reentrant_") or k == "phase_z" for k in keys):
+        raise ValueError("Tham số ô lõm chỉ áp dụng khi chọn lõi reentrant_0")
+    if spec.model.core_topology == "reentrant_0" and any(k in ("core_angle", "phase_y", "core_z_divisions") for k in keys):
+        raise ValueError("Lõi tổ ong lõm Re-entrant dùng hướng 0°, dịch pha X/Z và reentrant_depth_seed; trục khảo sát này không áp dụng")
+    if "reentrant_depth_seed" in keys and spec.model.mesh_preset != "custom":
+        raise ValueError("Quét lưới cần chọn preset custom")
     if len(set(keys)) != len(keys):
         raise ValueError("Một tham số chỉ được khai báo một trục")
     if "energy_J" in keys and "velocity_m_s" in keys:
@@ -350,6 +429,14 @@ def expand(spec: BatchSpec) -> list[dict]:
         }
         for material in ("face_material", "core_material"):
             design[material] = {k: v for k, v in design[material].items() if k not in ("name", "ultimate")}
+        if resolved["clamp_mode"] == "perimeter":
+            design["clamp_mode"] = "perimeter"
+        elif resolved["clamp_diameter"] != 76.4:
+            design["clamp_diameter"] = resolved["clamp_diameter"]
+        if resolved["core_topology"] == "reentrant_0":
+            design.update({k: resolved[k] for k in ("core_topology", "reentrant_cell_height", "reentrant_indent", "phase_z")})
+        elif resolved["hex_geometry"] == "parametric":
+            design.update({k: resolved[k] for k in ("hex_b", "hex_l", "hex_theta_deg")})
         for key in (
             "energy_J",
             "velocity_m_s",

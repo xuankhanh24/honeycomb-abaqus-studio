@@ -12,7 +12,7 @@ namespace HoneycombStudio;
 public sealed partial class MainWindow : Window
 {
     public StudioViewModel ViewModel { get; } = new();
-    private readonly EngineClient client = new();
+    private readonly EngineClient client = new(sessionPath: Environment.GetEnvironmentVariable("HONEYCOMB_STUDIO_SESSION"));
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(2) };
     private JsonObject model = new();
     private JsonObject baseSpec = new();
@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     private readonly List<AxisEditor> axes = [];
     private readonly Dictionary<string,NumberBox> loadingEditors=[];
     private bool synchronizingLoading;
+    private TextBlock? geometryFormula, impactFormula;
     private List<BatchRow> batchRows = [];
     private List<RunRow> runRows = [];
     private JsonArray historyRows = new();
@@ -131,7 +132,7 @@ public sealed partial class MainWindow : Window
     private async void RefreshClicked(object sender, RoutedEventArgs e) => await Guard(async () => { await Refresh(); if (ViewModel.SelectedRunId is not null) await LoadRunDetail(); });
     private async void Reconnect(object sender, RoutedEventArgs e) => await Guard(Initialize);
 
-    private static string Group(string key) => key.StartsWith("face_material") ? "Vật liệu mặt" : key.StartsWith("core_material") ? "Vật liệu lõi" : key.Contains("seed") || key.Contains("divisions") || key is "mesh_preset" or "fine_radius" or "skin_patch_half" or "shell_points" or "shell_element" ? "Lưới" : key is "loading" or "energy_J" or "velocity_m_s" or "mass_kg" or "ball_diameter" or "impact_x" or "impact_y" or "gap" or "gravity" ? "Va đập" : key.Contains("contact") || key.Contains("bond") || key.Contains("friction") || key.Contains("tie") || key == "clamp_diameter" ? "Liên kết và điều kiện biên" : key.Contains("interval") || key.Contains("variables") || key is "duration" or "cpus" or "precision" or "mass_scaling" or "bulk_linear" or "bulk_quadratic" ? "Solver và output" : "Hình học";
+    private static string Group(string key) => key.StartsWith("face_material") ? "Vật liệu mặt" : key.StartsWith("core_material") ? "Vật liệu lõi" : key.Contains("seed") || key.Contains("divisions") || key is "mesh_preset" or "fine_radius" or "skin_patch_half" or "shell_points" or "shell_element" ? "Lưới" : key is "loading" or "energy_J" or "velocity_m_s" or "mass_kg" or "ball_diameter" or "ball_radius" or "ball_size_mode" or "impact_x" or "impact_y" or "gap" or "gravity" ? "Va đập" : key.Contains("contact") || key.Contains("bond") || key.Contains("friction") || key.Contains("tie") || key.StartsWith("clamp_") ? "Liên kết và điều kiện biên" : key.Contains("interval") || key.Contains("variables") || key is "duration" or "cpus" or "precision" or "mass_scaling" or "bulk_linear" or "bulk_quadratic" ? "Solver và output" : "Hình học";
     private JsonNode? Value(string key)
     {
         JsonNode? n = model; foreach (var part in key.Split('.')) n = n?[part]; return n;
@@ -142,6 +143,42 @@ public sealed partial class MainWindow : Window
         var parts = key.Split('.'); foreach (var part in parts[..^1]) node = node[part]!.AsObject();
         node[parts[^1]] = value;
         if(key is "loading" or "energy_J" or "velocity_m_s" or "mass_kg") UpdateLoadingEditors();
+        if (key is "ball_radius" or "ball_diameter" or "ball_size_mode")
+        {
+            if (Value("ball_size_mode")?.ToString() == "radius") model["ball_diameter"] = Number("ball_radius", 6.55) * 2;
+            else model["ball_radius"] = Number("ball_diameter", 13.1) / 2;
+        }
+        UpdateFormulaText();
+    }
+    private double Number(string key, double fallback) => Value(key)?.GetValue<double>() ?? fallback;
+    private void UpdateFormulaText()
+    {
+        if (geometryFormula is not null)
+        {
+            double t = Number("foil", .0635), rho = Number("core_material.density", 2700);
+            if (Value("core_topology")?.ToString() == "reentrant_0")
+            {
+                double w = Number("cell_size", 6.35), h = Number("reentrant_cell_height", 5), a = Number("reentrant_indent", 1.25);
+                double l = Math.Sqrt(a*a+h*h/4);
+                double density = (2*w+2*l)*t*rho/((w-a)*h);
+                geometryFormula.Text = $"Ô lõm: HD = (2w + 2l)tρ / [(w − a)h], l = √(a² + (h/2)²)\nw = {w:G6}; h = {h:G6}; a = {a:G6}; t = {t:G6} mm; ρ = {rho:G6} kg/m³ → HD = {density:G6} kg/m³";
+            }
+            else
+            {
+                bool custom = Value("hex_geometry")?.ToString() == "parametric";
+                double b = custom ? Number("hex_b", 3.666) : Number("cell_size", 6.35)/Math.Sqrt(3);
+                double l = custom ? Number("hex_l", 3.666) : b;
+                double angle = custom ? Number("hex_theta_deg", 60) : 60, theta = angle*Math.PI/180;
+                double width = 2*l*Math.Sin(theta), pitch = b+l*Math.Cos(theta);
+                double density = 2*(b+l)*t*rho/(pitch*width);
+                geometryFormula.Text = $"HD = 2(b + l)tρ / [(b + l cosθ)(2l sinθ)]\nb = {b:G6}; l = {l:G6}; θ = {angle:G6}°; t = {t:G6} mm; ρ = {rho:G6} kg/m³\n2l sinθ = {width:G6} mm; b + l cosθ = {pitch:G6} mm → HD = {density:G6} kg/m³\nÔ đều: b = l, θ = 60° → HD ≈ 1,54tρ/b. Vách đứng dày 2t; vách nghiêng dày t.";
+            }
+        }
+        if (impactFormula is not null)
+        {
+            double radius = Value("ball_size_mode")?.ToString() == "radius" ? Number("ball_radius",6.55) : Number("ball_diameter",13.1)/2;
+            impactFormula.Text = $"E = ½mv² · D = 2R = {2*radius:G6} mm · R = {radius:G6} mm\nKhối lượng chuyển động m được nhập riêng; đổi bán kính không tự đổi m.";
+        }
     }
     private void UpdateLoadingEditors()
     {
@@ -163,30 +200,154 @@ public sealed partial class MainWindow : Window
     {
         UpdateLoadingEditors();loadingEditors.Clear();
         ParameterGroups.Children.Clear();
+        geometryFormula = impactFormula = null;
+        bool reentrant = Value("core_topology")?.ToString() == "reentrant_0";
         foreach (var group in parameters.Select(p => p!.AsObject()).GroupBy(p => Group(p["key"]!.ToString())))
         {
             var stack = new StackPanel { Spacing = 10, Padding = new Thickness(4, 12, 4, 12) };
+            if (group.Key == "Hình học") { geometryFormula = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,12) }; stack.Children.Add(geometryFormula); }
+            if (group.Key == "Va đập") { impactFormula = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,12) }; stack.Children.Add(impactFormula); }
             foreach (var descriptor in group)
             {
                 string key = descriptor["key"]!.ToString(); string unit = descriptor["unit"]?.ToString() ?? "";
+                if (reentrant && key.StartsWith("hex_")) continue;
+                if (!reentrant && Value("hex_geometry")?.ToString() == "parametric" && key == "cell_size") continue;
+                if (!reentrant && Value("hex_geometry")?.ToString() != "parametric" && key is "hex_b" or "hex_l" or "hex_theta_deg") continue;
+                if (key == "ball_radius" && Value("ball_size_mode")?.ToString() != "radius") continue;
+                if (key == "ball_diameter" && Value("ball_size_mode")?.ToString() == "radius") continue;
+                if (key == "clamp_diameter" && Value("clamp_mode")?.ToString() == "perimeter") continue;
+                if (!reentrant && (key.StartsWith("reentrant_") || key == "phase_z")) continue;
+                if (reentrant && key is "core_angle" or "phase_y" or "core_z_divisions") continue;
                 var row = new Grid { ColumnSpacing = 16 };
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(310) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 var label = new TextBlock { Text = descriptor["title"] + (unit.Length > 0 ? " (" + unit + ")" : ""), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+                if (reentrant && key == "cell_size") label.Text = "Bề rộng bao ô lõm (mm)";
+                if (reentrant && key == "fine_radius") label.Text = "Nửa rộng vùng tinh lưới lõi X (mm)";
                 ToolTipService.SetToolTip(label, key); row.Children.Add(label);
                 bool derivedLoading=key==(model["loading"]?.ToString()=="velocity"?"energy_J":"velocity_m_s");
                 string mode=derivedLoading?"Suy ra E=½mv²":axes.Any(a=>a.Key.SelectedItem?.ToString()==key)?"Khảo sát":"Cố định";
                 var source = new TextBlock { Text = mode+" · "+descriptor["source"]?.ToString(), FontSize = 12, Opacity = .8, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(source, 2); row.Children.Add(source);
-                var current = Value(key);
+                if (key == "core_topology") source.Text = reentrant ? "Ô lõm XZ, đùn theo Y · kích thước giả định, chưa hội tụ" : "Ô lục giác XY, đùn theo Z · mô hình tham chiếu";
+                var current = Value(key) ?? descriptor["default"];
                 FrameworkElement editor;
                 var options = key switch
                 {
-                    "loading" => new[] { "energy", "velocity" }, "mesh_preset" => ["reference", "quick", "fine", "custom"],
+                    "mesh_preset" => new[] { "reference", "quick", "fine", "custom" },
                     "face_material.hardening" or "core_material.hardening" => ["shifted_ramberg_osgood", "perfect_plastic", "bilinear", "table"],
                     _ => Array.Empty<string>()
                 };
-                if (options.Length > 0)
+                if (key == "core_topology")
+                {
+                    var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+                    combo.Items.Add(new ComboBoxItem { Content = "Tổ ong lục giác", Tag = "hexagonal" });
+                    combo.Items.Add(new ComboBoxItem { Content = "Tổ ong lõm (Re-entrant) — 0°", Tag = "reentrant_0" });
+                    combo.SelectedIndex = reentrant ? 1 : 0;
+                    combo.SelectionChanged += (_, _) =>
+                    {
+                        if (combo.SelectedItem is not ComboBoxItem selected) return;
+                        string topology = selected.Tag.ToString()!;
+                        SetValue(key, JsonValue.Create(topology));
+                        if (topology == "reentrant_0")
+                        {
+                            SetValue("core_angle", JsonValue.Create(0.0));
+                            SetValue("phase_y", JsonValue.Create(0.0));
+                        }
+                        foreach (var axis in axes)
+                        {
+                            string? selectedKey = axis.Key.SelectedItem?.ToString();
+                            var keys = AxisParameterKeys();
+                            // Preserve an existing axis for review; Preview explains inactive parameters.
+                            if (selectedKey is not null && !keys.Contains(selectedKey)) keys = [.. keys, selectedKey];
+                            axis.Key.ItemsSource = keys;
+                            axis.Key.SelectedItem = selectedKey;
+                        }
+                        DispatcherQueue.TryEnqueue(BuildParameterForm);
+                    };
+                    editor = combo;
+                }
+                else if (key is "hex_geometry" or "ball_size_mode" or "loading")
+                {
+                    var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+                    var choices = key switch
+                    {
+                        "hex_geometry" => new[] { ("Ô đều theo kích thước ô", "regular"), ("Nhập b, l, θ", "parametric") },
+                        "ball_size_mode" => new[] { ("Nhập bán kính R", "radius"), ("Nhập đường kính D", "diameter") },
+                        _ => new[] { ("Nhập năng lượng E (J)", "energy"), ("Nhập vận tốc v (m/s)", "velocity") }
+                    };
+                    foreach (var (title, tag) in choices) combo.Items.Add(new ComboBoxItem { Content = title, Tag = tag });
+                    combo.SelectedIndex = Array.FindIndex(choices, c => c.Item2 == current?.ToString());
+                    combo.SelectionChanged += (_, _) =>
+                    {
+                        if (combo.SelectedItem is not ComboBoxItem selected) return;
+                        string mode = selected.Tag.ToString()!;
+                        if (key == "hex_geometry" && mode == "parametric")
+                        {
+                            SetValue("hex_b", JsonValue.Create(Number("cell_size", 6.35)/Math.Sqrt(3)));
+                            SetValue("hex_l", JsonValue.Create(Number("cell_size", 6.35)/Math.Sqrt(3)));
+                            SetValue("hex_theta_deg", JsonValue.Create(60.0));
+                        }
+                        SetValue(key, JsonValue.Create(mode));
+                        foreach (var axis in axes)
+                        {
+                            string? old = axis.Key.SelectedItem?.ToString();
+                            string? next = key == "loading" && old is "energy_J" or "velocity_m_s" ? (mode == "energy" ? "energy_J" : "velocity_m_s")
+                                : key == "ball_size_mode" && old is "ball_radius" or "ball_diameter" ? (mode == "radius" ? "ball_radius" : "ball_diameter") : old;
+                            if (next != old && next is not null)
+                            {
+                                if (key == "loading")
+                                {
+                                    double mass = Number("mass_kg", 2.65);
+                                    double ConvertLoad(double x) => mode == "energy" ? .5*mass*x*x : Math.Sqrt(2*x/mass);
+                                    // Convert explicit points, preserving physical values across modes.
+                                    var points = string.IsNullOrWhiteSpace(axis.Values.Text) ? null : JsonNode.Parse(axis.Values.Text)?.AsArray();
+                                    if (points is not null) axis.Values.Text = new JsonArray(points.Select(p => (JsonNode?)JsonValue.Create(ConvertLoad(p!.GetValue<double>()))).ToArray()).ToJsonString();
+                                    else { axis.Start.Value = ConvertLoad(axis.Start.Value); axis.Stop.Value = ConvertLoad(axis.Stop.Value); axis.Step.Value = mode == "energy" ? 1 : .2; }
+                                }
+                                else
+                                {
+                                    double factor = mode == "radius" ? .5 : 2;
+                                    if (!string.IsNullOrWhiteSpace(axis.Values.Text))
+                                    {
+                                        var points = JsonNode.Parse(axis.Values.Text)!.AsArray();
+                                        axis.Values.Text = new JsonArray(points.Select(p => (JsonNode?)JsonValue.Create(p!.GetValue<double>()*factor)).ToArray()).ToJsonString();
+                                    }
+                                    axis.Start.Value *= factor; axis.Stop.Value *= factor; axis.Step.Value *= factor;
+                                }
+                            }
+                            var keys = AxisParameterKeys();
+                            if (next is not null && !keys.Contains(next)) keys = [.. keys, next];
+                            axis.Key.ItemsSource = keys; axis.Key.SelectedItem = next;
+                        }
+                        DispatcherQueue.TryEnqueue(BuildParameterForm);
+                    };
+                    editor = combo;
+                }
+                else if (key == "clamp_mode")
+                {
+                    var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+                    combo.Items.Add(new ComboBoxItem { Content = "Chỉ bốn cạnh ngoài", Tag = "perimeter" });
+                    combo.Items.Add(new ComboBoxItem { Content = "Vùng ngoài lỗ tròn", Tag = "circular" });
+                    combo.SelectedIndex = current?.ToString() == "perimeter" ? 0 : 1;
+                    source.Text = "Khóa 6 bậc tự do trên cả hai tấm mặt";
+                    combo.SelectionChanged += (_, _) =>
+                    {
+                        if (combo.SelectedItem is not ComboBoxItem selected) return;
+                        SetValue(key, JsonValue.Create(selected.Tag.ToString()));
+                        foreach (var axis in axes)
+                        {
+                            string? old = axis.Key.SelectedItem?.ToString();
+                            var keys = AxisParameterKeys();
+                            if (old is not null && !keys.Contains(old)) keys = [.. keys, old];
+                            axis.Key.ItemsSource = keys;
+                            axis.Key.SelectedItem = old;
+                        }
+                        DispatcherQueue.TryEnqueue(BuildParameterForm);
+                    };
+                    editor = combo;
+                }
+                else if (options.Length > 0)
                 {
                     var combo = new ComboBox { ItemsSource = options, SelectedItem = current?.ToString(), HorizontalAlignment = HorizontalAlignment.Stretch };
                     combo.SelectionChanged += (_, _) =>
@@ -246,12 +407,27 @@ public sealed partial class MainWindow : Window
             }
             ParameterGroups.Children.Add(new Expander { Header = group.Key, Content = stack, IsExpanded = group.Key is "Hình học" or "Va đập", HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch });
         }
+        UpdateFormulaText();
     }
     private sealed record AxisEditor(Grid Row, ComboBox Key, NumberBox Start, NumberBox Stop, NumberBox Step, CheckBox End, TextBox Values);
+    private string[] AxisParameterKeys()
+    {
+        bool reentrant = Value("core_topology")?.ToString() == "reentrant_0";
+        return parameters.Select(p => p!.AsObject())
+            .Where(p => p["sweep_allowed"]?.GetValue<bool>() != false && (p["type"]?.ToString().Contains("Literal") != true || p["key"]!.ToString().EndsWith(".hardening")))
+            .Select(p => p["key"]!.ToString())
+            .Where(k => Value(k) is JsonValue v && v.TryGetValue<double>(out _) || k == "bottom_skin" || k.EndsWith(".hardening"))
+            .Where(k => reentrant ? k is not ("core_angle" or "phase_y" or "core_z_divisions") : !k.StartsWith("reentrant_") && k != "phase_z")
+            .Where(k => k != "clamp_diameter" || Value("clamp_mode")?.ToString() != "perimeter")
+            .Where(k => !k.StartsWith("hex_") || !reentrant && Value("hex_geometry")?.ToString() == "parametric")
+            .Where(k => k != "cell_size" || reentrant || Value("hex_geometry")?.ToString() != "parametric")
+            .Where(k => k != (Value("ball_size_mode")?.ToString() == "radius" ? "ball_diameter" : "ball_radius"))
+            .ToArray();
+    }
     private void AddAxisEditor(string key = "core_height", double start = 15, double stop = 25, double step = 5)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var numericKeys = parameters.Select(p => p!.AsObject()).Where(p => p["sweep_allowed"]?.GetValue<bool>() != false && (p["type"]?.ToString().Contains("Literal") != true || p["key"]!.ToString().EndsWith(".hardening"))).Select(p => p["key"]!.ToString()).Where(k => Value(k) is JsonValue v && v.TryGetValue<double>(out _) || k == "bottom_skin" || k.EndsWith(".hardening")).ToArray();
+        var numericKeys = AxisParameterKeys();
         var combo = new ComboBox { Header = "Tham số", ItemsSource = numericKeys, SelectedItem = key, Width = 250 };
         var a = new NumberBox { Header = "Đầu", Value = start, Width = 105 };
         var b = new NumberBox { Header = "Cuối", Value = stop, Width = 105 };
@@ -471,10 +647,21 @@ public sealed partial class MainWindow : Window
     private async Task ExportOperation(string path, JsonNode? body = null)
     {
         var op = await client.Post(path, body); var result = await client.WaitOperation(op, text => Message(text));
+        await ShowExportResult(result);
+    }
+    private async Task ShowExportResult(JsonNode result)
+    {
         LibraryResult.Text = result.ToJsonString(pretty); Message("Hoàn tất: " + result);
         if (result["path"] is not null) await client.Post("/v1/open", new JsonObject { ["path"] = result["path"]!.ToString() });
     }
     private async void ExportBatchPdf(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation($"/v1/batches/{ViewModel.SelectedBatchId}/report/export"));
+    private async void ExportBatchDocx(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation($"/v1/batches/{ViewModel.SelectedBatchId}/report/export?format=docx"));
+    private async void ExportRunDocx(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation($"/v1/runs/{ViewModel.SelectedRunId}/report/export?format=docx"));
+    private async void ExportBatchResearch(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        if (ViewModel.SelectedBatchId is null) throw new InvalidOperationException("Chọn job trước");
+        await ShowExportResult(await client.ExportBatchDataset(ViewModel.SelectedBatchId, text => Message(text)));
+    });
     private async void ExportBatchZip(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation($"/v1/batches/{ViewModel.SelectedBatchId}/archive/export"));
     private async void ExportRunZip(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation($"/v1/runs/{ViewModel.SelectedRunId}/archive/export"));
     private async void ExportRunResearch(object sender, RoutedEventArgs e) => await Guard(async () =>
@@ -564,7 +751,31 @@ public sealed partial class MainWindow : Window
     });
     private async void Reindex(object sender, RoutedEventArgs e) => await Guard(async () => { Message((await client.Post("/v1/catalog/reindex")).ToJsonString()); await Refresh(); });
     private async void ConnectDrive(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation("/v1/backup/connect", new JsonObject { ["path"] = OAuthClientPath.Text }));
-    private async void BackupBatch(object sender, RoutedEventArgs e) => await Guard(async () => { Message((await client.Post("/v1/backup/batches/" + ViewModel.SelectedBatchId)).ToJsonString()); });
+    private async void CheckDrive(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation("/v1/backup/check"));
+    private async Task RequireReadableBackup()
+    {
+        var health = await client.Get("/health");
+        if (health["capabilities"] is not JsonArray capabilities || !capabilities.Any(c => c?.ToString() == "readable_backup"))
+            throw new InvalidOperationException("Engine đang chạy bản cũ chỉ backup ZIP. Chờ upload hiện tại hoàn tất, rồi chọn Lưu và khởi động lại engine để backup cả PDF và dữ liệu huấn luyện riêng.");
+    }
+    private async void BackupBatch(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        if (ViewModel.SelectedBatchId is null) throw new InvalidOperationException("Chọn job trước");
+        await RequireReadableBackup();
+        Message((await client.Post("/v1/backup/batches/" + ViewModel.SelectedBatchId)).ToJsonString());
+    });
+    private async void BackupReadable(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        if (ViewModel.SelectedBatchId is null) throw new InvalidOperationException("Chọn job trước");
+        await RequireReadableBackup();
+        Message((await client.Post($"/v1/backup/batches/{ViewModel.SelectedBatchId}/readable")).ToJsonString());
+    });
+    private async void OpenRetained(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var status = await client.Get("/v1/backup");
+        if (status["retained_root"] is null) throw new InvalidOperationException("Khởi động lại engine để mở thư mục báo cáo và dữ liệu giữ lại.");
+        await client.Post("/v1/open", new JsonObject { ["path"] = status["retained_root"]!.ToString() });
+    });
     private async void ResumeBackup(object sender, RoutedEventArgs e) => await Guard(async () => { Message((await client.Post("/v1/backup/resume/" + BackupId.Text)).ToJsonString()); });
     private async void RestoreLocal(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation("/v1/backup/restore-local", new JsonObject { ["path"] = RestoreZip.Text }));
     private async void RestoreDrive(object sender, RoutedEventArgs e) => await Guard(() => ExportOperation("/v1/backup/restore-drive", new JsonObject { ["file_id"] = DriveFileId.Text, ["sha256"] = RestoreSha.Text }));

@@ -45,3 +45,13 @@ session.json
 engine-settings.json
 honeycomb-data/
 catalog.sqlite*
+
+# Cloud credentials and activation files are not public research data.
+.env
+.env.*
+!.env.example
+*.lic
+*.pem
+*.key
+.vercel/
+node_modules/

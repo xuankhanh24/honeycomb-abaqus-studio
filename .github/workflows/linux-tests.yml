@@ -1,0 +1,23 @@
+name: Linux engine acceptance
+on:
+  push:
+    branches: [main]
+    paths: ['src/**', 'tests/**', 'scripts/**', 'pyproject.toml', 'uv.lock', '.github/workflows/linux-tests.yml']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run --locked ruff check src tests scripts
+      - run: uv run --locked ty check src/honeycomb_studio --exclude src/honeycomb_studio/adapters
+      - name: Test engine orchestration and data (no licensed Abaqus available)
+        run: uv run --locked pytest -q

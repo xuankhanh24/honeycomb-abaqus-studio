@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -19,6 +20,7 @@ from reportlab.platypus import (
     Image,
     KeepTogether,
     LongTable,
+    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     TableStyle,
@@ -81,17 +83,17 @@ def styles():
         s[name].fontName = "VietnameseBold"
         s[name].fontSize = size
         s[name].leading = leading
-        s[name].textColor = colors.HexColor("#18324f")
+        s[name].textColor = colors.black
     return s
 
 
-def table(rows, widths=None):
+def table(rows, widths=None, max_width=None):
     s = styles()
     from .research_report import number
 
     cells = [[Paragraph(escape(number(x)), s["Normal"]) for x in row] for row in rows]
     if widths:
-        available = A4[0] - 72
+        available = max_width or A4[0] - 72
         if sum(widths) > available:
             widths = [w * available / sum(widths) for w in widths]
     t = LongTable(cells, colWidths=widths, repeatRows=1, hAlign="LEFT", splitInRow=1)
@@ -180,14 +182,14 @@ def plots(rows: list[dict], directory: Path):
 
 
 @serialized
-def run_report(run: dict, attempt: Path, rows: list[dict], checkpoint=None):
+def run_report(run: dict, attempt: Path, rows: list[dict], checkpoint=None, format="pdf"):
     from .research_report import build
 
-    return build(run, attempt, rows, checkpoint)
+    return build(run, attempt, rows, checkpoint, format=format)
 
 
 @serialized
-def incomplete_report(run: dict):
+def incomplete_report(run: dict, format="pdf"):
     s = styles()
     out = Path(run["path"]) / "reports"
     out.mkdir(parents=True, exist_ok=True)
@@ -214,6 +216,10 @@ def incomplete_report(run: dict):
             [45, 145, 145, 188],
         )
     )
+    if format == "docx":
+        from .word_report import save_story
+
+        return save_story(story, out / "status-report.docx")
     dest = out / "status-report.pdf"
     SimpleDocTemplate(
         str(dest), pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36
@@ -222,14 +228,24 @@ def incomplete_report(run: dict):
 
 
 @serialized
-def batch_report(batch: dict, runs: list[dict]):
+def batch_report(batch: dict, runs: list[dict], format="pdf"):
     s = styles()
     out = Path(batch["path"]) / "reports"
     out.mkdir(parents=True, exist_ok=True)
     story = [
-        Paragraph(escape(batch["name"]), s["Title"]),
-        Paragraph("Báo cáo toàn job · " + escape(now()), s["BodyText"]),
+        Paragraph("Báo cáo tổng hợp mô phỏng honeycomb", s["Title"]),
+        Paragraph(escape(batch["name"]), s["Heading1"]),
+        Paragraph(
+            "Mã job: "
+            + escape(batch["id"])
+            + " · Xuất lúc "
+            + datetime.now(timezone(timedelta(hours=7))).strftime("%d/%m/%Y %H:%M UTC+7"),
+            s["BodyText"],
+        ),
     ]
+    from .batch_details import append_inputs, append_overview, append_results
+
+    append_overview(story, batch, runs)
     from .research import TARGETS
 
     rows = []
@@ -261,7 +277,7 @@ def batch_report(batch: dict, runs: list[dict]):
             + [
                 [
                     r["index"],
-                    r["status"],
+                    status_label(r["status"]),
                     r["resolved"]["energy_J"],
                     (r.get("summary") or {}).get("peak_raw_contact_force_N"),
                     (r.get("summary") or {}).get("max_top_centre_downward_mm"),
@@ -274,12 +290,16 @@ def batch_report(batch: dict, runs: list[dict]):
     )
     completed = [r for r in runs if r.get("summary")]
     if completed:
+        story.append(PageBreak())
+        story.append(Paragraph("Biểu đồ so sánh và đường cong mô phỏng", s["Heading1"]))
         fig, axs = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
         for r in completed:
             a = r["summary"]
             e = r["resolved"]["energy_J"]
-            axs[0].scatter(e, a["peak_raw_contact_force_N"], label=str(r["index"]))
-            axs[1].scatter(e, a["max_top_centre_downward_mm"])
+            if a.get("peak_raw_contact_force_N") is not None:
+                axs[0].scatter(e, a["peak_raw_contact_force_N"], label=str(r["index"]))
+            if a.get("max_top_centre_downward_mm") is not None:
+                axs[1].scatter(e, a["max_top_centre_downward_mm"])
         axs[0].set(xlabel="Năng lượng (J)", ylabel="Lực đỉnh (N)")
         axs[1].set(xlabel="Năng lượng (J)", ylabel="Độ võng mặt trên (mm)")
         for ax in axs:
@@ -288,19 +308,42 @@ def batch_report(batch: dict, runs: list[dict]):
         plt.close(fig)
         story.append(Image(str(out / "comparison.png"), width=690, height=276))
         # Overlay raw histories in bounded groups so legends remain readable.
+        from .history_sources import load_history
+
+        history_sources = []
         for first in range(0, len(completed), 12):
             subset = completed[first : first + 12]
-            fig, axs = plt.subplots(1, 2, figsize=(11, 4), layout="constrained")
+            available, missing = [], []
             for run in subset:
-                if not run["attempts"]:
-                    continue
-                source = Path(run["attempts"][-1]["path"]) / "extracted" / "impact_history.csv"
-                if not source.exists():
-                    continue
-                import csv
-
-                with source.open(encoding="utf-8-sig", newline="") as f:
-                    curve = list(csv.DictReader(f))
+                history = load_history(run)
+                if history:
+                    available.append((run, history))
+                    history_sources.append(
+                        {
+                            "run_id": run["id"],
+                            "attempt": run["attempts"][-1]["number"] if run["attempts"] else None,
+                            "source": str(history["path"]),
+                            "kind": history["kind"],
+                            "samples": len(history["rows"]),
+                        }
+                    )
+                else:
+                    missing.append(str(run["index"]))
+                    history_sources.append({"run_id": run["id"], "source": None, "samples": 0})
+            if missing:
+                story.append(
+                    Paragraph(
+                        "Chưa có đường cong gốc hợp lệ cho lượt "
+                        + ", ".join(missing)
+                        + ". Cần khôi phục dữ liệu lịch sử; không suy diễn đường cong từ các chỉ số cực đại.",
+                        s["BodyText"],
+                    )
+                )
+            if not available:
+                continue
+            fig, axs = plt.subplots(1, 2, figsize=(11, 4), layout="constrained")
+            for run, history in available:
+                curve = history["rows"]
                 t = [float(r["time_ms"]) for r in curve]
                 force = [float(r["contact_force_N"]) for r in curve]
                 u = [float(r["impactor_displacement_mm"]) for r in curve]
@@ -311,11 +354,25 @@ def batch_report(batch: dict, runs: list[dict]):
             axs[1].set(xlabel="Chuyển vị viên từ đầu bước (mm)", ylabel="Lực (N)")
             for ax in axs:
                 ax.grid(alpha=0.2)
-                ax.legend(fontsize=7, ncol=2)
+                if ax.get_legend_handles_labels()[0]:
+                    ax.legend(fontsize=7, ncol=2)
             file = out / f"curves-{first:05d}.png"
             fig.savefig(file, dpi=160)
             plt.close(fig)
-            story.append(Image(str(file), width=690, height=251))
+            story.append(Image(str(file), width=660, height=240))
+            recovered = [str(run["index"]) for run, history in available if history["kind"] != "attempt"]
+            if recovered:
+                story.append(
+                    Paragraph(
+                        "Đường cong gốc của lượt "
+                        + ", ".join(recovered)
+                        + " được đọc từ bản giữ lại hoặc dataset, đúng mã lượt và attempt.",
+                        s["Normal"],
+                    )
+                )
+        from .store import write_json
+
+        write_json(out / "history-sources.json", history_sources)
         # Physical comparisons are conditioned on the same loading, never across E.
         from .data import pareto
         from .models import digest
@@ -424,15 +481,25 @@ def batch_report(batch: dict, runs: list[dict]):
                             for j, t in enumerate(targets)
                         ],
                     )
-    story.append(Paragraph("Hồ sơ đầu vào và kết quả", s["Heading2"]))
-    story.append(
-        Paragraph(
-            "Bảng run-index.csv/Parquet ghi chỉ số chính mỗi lượt. Input đầy đủ và bảng vật liệu giữ trong từng thư mục lượt; PDF từng lượt trình bày 5 trang. Các chỉ số cực đại và chất lượng không được suy diễn từ ảnh minh họa.",
-            s["BodyText"],
-        )
-    )
+    append_inputs(story, runs)
+    append_results(story, runs)
+    if format == "docx":
+        from .word_report import save_story
+
+        return save_story(story, out / "batch-report.docx", landscape=True)
     dest = out / "batch-report.pdf"
     SimpleDocTemplate(
         str(dest), pagesize=landscape(A4), leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36
     ).build(story, onFirstPage=footer, onLaterPages=footer)
     return str(dest)
+
+
+def status_label(value):
+    return {
+        "completed": "Hoàn tất",
+        "failed": "Lỗi",
+        "interrupted": "Bị dừng",
+        "queued": "Đang chờ",
+        "review": "Cần xem xét",
+        "solving": "Đang giải",
+    }.get(value, value)

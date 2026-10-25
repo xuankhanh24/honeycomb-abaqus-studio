@@ -1,0 +1,54 @@
+{
+  "measured_at": "2026-10-25T06:14:23.348955+00:00",
+  "platform": "Linux-6.8.0-1064-azure-x86_64-with-glibc2.35",
+  "architecture": "x86_64",
+  "python": "3.10.12",
+  "cpus": 4,
+  "memory": {
+    "MemTotal_bytes": 16765411328,
+    "MemAvailable_bytes": 15794237440,
+    "SwapTotal_bytes": 3221221376
+  },
+  "image": "ubuntu22",
+  "image_version": "20261023.322.3",
+  "github_run_id": "40168384430",
+  "mounts": [
+    {
+      "device": "/dev/root",
+      "path": "/",
+      "type": "ext4",
+      "ram_backed": false
+    }
+  ],
+  "disks": [
+    {
+      "path": "/home/runner/work/honeycomb-abaqus-studio/honeycomb-abaqus-studio",
+      "total_bytes": 155897610240,
+      "free_bytes": 91955609600,
+      "used_bytes": 63925223424,
+      "filesystem": "ext4",
+      "ram_backed": false
+    },
+    {
+      "path": "/home/runner/work/_temp",
+      "total_bytes": 155897610240,
+      "free_bytes": 91955609600,
+      "used_bytes": 63925223424,
+      "filesystem": "ext4",
+      "ram_backed": false
+    },
+    {
+      "path": "/mnt",
+      "total_bytes": 155897610240,
+      "free_bytes": 91955609600,
+      "used_bytes": 63925223424,
+      "filesystem": "ext4",
+      "ram_backed": false
+    }
+  ],
+  "scratch_candidate": "/home/runner/work/honeycomb-abaqus-studio/honeycomb-abaqus-studio",
+  "disk_budget": {
+    "measured": false,
+    "reason": "Installer, installed runtime, scratch, ODB and export peaks must be measured with licensed Linux media."
+  }
+}

@@ -138,6 +138,54 @@ public sealed class ContractTests
     }
 
     [TestMethod]
+    public async Task WholeJobDatasetWorksWithAnOlderRunningEngine()
+    {
+        var requests = new List<string>();
+        JsonNode? submitted = null;
+        using var transport = new HttpClient(new AsyncHandler(async request =>
+        {
+            string path = request.RequestUri!.AbsolutePath;
+            requests.Add(request.Method + " " + path);
+            string json;
+            HttpStatusCode status = HttpStatusCode.OK;
+            switch (path)
+            {
+                case "/v1/batches/b1/dataset/export":
+                    status = HttpStatusCode.NotFound; json = """{"detail":"Not Found"}"""; break;
+                case "/v1/batches/b1":
+                    json = """{"id":"b1","name":"Quét năng lượng","runs":[{"id":"r1"},{"id":"r2"},{"id":"r3"}]}"""; break;
+                case "/v1/datasets":
+                    submitted = JsonNode.Parse(await request.Content!.ReadAsStringAsync());
+                    json = """{"id":"d1","samples":2,"path":"C:/data/datasets/d1"}"""; break;
+                case "/v1/datasets/d1/archive/export":
+                    json = """{"id":"op1","kind":"dataset_archive","status":"completed","result":{"path":"C:/data/exports/d1.zip"}}"""; break;
+                default: throw new AssertFailedException(path);
+            }
+            return new HttpResponseMessage(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+        })) { BaseAddress = new Uri("http://127.0.0.1:12345") };
+        var result = await new EngineClient(transport).ExportBatchDataset("b1", _ => { });
+        Assert.AreEqual("C:/data/exports/d1.zip", result["path"]!.ToString());
+        CollectionAssert.AreEqual(new[] { "r1", "r2", "r3" }, submitted!["run_ids"]!.AsArray().Select(x => x!.ToString()).ToArray());
+        Assert.AreEqual(3, result["total_runs"]!.GetValue<int>());
+        Assert.AreEqual(1, result["excluded_runs"]!.GetValue<int>());
+        Assert.AreEqual(4, requests.Count);
+    }
+
+    [TestMethod]
+    public async Task ModernDatasetExportDoesNotFallBackOrReplayFailures()
+    {
+        int calls = 0;
+        using var transport = new HttpClient(new Handler(_ =>
+        {
+            calls++;
+            return new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("""{"detail":"Không có lượt đủ chất lượng"}""") };
+        })) { BaseAddress = new Uri("http://127.0.0.1:12345") };
+        try { await new EngineClient(transport).ExportBatchDataset("b1", _ => { }); Assert.Fail("Expected quality error"); }
+        catch (InvalidOperationException error) { StringAssert.Contains(error.Message, "Không có lượt đủ chất lượng"); }
+        Assert.AreEqual(1, calls);
+    }
+
+    [TestMethod]
     public async Task PostTransmitsCompleteUnicodeInputJson()
     {
         string? captured = null;

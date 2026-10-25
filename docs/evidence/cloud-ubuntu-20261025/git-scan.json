@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "blobs_scanned": 155,
+  "findings": [],
+  "limitations": "Pattern-based scan; not a proof that every possible secret or third-party right was found."
+}

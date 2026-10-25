@@ -1,0 +1,45 @@
+{
+  "archive": "HoneycombStudio-v0.2.0-preview-win-x64.zip",
+  "bytes": 283503181,
+  "sha256": "ab4d79fbaf2362acefffe066c87918e5b9e6faaaa2cad6087baedb8dff0fa746",
+  "entries": 10797,
+  "passed": true,
+  "reviewed_false_positives": [
+    {
+      "path": "HoneycombStudio-v0.2.0-win-x64/runtime/Lib/site-packages/googleapiclient/discovery_cache/documents/appengine.v1.json",
+      "rule": "private_key",
+      "classification": "false_positive_api_description_without_key_payload",
+      "evidence": [
+        {
+          "json_path": ".schemas.CertificateRawData.properties.privateKey.description",
+          "description_only": true,
+          "pem_payload_present": false
+        }
+      ]
+    },
+    {
+      "path": "HoneycombStudio-v0.2.0-win-x64/runtime/Lib/site-packages/googleapiclient/discovery_cache/documents/appengine.v1alpha.json",
+      "rule": "private_key",
+      "classification": "false_positive_api_description_without_key_payload",
+      "evidence": [
+        {
+          "json_path": ".schemas.CertificateRawData.properties.privateKey.description",
+          "description_only": true,
+          "pem_payload_present": false
+        }
+      ]
+    },
+    {
+      "path": "HoneycombStudio-v0.2.0-win-x64/runtime/Lib/site-packages/googleapiclient/discovery_cache/documents/appengine.v1beta.json",
+      "rule": "private_key",
+      "classification": "false_positive_api_description_without_key_payload",
+      "evidence": [
+        {
+          "json_path": ".schemas.CertificateRawData.properties.privateKey.description",
+          "description_only": true,
+          "pem_payload_present": false
+        }
+      ]
+    }
+  ]
+}

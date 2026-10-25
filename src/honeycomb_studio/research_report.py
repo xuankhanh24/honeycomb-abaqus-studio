@@ -55,7 +55,7 @@ def material_plot(model, destination):
     plt.close(fig)
 
 
-def build(run, attempt: Path, rows, checkpoint=None):
+def build(run, attempt: Path, rows, checkpoint=None, format="pdf"):
     from .reports import footer, plots, styles, table
 
     styles_ = styles()
@@ -259,6 +259,10 @@ def build(run, attempt: Path, rows, checkpoint=None):
             text(
                 "Hồ sơ kiểm tra: resolved-input.json/CSV, extracted/summary.json, quality.json, impact_history.csv/Parquet và ODB gốc. Bảng ML mỗi lượt một dòng nằm trong samples.csv/Parquet; các file trường nút/phần tử chỉ xuất ở chế độ lưu trữ đầy đủ."
             )
+    if format == "docx":
+        from .word_report import save_story
+
+        return save_story(story, output / "run-report.docx")
     document = SimpleDocTemplate(
         str(output / "run-report.pdf"),
         pagesize=A4,

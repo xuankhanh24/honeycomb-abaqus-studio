@@ -378,6 +378,7 @@ class Engine:
                 r["test_only"] = self.fake
                 cfg = {
                     **r["resolved"],
+                    "adapter_directory": str(ADAPTERS),
                     "output_directory": str(attempt / "raw"),
                     "job_name": a["job_name"],
                     "studio_software": a["software"],
@@ -391,6 +392,8 @@ class Engine:
                     {
                         "input": cache_spec,
                         "builder": checksum(ADAPTERS / "build.py"),
+                        "reentrant_geometry": checksum(ADAPTERS / "reentrant.py"),
+                        "hexagonal_geometry": checksum(ADAPTERS / "hexagonal.py"),
                         "clone": checksum(ADAPTERS / "clone.py"),
                     }
                 )

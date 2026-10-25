@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http;
+using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 
@@ -139,10 +140,48 @@ public sealed class EngineClient
         return await Read(response);
     }
 
+    public async Task<JsonNode> ExportBatchDataset(string batchId, Action<string> progress)
+    {
+        JsonNode operation;
+        try
+        {
+            operation = await Post($"/v1/batches/{batchId}/dataset/export");
+        }
+        catch (EngineApiException error) when (error.StatusCode == HttpStatusCode.NotFound && error.Detail == "Not Found")
+        {
+            // A newer UI may connect to an older engine while its backup runs.
+            // Only an absent route is safe to replace with the established API.
+            progress("Engine đang chạy bản cũ; xuất toàn job qua API dữ liệu tương thích.");
+            var batch = await Get($"/v1/batches/{batchId}");
+            var runs = batch["runs"]!.AsArray();
+            var ids = new JsonArray(runs.Select(r => JsonValue.Create(r!["id"]!.ToString()) as JsonNode).ToArray());
+            var dataset = await Post("/v1/datasets", new JsonObject
+            {
+                ["run_ids"] = ids, ["name"] = "Dữ liệu huấn luyện " + batch["name"], ["seed"] = 42
+            });
+            var result = await WaitOperation(await Post($"/v1/datasets/{dataset["id"]}/archive/export"), progress);
+            result["id"] = dataset["id"]!.DeepClone();
+            result["samples"] = dataset["samples"]!.DeepClone();
+            result["directory"] = dataset["path"]!.DeepClone();
+            result["total_runs"] = runs.Count;
+            result["excluded_runs"] = runs.Count - dataset["samples"]!.GetValue<int>();
+            result["compatibility_mode"] = "legacy_engine";
+            result["note"] = "Đã xét toàn bộ lượt qua bộ lọc chất lượng của engine. Bản engine cũ chưa tạo job-coverage.csv; dataset.json ghi các lượt được nhận.";
+            return result;
+        }
+        return await WaitOperation(operation, progress);
+    }
+
     private static async Task<JsonNode> Read(HttpResponseMessage response)
     {
         var text = await response.Content.ReadAsStringAsync();
-        if (!response.IsSuccessStatusCode) throw new InvalidOperationException(text);
+        if (!response.IsSuccessStatusCode)
+        {
+            string? detail = null;
+            try { detail = JsonNode.Parse(text)?["detail"]?.ToString(); }
+            catch (System.Text.Json.JsonException) { }
+            throw new EngineApiException(response.StatusCode, detail, text);
+        }
         return JsonNode.Parse(text) ?? new JsonObject();
     }
 
@@ -158,4 +197,10 @@ public sealed class EngineClient
         if (op["status"]?.ToString() == "failed") throw new InvalidOperationException(op["error"]?.ToString());
         return op["result"] ?? op;
     }
+}
+
+public sealed class EngineApiException(HttpStatusCode statusCode, string? detail, string message) : InvalidOperationException(message)
+{
+    public HttpStatusCode StatusCode { get; } = statusCode;
+    public string? Detail { get; } = detail;
 }

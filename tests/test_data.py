@@ -97,10 +97,32 @@ def test_dataset_groups_design_and_excludes_failed_duplicate(tmp_path):
     )
     assert dictionary["input.skin"]["unit"] == "mm"
     assert dictionary["SEA_J_kg"]["unit"] == "J/kg"
+    import csv
+    from pathlib import Path
+
+    description_rows = list(
+        csv.DictReader((Path(out["path"]) / "data-dictionary.csv").open(encoding="utf-8-sig"))
+    )
+    assert [r["Tên trường"] for r in description_rows] == list(rows[0])
+    assert "Chiều dày" in dictionary["input.skin"]["definition"]
+    assert "physical_dissipation_J/panel_mass_kg" in dictionary["SEA_J_kg"]["definition"]
+    assert (Path(out["path"]) / "FIELD_DESCRIPTIONS.md").exists()
     assert "input.energy_J" not in rows[0]
     assert all(
         len({r["split"] for r in rows if r["design_id"] == g}) == 1 for g in {r["design_id"] for r in rows}
     )
+
+
+def test_default_training_columns_have_descriptions_and_correct_velocity_unit():
+    from honeycomb_studio.quantities import describe_column
+    from honeycomb_studio.research import FEATURES, PROVENANCE, TARGETS
+
+    for key in [*("input." + k for k in FEATURES), *PROVENANCE, *TARGETS]:
+        item = describe_column(key)
+        assert item["title"] != key
+        assert item["definition"] != key.replace("_", " ")
+    assert describe_column("end_impactor_velocity_m_s")["unit"] == "m/s"
+    assert "chỉ dùng với bilinear" in describe_column("input.core_material.tangent_ratio")["definition"]
 
 
 def test_archive_and_verified_restore(tmp_path):

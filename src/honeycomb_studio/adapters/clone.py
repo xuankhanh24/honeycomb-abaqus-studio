@@ -13,7 +13,7 @@ def byteify(value):
 cfg=byteify(json.load(open(sys.argv[-1])))
 openMdb(pathName=cfg['cache_cae'])
 m=mdb.models['Honeycomb-Study']
-m.setValues(description='Foo2008 reconstruction; %g J; mm-tonne-s-N; see manifest.'%cfg['energy_J'])
+m.setValues(description=('%s; %%g J; mm-tonne-s-N; see manifest.'%('Assumed reentrant image-1 core; baseline external setup' if cfg.get('core_topology')=='reentrant_0' else 'Foo2008 reconstruction'))%cfg['energy_J'])
 m.predefinedFields['Initial-Impact-Velocity'].setValues(velocity3=-cfg['velocity'])
 jobname=cfg['job_name']
 for old_job in list(mdb.jobs.keys()):del mdb.jobs[old_job]

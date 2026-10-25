@@ -16,6 +16,7 @@ Nút **Dữ liệu ML gọn** xuất `samples.csv/Parquet` (mỗi lượt một 
 
 ## Chức năng
 
+- Chọn lõi lục giác hoặc **auxetic re-entrant hình 1 — 0°**; chỉnh kích thước ô lõm, dịch pha X/Z và lưới chiều sâu Y. Xem [kiểm tra tích hợp](docs/AUXETIC_0_VALIDATION.md).
 - Xem/sửa hình học, bảng vật liệu, điều kiện tải, liên kết, lưới và output; preview input thực tế và toàn bộ lượt trước khi chạy.
 - Quét năng lượng/vận tốc với bước nhảy, tổ hợp nhiều biến, Latin Hypercube có seed hoặc bảng CSV.
 - Một solver tại một thời điểm; tiến độ vật lý, ETA, log, CPU/RAM, datacheck và điều kiện tài nguyên.

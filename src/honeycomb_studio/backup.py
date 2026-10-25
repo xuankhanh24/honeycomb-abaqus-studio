@@ -17,13 +17,14 @@ import zipfile
 from pathlib import Path
 
 from .data import archive, checksum
+from .retained import retained_root
 from .store import now, write_input_csv, write_json
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 
 class DriveBackup:
-    def __init__(self, store, config_dir: Path):
+    def __init__(self, store, config_dir: Path, recover=True):
         self.store = store
         self.config_dir = config_dir
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -32,13 +33,37 @@ class DriveBackup:
         self.tasks = queue.Queue()
         self.thread = None
         self.lock = threading.Lock()
+        # No transfer worker survives an engine restart. Make interrupted work
+        # resumable instead of leaving a permanently misleading active status.
+        for path in self.states.glob("*.json") if recover else []:
+            try:
+                state = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if state.get("status") in (
+                "queued",
+                "preparing",
+                "prepared",
+                "uploading",
+                "uploading_readable",
+                "archive_verified",
+            ):
+                state.update(
+                    status="waiting_resume",
+                    updated_at=now(),
+                    error="Engine đã khởi động lại; chọn Tiếp tục upload để tiếp tục backup.",
+                )
+                write_json(path, state)
 
     def _save_token(self, text: str):
         import win32crypt  # ty: ignore[unresolved-import] # Provided by pywin32 on Windows.
 
         blob = win32crypt.CryptProtectData(text.encode(), "Honeycomb Drive OAuth", None, None, None, 0)
         path = self.config_dir / "drive-token.dpapi"
-        path.write_bytes(blob)
+        with self.lock:
+            temporary = path.with_suffix(".dpapi.tmp")
+            temporary.write_bytes(blob)
+            temporary.replace(path)
 
     def credentials(self):
         import win32crypt  # ty: ignore[unresolved-import] # Provided by pywin32 on Windows.
@@ -68,10 +93,35 @@ class DriveBackup:
                 item = json.loads(p.read_text(encoding="utf-8"))
                 # A resumable URL is a bearer capability; do not send it to the UI.
                 item.pop("session_url", None)
+                item.pop("readable_files", None)
+                item.pop("readable_folders", None)
                 states.append(item)
             except (OSError, json.JSONDecodeError):
                 pass
-        return {"connected": (self.config_dir / "drive-token.dpapi").exists(), "transfers": states}
+        return {
+            "connected": (self.config_dir / "drive-token.dpapi").exists(),
+            "worker_running": bool(self.thread and self.thread.is_alive()),
+            "pending_tasks": self.tasks.unfinished_tasks,
+            "transfers": states,
+            "retained_root": str(retained_root(self.store)),
+        }
+
+    def check_connection(self):
+        """Check current credentials and Drive access without uploading anything."""
+        from google.auth.transport.requests import AuthorizedSession
+
+        with AuthorizedSession(self.credentials()) as session:
+            response = session.get(
+                "https://www.googleapis.com/drive/v3/about", params={"fields": "storageQuota"}, timeout=20
+            )
+            response.raise_for_status()
+            quota = response.json().get("storageQuota", {})
+        return {
+            "reachable": True,
+            "checked_at": now(),
+            "storage_quota": quota,
+            "note": "Kết nối Drive hoạt động; chỉ trạng thái verified xác nhận bản sao lưu đã tải lên và khớp checksum.",
+        }
 
     def enqueue(self, bid, run_id=None):
         self.store.get("batches", bid)
@@ -91,6 +141,23 @@ class DriveBackup:
             self.thread = threading.Thread(target=self._loop, daemon=True, name="drive-backup")
             self.thread.start()
 
+    def enqueue_readable(self, bid):
+        self.store.get("batches", bid)
+        if not (self.config_dir / "drive-token.dpapi").exists():
+            raise ValueError("Chưa đăng nhập Google Drive")
+        identity = "bk" + uuid.uuid4().hex[:16]
+        request = {
+            "id": identity,
+            "batch_id": bid,
+            "kind": "readable_bundle",
+            "status": "queued",
+            "created_at": now(),
+        }
+        write_json(self.states / (identity + ".json"), request)
+        self.tasks.put(("readable", request))
+        self.start()
+        return {"queued": True, "batch_id": bid, "id": identity}
+
     def _loop(self):
         while True:
             try:
@@ -100,17 +167,19 @@ class DriveBackup:
             try:
                 if action == "backup":
                     self.backup_batch(value["batch_id"], value.get("run_id"), value["id"])
+                elif action == "readable":
+                    self.backup_readable(value["batch_id"], value["id"])
                 elif action == "resume":
                     self.upload(Path(value))
             except Exception as exc:
-                if action == "backup":
+                if action in ("backup", "readable"):
                     path = self.states / (value["id"] + ".json")
                     state = json.loads(path.read_text(encoding="utf-8"))
-                    if not state.get("sha256"):
+                    if not state.get("sha256") and not state.get("readable_path"):
                         state.update(status="waiting_resume", error=str(exc))
                         write_json(path, state)
                 self.store.event(
-                    value["batch_id"] if action == "backup" else None,
+                    value["batch_id"] if action in ("backup", "readable") else None,
                     None,
                     {"type": "backup_error", "error": str(exc)},
                 )
@@ -124,11 +193,27 @@ class DriveBackup:
         if not state.exists():
             raise ValueError("Không tìm thấy backup")
         request = json.loads(state.read_text(encoding="utf-8"))
-        self.tasks.put(("resume", str(state)) if request.get("sha256") else ("backup", request))
+        if request.get("sha256") or request.get("readable_path"):
+            self.tasks.put(("resume", str(state)))
+        else:
+            self.tasks.put(("readable" if request.get("kind") == "readable_bundle" else "backup", request))
         self.start()
         return {"queued": True}
 
     def _folder(self, session, name, key, parent=None):
+        from requests.exceptions import RequestException
+
+        for attempt in range(4):
+            try:
+                return self._folder_once(session, name, key, parent)
+            except RequestException as exc:
+                code = exc.response.status_code if exc.response is not None else None
+                if attempt == 3 or code is not None and code not in (429, 500, 502, 503, 504):
+                    raise
+                time.sleep(2**attempt)
+        raise RuntimeError("Không tạo được thư mục Drive")
+
+    def _folder_once(self, session, name, key, parent=None):
         # Search by app-owned stable keys, not unescaped user-visible names.
         query = (
             "trashed=false and mimeType='application/vnd.google-apps.folder' and appProperties has { key='honeycomb_folder' and value='"
@@ -200,7 +285,34 @@ class DriveBackup:
             write_json(source / "batch.json", single)
             shutil.copytree(Path(run["path"]), source / "runs" / run["id"])
         self.store.snapshot(source / "catalog-snapshot.sqlite")
-        archive(source, destination)
+        from .retained import prepare_readable
+
+        readable = prepare_readable(self.store, bid, identity, run_id)
+        progress_state = {
+            "id": identity,
+            "batch_id": bid,
+            "run_id": run_id,
+            "status": "preparing",
+            "created_at": now(),
+        }
+        last_progress = 0.0
+
+        def progress(stage, done, total):
+            nonlocal last_progress
+            clock = time.monotonic()
+            if clock - last_progress < 1 and done != total and progress_state.get("stage") == stage:
+                return
+            last_progress = clock
+            progress_state.update(
+                stage=stage,
+                processed_bytes=done,
+                total_bytes=total,
+                percent=100 * done / total if total else 0,
+                updated_at=now(),
+            )
+            write_json(self.states / (identity + ".json"), progress_state)
+
+        archive(source, destination, checkpoint=progress)
         if run_id is not None:
             resolved_source = source.resolve()
             if (
@@ -221,16 +333,73 @@ class DriveBackup:
             "status": "prepared",
             "offset": 0,
             "created_at": now(),
+            "readable_path": str(readable),
+            "readable_manifest_sha256": checksum(readable / "artifact-manifest.json"),
         }
         path = self.states / (identity + ".json")
         write_json(path, state)
         return self.upload(path)
 
     def upload(self, state_path: Path):
+        from .readable_backup import publish
+
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if state.get("kind") == "readable_bundle":
+            return publish(self, state_path)
+        if not state.get("readable_path"):
+            return self._upload_file(state_path)
+        if state.get("status") == "verified" and state.get("readable_verified"):
+            return state
+        if not state.get("archive_verified"):
+            self._upload_file(state_path)
+        return publish(self, state_path)
+
+    def backup_readable(self, bid, identity=None):
+        from .retained import prepare_readable
+
+        identity = identity or "bk" + uuid.uuid4().hex[:16]
+        if not re.fullmatch(r"bk[a-f0-9]{16}", identity):
+            raise ValueError("Backup ID không hợp lệ")
+        path = self.states / (identity + ".json")
+        batch = self.store.get("batches", bid)
+        write_json(
+            path,
+            {
+                "id": identity,
+                "batch_id": bid,
+                "kind": "readable_bundle",
+                "status": "preparing",
+                "created_at": now(),
+            },
+        )
+        root = prepare_readable(self.store, bid, identity)
+        archives = []
+        for file in self.states.glob("*.json"):
+            item = json.loads(file.read_text(encoding="utf-8"))
+            if item.get("batch_id") == bid and item.get("sha256") and not item.get("run_id"):
+                archives.append(item)
+        previous = max(archives, key=lambda a: a.get("created_at", ""), default={})
+        write_json(
+            path,
+            {
+                "id": identity,
+                "batch_id": bid,
+                "name": batch["name"],
+                "kind": "readable_bundle",
+                "status": "prepared",
+                "readable_path": str(root),
+                "created_at": now(),
+                "archive_backup_id": previous.get("id"),
+                "readable_manifest_sha256": checksum(root / "artifact-manifest.json"),
+            },
+        )
+        return self.upload(path)
+
+    def _upload_file(self, state_path: Path):
         from google.auth.transport.requests import AuthorizedSession
 
         state = json.loads(state_path.read_text(encoding="utf-8"))
-        if state.get("status") == "verified":
+        if state.get("status") in ("verified", "archive_verified"):
             return state
         source = Path(state["file"])
         if (
@@ -244,8 +413,12 @@ class DriveBackup:
         base = "https://www.googleapis.com/drive/v3/files"
         try:
             if not state.get("session_url"):
-                root_folder = self._folder(session, "Honeycomb Abaqus Studio", "root")
-                parent = self._folder(
+                root_folder = (
+                    self._folder(session, "Honeycomb Abaqus Studio", "root")
+                    if not state.get("parent_id")
+                    else None
+                )
+                parent = state.get("parent_id") or self._folder(
                     session,
                     state.get("name", state["batch_id"]) + " [" + state["batch_id"] + "]",
                     state["batch_id"],
@@ -255,16 +428,18 @@ class DriveBackup:
                     "https://www.googleapis.com/upload/drive/v3/files",
                     params={"uploadType": "resumable", "fields": "id,size,md5Checksum,webViewLink"},
                     json={
-                        "name": re.sub(r"[/\\]", "_", state.get("name", "Honeycomb"))[:120]
+                        "name": state.get("drive_name")
+                        or re.sub(r"[/\\]", "_", state.get("name", "Honeycomb"))[:120]
                         + "-"
                         + state["id"]
                         + ".zip",
+                        "mimeType": state.get("mime_type", "application/zip"),
                         "parents": [parent],
                         "description": "Honeycomb job " + state["batch_id"] + "; SHA256 " + state["sha256"],
                         "appProperties": {"honeycomb_backup": state["id"]},
                     },
                     headers={
-                        "X-Upload-Content-Type": "application/zip",
+                        "X-Upload-Content-Type": state.get("mime_type", "application/zip"),
                         "X-Upload-Content-Length": str(state["bytes"]),
                     },
                     timeout=60,
@@ -368,12 +543,14 @@ class DriveBackup:
             if int(info["size"]) != state["bytes"] or info.get("md5Checksum") != state["md5"]:
                 raise ValueError("Drive checksum hoặc kích thước không khớp")
             state.update(
-                status="verified",
+                status="archive_verified" if state.get("readable_path") else "verified",
                 drive_file_id=info["id"],
                 web_url=info.get("webViewLink"),
                 verified_at=now(),
                 percent=100.0,
             )
+            if state.get("readable_path"):
+                state["archive_verified"] = True
             state.pop("session_url", None)
             state.pop("error", None)
             write_json(state_path, state)

@@ -7,20 +7,24 @@ import os
 import secrets
 import socket
 import sys
+import uuid
 from pathlib import Path
 
+from .platform_support import config_directory, default_data_root, lock_engine
 from .store import Store, write_json
-
-
-def config_directory():
-    return Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local/share"))) / "HoneycombStudio"
 
 
 def main():
     parser = argparse.ArgumentParser(description="Honeycomb Studio local engine")
-    parser.add_argument("action", choices=["serve", "schema", "reindex"], nargs="?", default="serve")
-    parser.add_argument("--data-root", default="C:/UET/DO_AN/honeycomb-data")
-    parser.add_argument("--abaqus", default="C:/SIMULIA/Commands/abaqus.bat")
+    parser.add_argument(
+        "action",
+        choices=["serve", "schema", "reindex", "retain-products", "publish-readable"],
+        nargs="?",
+        default="serve",
+    )
+    parser.add_argument("--batch-id")
+    parser.add_argument("--data-root", default=default_data_root())
+    parser.add_argument("--abaqus", default="C:/SIMULIA/Commands/abaqus.bat" if os.name == "nt" else "abaqus")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--fake-solver", action="store_true", help="TEST ONLY: no physical simulation")
     args = parser.parse_args()
@@ -34,24 +38,38 @@ def main():
         print(json.dumps(BatchSpec.model_json_schema(), ensure_ascii=False, indent=2))
         return
     store = Store(Path(args.data_root))
+    if args.action in ("retain-products", "publish-readable"):
+        if not args.batch_id:
+            parser.error("Cần --batch-id")
+        if args.action == "retain-products":
+            from .retained import prepare_readable
+
+            result = {"path": str(prepare_readable(store, args.batch_id, "bk" + uuid.uuid4().hex[:16]))}
+        else:
+            from .backup import DriveBackup
+
+            result = DriveBackup(store, config_directory(), recover=False).backup_readable(args.batch_id)
+        print(
+            json.dumps(
+                {k: v for k, v in result.items() if k not in ("readable_files", "readable_folders")},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        store.db.close()
+        return
     if args.action == "reindex":
         print(store.reindex())
         return
-    # Single engine per Windows user prevents duplicate workers sharing one catalog.
+    # Single engine per user prevents duplicate workers sharing one catalog.
     settings = config_directory()
     settings.mkdir(parents=True, exist_ok=True)
     lock = (settings / "engine.lock").open("a+b")
-    if os.name == "nt":
-        import msvcrt
-
-        lock.seek(0)
-        lock.write(b"0")
-        lock.flush()
-        lock.seek(0)
-        try:
-            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-        except OSError:
-            raise SystemExit("Honeycomb engine đang chạy; mở lại ứng dụng để kết nối.") from None
+    try:
+        lock_engine(lock)
+    except OSError:
+        lock.close()
+        raise SystemExit("Honeycomb engine đang chạy; mở lại ứng dụng để kết nối.") from None
     import uvicorn
 
     from .api import make_app

@@ -1,0 +1,17 @@
+{
+  "ready_for_full_simulation": false,
+  "gates": [
+    {
+      "status": "blocked_environment",
+      "reason": "No checksum-verified Linux Abaqus runtime has completed qualification."
+    },
+    {
+      "status": "blocked_license",
+      "reason": "Linux CAE and Explicit checkout against the owner's server has not been demonstrated."
+    },
+    {
+      "status": "blocked_platform_policy",
+      "reason": "Full web-submitted research workloads require confirmed GitHub Actions usage eligibility."
+    }
+  ]
+}

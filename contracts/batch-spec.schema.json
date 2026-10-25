@@ -189,6 +189,17 @@
     "ModelSpec": {
       "additionalProperties": false,
       "properties": {
+        "core_topology": {
+          "default": "hexagonal",
+          "enum": [
+            "hexagonal",
+            "reentrant_0"
+          ],
+          "source": "Hexagonal reference / re-entrant image 1, 0 degrees",
+          "title": "Cấu trúc lõi",
+          "type": "string",
+          "unit": ""
+        },
         "panel": {
           "default": 100.0,
           "exclusiveMinimum": 0,
@@ -231,16 +242,83 @@
         "cell_size": {
           "default": 6.35,
           "exclusiveMinimum": 0,
-          "source": "Paper; reconstruction convention",
-          "title": "Kích thước ô đối diện cạnh",
+          "source": "Hexagon across flats; re-entrant bounding width",
+          "title": "Kích thước ô / bề rộng ô lõm",
+          "type": "number",
+          "unit": "mm"
+        },
+        "hex_geometry": {
+          "default": "regular",
+          "enum": [
+            "regular",
+            "parametric"
+          ],
+          "source": "Ô đều theo kích thước ô hoặc nhập b, l, θ theo hình 7",
+          "title": "Cách nhập ô lục giác",
+          "type": "string",
+          "unit": ""
+        },
+        "hex_b": {
+          "default": 3.6661742093541236,
+          "exclusiveMinimum": 0,
+          "source": "Hình 7, công thức (8); vách đứng dày 2t",
+          "title": "b — chiều dài vách đứng",
+          "type": "number",
+          "unit": "mm"
+        },
+        "hex_l": {
+          "default": 3.6661742093541236,
+          "exclusiveMinimum": 0,
+          "source": "Hình 7, công thức (8)",
+          "title": "l — chiều dài vách nghiêng",
+          "type": "number",
+          "unit": "mm"
+        },
+        "hex_theta_deg": {
+          "default": 60.0,
+          "exclusiveMaximum": 90,
+          "exclusiveMinimum": 0,
+          "source": "Hình 7; ô đều θ=60°",
+          "title": "θ — góc vách nghiêng với phương đứng",
+          "type": "number",
+          "unit": "deg"
+        },
+        "reentrant_cell_height": {
+          "default": 5.0,
+          "exclusiveMinimum": 0,
+          "source": "Assumed image-1 geometry",
+          "title": "Chiều cao ô lõm",
+          "type": "number",
+          "unit": "mm"
+        },
+        "reentrant_indent": {
+          "default": 1.25,
+          "exclusiveMinimum": 0,
+          "source": "Assumed image-1 geometry",
+          "title": "Độ lõm mỗi bên ô",
+          "type": "number",
+          "unit": "mm"
+        },
+        "reentrant_depth_seed": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "source": "Image-1 reference mesh",
+          "title": "Seed lõi theo chiều sâu Y",
+          "type": "number",
+          "unit": "mm"
+        },
+        "phase_z": {
+          "default": 0.0,
+          "source": "Numerical choice",
+          "title": "Dịch pha ô lõm Z",
           "type": "number",
           "unit": "mm"
         },
         "foil": {
           "default": 0.0635,
           "exclusiveMinimum": 0,
-          "source": "Paper section 3",
-          "title": "Chiều dày foil đơn",
+          "source": "Paper section 3; vách kép dày 2t",
+          "title": "t — chiều dày foil đơn",
           "type": "number",
           "unit": "mm"
         },
@@ -265,10 +343,21 @@
           "type": "number",
           "unit": "mm"
         },
+        "clamp_mode": {
+          "default": "circular",
+          "enum": [
+            "circular",
+            "perimeter"
+          ],
+          "source": "Ngàm hai tấm mặt: ngoài lỗ tròn hoặc chỉ bốn cạnh ngoài",
+          "title": "Vị trí ngàm",
+          "type": "string",
+          "unit": ""
+        },
         "clamp_diameter": {
           "default": 76.4,
           "exclusiveMinimum": 0,
-          "source": "Paper section 3",
+          "source": "Paper section 3; chỉ dùng với ngàm ngoài lỗ tròn",
           "title": "Đường kính lỗ kẹp",
           "type": "number",
           "unit": "mm"
@@ -278,6 +367,25 @@
           "exclusiveMinimum": 0,
           "source": "Paper section 2",
           "title": "Đường kính đầu va đập",
+          "type": "number",
+          "unit": "mm"
+        },
+        "ball_size_mode": {
+          "default": "diameter",
+          "enum": [
+            "diameter",
+            "radius"
+          ],
+          "source": "D = 2R",
+          "title": "Cách nhập kích thước viên bi",
+          "type": "string",
+          "unit": ""
+        },
+        "ball_radius": {
+          "default": 6.55,
+          "exclusiveMinimum": 0,
+          "source": "D = 2R; độc lập với khối lượng chuyển động",
+          "title": "Bán kính viên bi R",
           "type": "number",
           "unit": "mm"
         },
@@ -321,8 +429,10 @@
             "energy",
             "velocity"
           ],
-          "title": "Loading",
-          "type": "string"
+          "source": "Nhập năng lượng hoặc vận tốc; E = ½mv²",
+          "title": "Cách nhập va đập",
+          "type": "string",
+          "unit": ""
         },
         "energy_J": {
           "default": 7.0,

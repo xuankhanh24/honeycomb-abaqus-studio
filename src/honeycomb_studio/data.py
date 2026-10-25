@@ -442,10 +442,12 @@ def manifest(root: Path, metadata: dict | None = None, checkpoint=None) -> dict:
     return data
 
 
-def archive(root: Path, destination: Path):
+def archive(root: Path, destination: Path, checkpoint=None):
     if destination.resolve().is_relative_to(root.resolve()):
         raise ValueError("Gói ZIP phải nằm ngoài thư mục nguồn")
-    snapshot = manifest(root)
+    snapshot = manifest(
+        root, checkpoint=(lambda done, total: checkpoint("hashing", done, total)) if checkpoint else None
+    )
     entries: list[dict[str, Any]] = [
         *snapshot["files"],
         {
@@ -454,6 +456,8 @@ def archive(root: Path, destination: Path):
             "sha256": checksum(root / "artifact-manifest.json"),
         },
     ]
+    done = 0
+    total = sum(item["bytes"] for item in entries)
     with zipfile.ZipFile(
         destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True
     ) as z:
@@ -466,6 +470,9 @@ def archive(root: Path, destination: Path):
                     target.write(block)
                     h.update(block)
                     size += len(block)
+                    done += len(block)
+                    if checkpoint:
+                        checkpoint("archiving", done, total)
             if size != item["bytes"] or h.hexdigest() != item["sha256"]:
                 raise ValueError(
                     "File thay đổi trong lúc đóng gói; chờ thao tác ghi kết thúc rồi xuất lại: "
@@ -484,7 +491,16 @@ def pareto(rows: list[dict]) -> list[dict]:
     ]
 
 
-def dataset(store, run_ids: list[str], name: str, seed=42, features=None, targets=None, curve_points=201):
+def dataset(
+    store,
+    run_ids: list[str],
+    name: str,
+    seed=42,
+    features=None,
+    targets=None,
+    curve_points=201,
+    destination: Path | None = None,
+):
     rows: list[dict[str, Any]] = []
     groups = {}
     for rid in dict.fromkeys(run_ids):
@@ -505,6 +521,16 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
                     flat[prefix + k] = v
 
         flatten(run["resolved"])
+        flat.setdefault("input.core_topology", "hexagonal")
+        flat.setdefault("input.clamp_mode", "circular")
+        if flat["input.core_topology"] == "hexagonal":
+            flat.setdefault("input.hex_geometry", "regular")
+            if flat["input.hex_geometry"] == "regular" and "input.cell_size" in flat:
+                flat.setdefault("input.hex_b", flat["input.cell_size"] / math.sqrt(3))
+                flat.setdefault("input.hex_l", flat["input.cell_size"] / math.sqrt(3))
+                flat.setdefault("input.hex_theta_deg", 60.0)
+        if "input.ball_diameter" in flat:
+            flat.setdefault("input.ball_radius", flat["input.ball_diameter"] / 2)
         row = {
             "run_id": rid,
             "batch_id": run["batch_id"],
@@ -554,7 +580,7 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
         }
     )
     identity = "d" + uuid.uuid4().hex[:16]
-    out = store.root / "datasets" / identity
+    out = destination if destination is not None else store.root / "datasets" / identity
     out.mkdir(parents=True, exist_ok=True)
     selected = []
     for row in rows:
@@ -584,6 +610,12 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
         if not run["attempts"]:
             continue
         source = Path(run["attempts"][-1]["path"]) / "extracted"
+        if not (source / "impact_history.csv").exists() and not (source / "impact_history.parquet").exists():
+            from .history_sources import load_history
+
+            history = load_history(run)
+            if history:
+                source = history["directory"]
         curves = out / "curves" / run["id"]
         curves.mkdir(parents=True, exist_ok=True)
         import shutil
@@ -601,8 +633,7 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
             for key in ("contact_force_N", "impactor_displacement_mm", "velocity_mm_s"):
                 sampled[key] = np.interp(grid, t, [r[key] for r in raw])
             pq.write_table(pa.table(sampled), curves / "resampled.parquet", compression="zstd")
-    dictionary = {k: describe_column(k) for k in selected[0]}
-    write_json(out / "data-dictionary.json", dictionary)
+    write_data_dictionary(out, selected[0])
     write_json(
         out / "dataset.json",
         {
@@ -636,6 +667,52 @@ def dataset(store, run_ids: list[str], name: str, seed=42, features=None, target
     )
     manifest(out)
     return {"id": identity, "path": str(out), "samples": len(rows)}
+
+
+def write_data_dictionary(directory: Path, columns) -> dict:
+    """Keep training rows machine-readable and ship their meanings alongside them."""
+    dictionary = {key: describe_column(key) for key in columns}
+    write_json(directory / "data-dictionary.json", dictionary)
+    roles = {"input": "Đầu vào", "target": "Kết quả", "provenance": "Truy vết / chia tập"}
+    write_rows(
+        directory / "data-dictionary.csv",
+        [
+            {
+                "Tên trường": key,
+                "Tên tiếng Việt": value["title"],
+                "Vai trò": roles[value["role"]],
+                "Đơn vị": value["unit"],
+                "Mô tả / cách tính": value["definition"],
+                "Nguồn": value["source"],
+                "Giá trị thiếu": value["missing"],
+            }
+            for key, value in dictionary.items()
+        ],
+    )
+    lines = [
+        "# Mô tả các trường dữ liệu huấn luyện",
+        "",
+        "Mỗi dòng trong samples.csv/samples.parquet là một lượt mô phỏng được chọn. "
+        "Tên cột và giá trị được giữ nguyên để đọc bằng chương trình; tra mô tả trong bảng dưới "
+        "hoặc data-dictionary.csv (UTF-8 BOM, mở bằng Excel) và data-dictionary.json.",
+        "",
+        "Các cột input.* là đặc trưng đầu vào; kết quả là nhãn dự đoán. Các mã định danh, "
+        "mã băm, số attempt và split dùng truy vết/chia tập, không nên đưa trực tiếp vào đặc trưng học. "
+        "Các chỉ số chất lượng số dùng sàng lọc; không chứng minh độ đúng thực nghiệm. "
+        "Cực trị chỉ xét các mẫu/frame đã ghi. Ô trống là giá trị thiếu, không phải số 0.",
+        "",
+        "Các mẫu cùng design_id nằm trong cùng một split để tránh rò rỉ. "
+        "Nếu chỉ có một thiết kế, validation/test có thể trống. "
+        "Tham số vật liệu không hoạt động với quy luật hóa bền đã chọn nên được loại khi tiền xử lý.",
+        "",
+        "| Tên trường | Tên tiếng Việt | Vai trò | Đơn vị | Mô tả / cách tính |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for key, value in dictionary.items():
+        cells = [key, value["title"], roles[value["role"]], value["unit"], value["definition"]]
+        lines.append("| " + " | ".join(str(c).replace("|", "\\|").replace("\n", " ") for c in cells) + " |")
+    (directory / "FIELD_DESCRIPTIONS.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return dictionary
 
 
 def verify_export(directory: Path, checkpoint=None) -> dict:

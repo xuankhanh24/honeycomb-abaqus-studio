@@ -5,6 +5,15 @@ import math
 import numpy as np
 
 FEATURES = [
+    "clamp_mode",
+    "core_topology",
+    "hex_geometry",
+    "hex_b",
+    "hex_l",
+    "hex_theta_deg",
+    "reentrant_cell_height",
+    "reentrant_indent",
+    "phase_z",
     "panel",
     "skin",
     "bottom_skin",
@@ -15,8 +24,10 @@ FEATURES = [
     "phase_x",
     "phase_y",
     "energy_J",
+    "velocity_m_s",
     "mass_kg",
     "ball_diameter",
+    "ball_radius",
     "impact_x",
     "impact_y",
     "gap",

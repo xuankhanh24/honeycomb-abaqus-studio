@@ -1,7 +1,23 @@
-param([switch]$EngineOnly)
+param([switch]$EngineOnly, [switch]$RegisterOnly, [string]$PackageDirectory)
 $ErrorActionPreference = 'Stop'
 $taskRepo = Split-Path -Parent $PSScriptRoot
-$taskPackage = Join-Path $taskRepo 'artifacts/HoneycombStudio-v0.2.0-win-x64'
+$taskPackage = if ($PackageDirectory) { [IO.Path]::GetFullPath($PackageDirectory) } else { Join-Path $taskRepo 'artifacts/HoneycombStudio-geometry-win-x64' }
+if (-not $PackageDirectory -and -not (Test-Path -LiteralPath (Join-Path $taskPackage 'runtime/python.exe'))) {
+    $taskPackage = Join-Path $taskRepo 'artifacts/HoneycombStudio-reentrant-win-x64'
+}
+if (-not $PackageDirectory -and -not (Test-Path -LiteralPath (Join-Path $taskPackage 'runtime/python.exe'))) {
+    $taskPackage = Join-Path $taskRepo 'artifacts/HoneycombStudio-perimeter-win-x64'
+}
+if (-not $PackageDirectory -and -not (Test-Path -LiteralPath (Join-Path $taskPackage 'runtime/python.exe'))) {
+    $taskPackage = Join-Path $taskRepo 'artifacts/HoneycombStudio-auxetic-0-win-x64'
+}
+if (-not $PackageDirectory -and -not (Test-Path -LiteralPath (Join-Path $taskPackage 'runtime/python.exe'))) {
+    $taskPackage = Join-Path $taskRepo 'artifacts/HoneycombStudio-export-update-win-x64'
+}
+if (-not (Test-Path -LiteralPath (Join-Path $taskPackage 'runtime/python.exe'))) {
+    if ($PackageDirectory) { throw 'PackageDirectory phải chứa runtime/python.exe.' }
+    $taskPackage = Join-Path $taskRepo 'artifacts/HoneycombStudio-v0.2.0-win-x64'
+}
 if (-not (Test-Path -LiteralPath (Join-Path $taskPackage 'runtime/python.exe'))) {
     $taskPackage = Join-Path $taskRepo 'artifacts/HoneycombStudio-win-x64'
 }
@@ -64,9 +80,10 @@ if (Test-Path -LiteralPath $taskSessionFile) {
         $taskConnected = $taskHealth.service -eq 'honeycomb-studio'
     } catch { }
 }
-if (-not $taskConnected -and $taskEngine.State -ne 4) { $taskEngine.Run($null) | Out-Null }
+if (-not $RegisterOnly -and -not $taskConnected -and $taskEngine.State -ne 4) { $taskEngine.Run($null) | Out-Null }
 if (-not $EngineOnly) {
     $taskUi = Register-DemandTask 'HoneycombStudio-UI' $taskExe '' $false
-    if ($taskUi.State -ne 4) { $taskUi.Run($null) | Out-Null }
+    if (-not $RegisterOnly -and $taskUi.State -ne 4) { $taskUi.Run($null) | Out-Null }
 }
-Write-Host 'Honeycomb started independently through Windows (on demand; no schedule).'
+if ($RegisterOnly) { Write-Host 'Updated on-demand launch paths; current engine and UI remain running.' }
+else { Write-Host 'Honeycomb started independently through Windows (on demand; no schedule).' }

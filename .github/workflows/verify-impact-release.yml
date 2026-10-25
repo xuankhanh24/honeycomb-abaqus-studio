@@ -1,0 +1,63 @@
+name: Verify retained Linux 7 J result download
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --extra cloud
+      - name: Download complete archive manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download linux-impact-7j-40206764997 -p impact-artifact-manifest.json -D output
+      - name: Restore every part and verify native data retention
+        run: |
+          uv run --locked --extra cloud python scripts/restore_cloud_archive.py output/impact-artifact-manifest.json "$RUNNER_TEMP/impact-restored"
+          uv run --locked --extra cloud python - <<'PY'
+          import hashlib, json, os, tarfile
+          from pathlib import Path
+          from honeycomb_studio.data import verify_export
+          root = Path(os.environ['RUNNER_TEMP']) / 'impact-restored'
+          with tarfile.open(root / 'field-reductions.tar') as bundle:
+              count = len(bundle.getmembers())
+              bundle.extractall(root, filter='data')
+          exports = []
+          for completed in root.glob('**/extracted/complete.json'):
+              exports.append(verify_export(completed.parent))
+          receipt = json.loads((root / 'impact-receipt.json').read_text())
+          assert receipt['solver_success'] and receipt['summary']['frames'] == 121
+          models = list(root.glob('**/raw/model_manifest.json'))
+          assert len(models) == 1
+          model = json.loads(models[0].read_text())
+          assert model['energy_J'] == 7 and model['duration'] == .006
+          assert model['core_topology'] == 'reentrant_0' and model['clamp_mode'] == 'perimeter'
+          assert model['mass_scaling'] is False and model['cpus'] == 4
+          odbs = []
+          for path in root.glob('**/*.odb'):
+              with path.open('rb') as stream:
+                  digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+              odbs.append({'name':path.name, 'bytes':path.stat().st_size, 'sha256':digest})
+          assert len(odbs) == 2
+          result = {'kind':'linux-impact-release-roundtrip', 'source_run_id':'40206764997',
+                    'verification_run_id':os.environ['GITHUB_RUN_ID'], 'all_release_parts_verified':True,
+                    'reduced_records_restored':count, 'export_checks':exports, 'odbs':odbs,
+                    'status':receipt['status'], 'solver_success':True,
+                    'fresh_solver_or_license_used':False, 'original_full_6ms_input_verified':True}
+          Path('output/impact-restore-verification.json').write_text(json.dumps(result, indent=2))
+          print(json.dumps(result, indent=2))
+          PY
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: impact-restore-verification-${{ github.run_id }}
+          path: output/*.json
+          retention-days: 30

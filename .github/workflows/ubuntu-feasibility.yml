@@ -1,0 +1,21 @@
+name: Ubuntu feasibility audit
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Measure actual disks, memory and runner image
+        run: python3 scripts/audit_cloud.py --output output/cloud-audit
+      - name: Preserve measured evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ubuntu-feasibility-${{ github.run_id }}
+          path: output/cloud-audit/
+          retention-days: 30
+          if-no-files-found: error

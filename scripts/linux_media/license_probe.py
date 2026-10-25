@@ -105,6 +105,7 @@ def main():
             "/opt/SIMULIA/Commands/abaqus",
         ]
         completed = subprocess.run(command, capture_output=True, text=True, timeout=1800)
+        run("sudo", "chown", "-R", str(os.getuid()) + ":" + str(os.getgid()), str(output))
         (output / "container.log").write_text(completed.stdout + completed.stderr)
         print("Real native probe exit code:", completed.returncode, flush=True)
         if completed.returncode:

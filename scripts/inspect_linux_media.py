@@ -106,10 +106,13 @@ def main():
         if not iso.is_file() or iso.is_symlink() or iso.stat().st_size > ISO_LIMIT:
             raise ValueError("ISO extraction did not produce the bounded regular file")
         with iso.open("rb") as stream:
+            iso_digest = hashlib.sha256()
+            for block in iter(lambda: stream.read(4 * 1024**2), b""):
+                iso_digest.update(block)
             report["iso"] = {
                 "name": iso.name,
                 "bytes": iso.stat().st_size,
-                "sha256": hashlib.file_digest(stream, "sha256").hexdigest(),
+                "sha256": iso_digest.hexdigest(),
             }
         inventory = subprocess.run(
             ["7z", "l", "-slt", str(iso)],

@@ -1,0 +1,12 @@
+{
+  "release_url": "https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/linux-runtime-smoke-20261025",
+  "github_run_id": "40203978647",
+  "assets": 14,
+  "downloaded_data_files_verified": 13,
+  "manifest_verified": true,
+  "all_sizes_and_sha256_match": true,
+  "manifest_sha256": "9694ea17409bd4c9fbce9f00103dc820f86f13b7fc98c6542eec439f2adb842d",
+  "contains_installation_media": false,
+  "contains_activation_file": false,
+  "published_only_after_roundtrip_verification": true
+}

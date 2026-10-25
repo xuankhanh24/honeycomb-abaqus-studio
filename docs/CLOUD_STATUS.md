@@ -25,17 +25,17 @@ Publication review covered reachable Git blobs and working-tree source using a r
 - Credential/activation patterns are excluded from future accidental Git additions.
 - Original `.cae`/`.odb` files and the local simulation library were not uploaded as part of the hardware audit.
 
-## Qualification gates — not passed
+## Technical smoke and remaining qualification gates
 
 | Gate | Current status | Required evidence |
 |---|---|---|
-| Linux runtime | `blocked_environment` | Authorized Linux media, checksum, version-specific installation procedure, measured installation/scratch budget and a real CAE + Explicit smoke run |
-| Remote license | `blocked_license` | Authorized license covering the selected Linux solver version, actual CAE/Explicit checkout against the owner's server, manager and vendor-daemon connectivity |
+| Linux runtime | Technical `smoke_passed`; production lock pending | Real 2020 install/CAE/Explicit/ODB reopening passed in CentOS 7 userspace on Ubuntu. Publisher media authenticity, locked production integration and full 7 J comparison remain unverified. |
+| Remote license | Technical `checkout_passed`; entitlement unverified | Both CAE and Explicit checked out from the owner's Windows server through the restricted two-port network. Existing activation carries a SolidSQUAD marker; publisher entitlement is not established. |
 | Full web-submitted workloads | `blocked_platform_policy` | Confirmation that the intended full research workload is eligible under GitHub's Actions terms |
 
 No `runtime-lock.json` certifying a working runtime is generated before those observations exist. No flag or TCP-port check is accepted as proof of a working licensed solver. The current locally installed Windows Abaqus and a running FlexNet server do not establish Linux/cloud entitlement or version compatibility.
 
-The owner's requested local license inspection was performed read-only: FlexNet responded, with CAE/Explicit/Standard features reporting 1,024 tokens each and a 31 December 2055 expiry. The activation file contains a SolidSQUAD marker. This is evidence of a functioning local activation setup, not verified publisher authorization or Linux checkout. The internal feature version `70.0` is not an Abaqus release qualification. See the [redacted license audit](evidence/cloud-ubuntu-20261025/license-audit.json); no activation keys, signatures or host IDs were published.
+The owner's requested local license inspection was performed read-only: FlexNet responded, with CAE/Explicit/Standard features reporting 1,024 tokens each and a 31 December 2055 expiry. The activation file contains a SolidSQUAD marker. This is evidence of a functioning local activation setup, not verified publisher authorization. Actual Linux CAE/Explicit checkout was later observed in the native smoke described below. The internal feature version `70.0` is not an Abaqus release qualification. See the [redacted license audit](evidence/cloud-ubuntu-20261025/license-audit.json); no activation keys, signatures or host IDs were published.
 
 The previous Windows cloud draft (`abaqus-cloud.yml`, `setup-abaqus-cloud.ps1`, `run_cloud_study.py`) is archived locally under `output/cloud-windows-draft/`. It is not published as a qualified Ubuntu backend.
 
@@ -45,7 +45,7 @@ At revision `c2b50e8`, [Linux engine acceptance](https://github.com/xuankhanh24/
 
 ## Web and pipeline extension (25 October 2026)
 
-Implemented the React/TypeScript workbench, stateless FastAPI preview/API, owner-only write checks, GitHub App catalog/dispatch integration, fail-closed runtime qualification, 330-minute sequential workflow, runtime-aware engine cache, minute-based checks, per-run archival checkpoints and 1-GiB checksum-verified release volumes. Optional Drive readable backup follows primary archival. Software implementation is not native solver acceptance; the actual Linux runtime and checkout remain unqualified; owner credentials are now connected and verified.
+Implemented the React/TypeScript workbench, stateless FastAPI preview/API, owner-only write checks, GitHub App catalog/dispatch integration, fail-closed runtime qualification, 330-minute sequential workflow, runtime-aware engine cache, minute-based checks, per-run archival checkpoints and 1-GiB checksum-verified release volumes. Optional Drive readable backup follows primary archival. Software implementation is not native solver acceptance; the separate Linux technical smoke and checkout now pass, while production research qualification remains pending; owner credentials are now connected and verified.
 
 The web was deployed via CLI to the new Vercel project `wukong-rom-studio/honeycomb-studio`; production health/template returned HTTP 200. Vercel Git integration could not connect because the authenticated Vercel account lacks repo access. GitHub App/OAuth are now connected, with actual owner login and two draft creations verified. An explicitly approved administrative restart resolved Tailscale NoState; its backend is Running. A real Ubuntu workflow verified private manager/vendor TCP connectivity and blocked negative control ports. No Linux Abaqus install or cloud simulation is claimed. See [CLOUD_WEB.md](CLOUD_WEB.md) for settings, workflows, actual limitations and unfinished acceptance requirements.
 
@@ -60,7 +60,7 @@ The public deployment is [Honeycomb Studio](https://honeycomb-abaqus-studio.verc
 
 [Workflow 40184261860, attempt 3](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40184261860/attempts/3) succeeded. Both FlexNet TCP ports are reachable from an ephemeral Ubuntu runner; 22/445/3389 are blocked. Exact evidence is in [owner/network acceptance](evidence/cloud-web-20261025/owner-and-network-acceptance.json) and [network probe](evidence/cloud-web-20261025/license-network.json). The vendor port was fixed at 27012 without changing signed feature content. OIDC uses the repository immutable identity and main branch, only auth_keys scope, and the restricted runner tag. No activation file or long-lived Tailscale secret was exported.
 
-Native runtime, Linux token checkout and full-workload platform-policy gates remain open. The official portal still requires an entitled account. A third-party 2020 Linux64 ISO has now passed real Ubuntu download/hash/inventory checks; publisher authenticity remains unverified. See [media findings and repeatable installation probe](LINUX_MEDIA_FINDINGS.md). No cloud solver ran, no runtime-lock certification was fabricated, and the research/smoke cases remain drafts.
+Production runtime authorization/locking, full 7 J validation and full-workload platform-policy gates remain open; technical native smoke and CAE/Explicit checkout have passed. The official portal still requires an entitled account. A third-party 2020 Linux64 ISO has now passed real Ubuntu download/hash/inventory checks; publisher authenticity remains unverified. See [media findings and repeatable installation probe](LINUX_MEDIA_FINDINGS.md). A real tiny Explicit job has now completed; the owner catalog research/smoke drafts have not been dispatched and no production runtime-lock certification was fabricated.
 
 ## Field display and transport extension
 
@@ -77,3 +77,9 @@ Additional primary-source media checks are recorded in [LINUX_MEDIA_FINDINGS.md]
 Vercel App installation `175123101` was installed only on the current repository after explicit owner approval. The owner chose to replace the Vercel account's GitHub login connection with `xuankhanh24`; no access was granted to `luukhanh24` on the repository and no collaborator invitation was sent. The existing Vercel project, production environment values and public hostname were retained.
 
 Push `b4a098c` to `main` triggered [a real Git-sourced deployment](https://vercel.com/wukong-rom-studio/honeycomb-studio/ESj7Lkf4RpT6HB3smKhd2jJopRYY), reached READY, and automatically assigned `honeycomb-abaqus-studio.vercel.app`. Production endpoints and all display/reference receipt hashes passed verification. Root directory is `web`; non-production branches are skipped at the project level. Probe `d00589b` on `cloud-data` produced [Canceled by Ignored Build Step](https://vercel.com/wukong-rom-studio/honeycomb-studio/GdDFNKQVjkwnTbkoyoTTm4AMf2S3), with only an operations check file changed and all research jobs retained. See [acceptance evidence](evidence/cloud-web-20261025/git-deployment-acceptance.json). This accepts automatic web deployment, not Abaqus/Linux execution.
+
+## Native Linux smoke accepted technically
+
+[Run 40203978647](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40203978647) passed on 25 October 2026: Abaqus 2020 build 2019_09_13-17.49.31 163176, Python 2.7.15, eight elements, four shared-memory threads/four domains, double precision, CAE/Explicit checkout, datacheck, solver completion and ODB reopening with 20 frames. This is a 1-microsecond unloaded cube test, not the 6-ms 7 J sphere-impact case or a research dataset.
+
+[Native receipt](evidence/linux-native-smoke-20261025.json), [installation guide and failure fixes](LINUX_MEDIA_FINDINGS.md), [durable CAE/INP/ODB release](https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/linux-runtime-smoke-20261025), [verified release download](evidence/linux-smoke-release-roundtrip-20261025.json). All 13 retained data files plus manifest were downloaded and checksum-verified before public release. Installer/activation binaries were not published. The production dispatch gate remains closed until its separate requirements are met.

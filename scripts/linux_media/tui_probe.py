@@ -41,17 +41,22 @@ def main():
                 [
                     r"Enter selection(?: \(default: (Next|Install|Close)\))?:\s*",
                     r"Default \[([^\r\n]*)\]:\s*",
+                    r"Please choose an action:\s*",
                     pexpect.EOF,
                 ]
             )
             page = child.before.replace("\r", "")
-            if index == 2:
+            if index == 3:
                 child.close()
                 result["installer_exit_code"] = child.exitstatus
                 break
             print(page[-4000:], flush=True)
             answer = ""
-            if index == 1:
+            if index == 2:
+                if "[1] Continue" not in page:
+                    raise RuntimeError("Unrecognized installer action")
+                answer = "1"
+            elif index == 1:
                 default = child.match.group(1)
                 paths = {
                     "/usr/SIMULIA/EstProducts/2020": "/opt/SIMULIA/EstProducts/2020",
@@ -61,7 +66,7 @@ def main():
                 if default not in paths:
                     raise RuntimeError("Unrecognized path question: " + default)
                 answer = paths[default]
-            elif "Select the components you want to install" in page or "Abaqus/Standard Solver" in page:
+            elif re.search(r"^\s*1 \[[^]]+\] Abaqus/Standard Solver", page, re.M):
                 entries = re.findall(r"^\s*(\d+) \[([^]]+)\] (.+)$", page, re.M)
                 wanted = {
                     "Abaqus/Standard Solver",

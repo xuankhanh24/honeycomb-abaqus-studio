@@ -1,0 +1,14 @@
+{
+  "url": "https://honeycomb-abaqus-studio.vercel.app",
+  "checks": {
+    "/": 200,
+    "/api/health": 200,
+    "/api/status": 200,
+    "/api/session": 200,
+    "/reference/index.json": 200
+  },
+  "preview_count": 1,
+  "wall_count": 234,
+  "reference_checksums_verified": 3,
+  "public_writes_denied": true
+}

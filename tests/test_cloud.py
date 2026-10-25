@@ -146,3 +146,18 @@ def test_failed_upload_never_publishes_complete_manifest(tmp_path):
     with pytest.raises(ConnectionError):
         archive.publish(tmp_path, attempt="failed", complete=True)
     assert not any("manifest" in name for name in archive.names)
+
+
+def test_production_entrypoint_starts_without_static_directory(tmp_path, monkeypatch):
+    import runpy
+
+    root = Path(__file__).resolve().parents[1]
+    entrypoint = tmp_path / "app.py"
+    entrypoint.write_bytes((root / "web/app.py").read_bytes())
+    monkeypatch.syspath_prepend(str(root / "web"))
+    monkeypatch.chdir(tmp_path)
+    namespace = runpy.run_path(str(entrypoint))
+    with TestClient(namespace["app"]) as client:
+        response = client.get("/api/health")
+        assert response.status_code == 200
+        assert response.json()["worker_started_in_web"] is False

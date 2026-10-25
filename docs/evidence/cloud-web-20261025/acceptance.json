@@ -1,0 +1,31 @@
+{
+  "source_commit": "eaebf6cec86161a86ff97068b549f622c2ea3e59",
+  "linux_acceptance": {
+    "run_id": 40172025233,
+    "status": "success",
+    "passed": 98,
+    "skipped": 1
+  },
+  "windows_acceptance": {
+    "run_id": 40172025215,
+    "status": "success"
+  },
+  "web_build": {
+    "run_id": 40172025198,
+    "status": "success"
+  },
+  "native_qualification": {
+    "run_id": 40172081228,
+    "status": "blocked_environment",
+    "reason": "No authorized Linux media was configured; no CAE or solver ran"
+  },
+  "tailscale": {
+    "browser_login": "completed",
+    "device_login": "authorized_and_completed",
+    "windows_service": "NoState",
+    "service_restart": "denied_by_windows_permissions",
+    "private_connectivity_verified": false
+  },
+  "owner_auth": "blocked_github_reauthentication",
+  "solver_cloud_completed": false
+}

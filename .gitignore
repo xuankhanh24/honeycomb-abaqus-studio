@@ -56,3 +56,4 @@ catalog.sqlite*
 .vercel/
 node_modules/
 web/public/
+web/dist/

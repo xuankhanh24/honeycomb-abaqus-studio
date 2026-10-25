@@ -10,7 +10,7 @@ Public preview, geometry and the three actual Windows 7-J reference histories wo
 
 ## Vercel settings
 
-Deploy root `web/`, Node 24, Python >=3.13. Build: `npm ci && npm run build`. FastAPI entry: `app.py`; static assets: generated `public/`. The direction contract remains in emitted HTML.
+Deploy root `web/`, Node 24, Python >=3.13. Build: `npm ci && npm run build`. FastAPI entry: `app.py`; static frontend: generated `dist/`, registered as a literal `app.frontend` directory. CDN promotion is explicitly enabled for public assets; API middleware still protects writes. Do not mount Vercel's reserved `public/` directory. The direction contract remains in emitted HTML. Project deployment SSO is disabled for the requested public site; owner-only API authorization stays active.
 
 Set only encrypted environment values, never public `VITE_` variables:
 

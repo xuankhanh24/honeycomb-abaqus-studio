@@ -73,6 +73,11 @@ def test_bounded_archive_roundtrip_and_manifest_last(tmp_path):
     assert archive.uploads[-1][0] == "test-artifact-manifest.json"
     assert manifest["complete"] is True
     assert manifest["files"][0]["sha256"] == hashlib.sha256(raw).hexdigest()
+    previous_parts = [name for name, _ in archive.uploads if name.endswith(".part")]
+    archive.uploads.clear()
+    archive.publish(source, attempt="test", complete=False, checkpoint="run-one")
+    assert archive.uploads[-1][0] == "test-checkpoint-run-one-artifact-manifest.json"
+    assert [name for name, _ in archive.uploads if name.endswith(".part")] == previous_parts
 
 
 def test_packaged_service_matches_canonical():

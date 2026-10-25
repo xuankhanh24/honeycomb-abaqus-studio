@@ -132,7 +132,7 @@ def run(args):
                 raise RuntimeError("A run did not complete; see its preserved attempt logs")
             # Preserve each completed run before spending runner time on the next one.
             ReleaseArchive(github, release_id).publish(
-                args.root, attempt=f"workflow-{workflow_id}-run-{run['id']}", complete=False
+                args.root, attempt=f"workflow-{workflow_id}", complete=False, checkpoint=run["id"]
             )
         result_status = "review" if any(r["status"] == "review" for r in completed) else "completed"
     except Exception as exc:

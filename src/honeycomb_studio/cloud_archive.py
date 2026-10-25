@@ -113,7 +113,7 @@ class ReleaseArchive:
             raise ValueError("GitHub did not confirm the uploaded asset SHA-256 and size")
         return {"url": asset["browser_download_url"], "digest": expected, "bytes": asset["size"]}
 
-    def publish(self, root: Path, *, attempt: str, complete: bool):
+    def publish(self, root: Path, *, attempt: str, complete: bool, checkpoint: str | None = None):
         files = []
         root = root.resolve()
         with tempfile.TemporaryDirectory(prefix="honeycomb-upload-") as temp:
@@ -121,7 +121,9 @@ class ReleaseArchive:
                 relative = path.relative_to(root)
                 if path.is_symlink() or not path.is_file() or path.suffix.lower() not in ALLOWED:
                     continue
-                if any(p in ("cache", "spool", "credentials", "backup-manifests", ".git") for p in relative.parts):
+                if any(
+                    p in ("cache", "spool", "credentials", "backup-manifests", ".git") for p in relative.parts
+                ):
                     continue
                 if path.name in ("session.json", "engine-settings.json"):
                     continue
@@ -152,5 +154,6 @@ class ReleaseArchive:
             }
             path = Path(temp) / "artifact-manifest.json"
             path.write_text(json.dumps(manifest, indent=2, ensure_ascii=True), encoding="utf-8")
-            self.upload(path, f"{attempt}-artifact-manifest.json")
+            suffix = f"checkpoint-{checkpoint}-" if checkpoint else ""
+            self.upload(path, f"{attempt}-{suffix}artifact-manifest.json")
         return manifest

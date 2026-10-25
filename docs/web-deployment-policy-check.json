@@ -1,0 +1,6 @@
+{
+  "kind": "web-deployment-policy-check",
+  "expected": "cloud-data does not build the web",
+  "solver_executed": false,
+  "research_jobs_modified": false
+}

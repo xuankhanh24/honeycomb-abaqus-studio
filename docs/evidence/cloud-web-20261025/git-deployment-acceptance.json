@@ -1,0 +1,51 @@
+{
+  "kind": "actual-git-triggered-web-deployment",
+  "github_sha": "b4a098c6284507b5272f39e6edebdf1f0c212dae",
+  "branch": "main",
+  "source": "git",
+  "deployment_id": "dpl_ESj7Lkf4RpT6HB3smKhd2jJopRYY",
+  "ready_state": "READY",
+  "production_alias_automatically_assigned": true,
+  "production_alias": "https://honeycomb-abaqus-studio.vercel.app",
+  "vercel_github_connection": "xuankhanh24",
+  "github_app_installation_id": 175123101,
+  "repository_scope": [
+    "xuankhanh24/honeycomb-abaqus-studio"
+  ],
+  "collaborator_invitations_sent": false,
+  "root_directory": "web",
+  "checks": [
+    {
+      "endpoint": "/",
+      "status": 200
+    },
+    {
+      "endpoint": "/api/health",
+      "status": 200
+    },
+    {
+      "endpoint": "/api/template",
+      "status": 200
+    },
+    {
+      "endpoint": "/api/session",
+      "status": 200
+    }
+  ],
+  "reference_and_verification_hashes": "all matched",
+  "anonymous_write_status": 403,
+  "solver_executed": false,
+  "nonproduction_probe": {
+    "branch": "cloud-data",
+    "sha": "d00589bb1ef81eba67e11f06b169229927da6212",
+    "deployment_id": "dpl_GdDFNKQVjkwnTbkoyoTTm4AMf2S3",
+    "state": "CANCELED",
+    "reason": "Canceled by Ignored Build Step",
+    "github_status": "success",
+    "changed_files": [
+      "docs/web-deployment-policy-check.json"
+    ],
+    "pending_collaborator_invitations": 0,
+    "research_jobs_modified": false
+  }
+}

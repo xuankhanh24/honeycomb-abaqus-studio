@@ -7,8 +7,9 @@ RUN sed -i -e 's|^mirrorlist=|#mirrorlist=|' \
     && yum install -y ca-certificates python3 python3-pip tcsh ksh redhat-lsb-core \
     libjpeg-turbo motif mesa-libGLU libXext libXrender libXt libXi libSM libICE \
     ncurses-libs libX11 libXmu libXpm compat-libstdc++-33 libpng12 libXp \
-    file hostname which findutils tar gzip \
+    file hostname which findutils tar gzip perl libgomp \
     && python3 -m pip install --no-cache-dir pexpect==4.9.0 \
+    && perl -e 'print "Perl prerequisite ready\n"' \
     && yum clean all
 RUN useradd -u 1000 -m abaqus && mkdir -p /opt/SIMULIA && chown 1000:1000 /opt/SIMULIA
 COPY tui_probe.py /probe/tui_probe.py

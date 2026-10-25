@@ -1,10 +1,15 @@
-FROM ubuntu:22.04
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update -qq && apt-get install -y --no-install-recommends \
-    ca-certificates bash csh tcsh ksh lsb-release python3 python3-pexpect \
-    libstdc++5 libjpeg62 libmotif-dev libglu1-mesa libgl1 libgomp1 \
-    libxext6 libxrender1 libxt6 libxi6 libsm6 libice6 libncurses5 libnsl2 \
-    libx11-6 libxmu6 libxpm4 && rm -rf /var/lib/apt/lists/*
+FROM centos:7
+# Official CentOS 7 packages are archived at the project's vault after EOL.
+# Keep HTTPS and package signature verification enabled.
+RUN sed -i -e 's|^mirrorlist=|#mirrorlist=|' \
+    -e 's|^#baseurl=http://mirror.centos.org/centos/$releasever|baseurl=https://vault.centos.org/7.9.2009|' \
+    /etc/yum.repos.d/CentOS-*.repo \
+    && yum install -y ca-certificates python3 python3-pip tcsh ksh redhat-lsb-core \
+    libjpeg-turbo motif mesa-libGLU libXext libXrender libXt libXi libSM libICE \
+    ncurses-libs libX11 libXmu libXpm compat-libstdc++-33 libpng12 libXp \
+    file hostname which findutils tar gzip \
+    && python3 -m pip install --no-cache-dir pexpect==4.9.0 \
+    && yum clean all
 COPY tui_probe.py /probe/tui_probe.py
 ENV DSY_Force_OS=linux_a64
 WORKDIR /tmp

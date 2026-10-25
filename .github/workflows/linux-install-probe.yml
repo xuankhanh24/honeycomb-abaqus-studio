@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - name: Prepare archive readers and isolated Ubuntu image
+      - name: Prepare archive readers and isolated compatible Linux image
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y unrar p7zip-full

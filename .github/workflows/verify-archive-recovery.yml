@@ -7,7 +7,7 @@ jobs:
   interrupt:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     outputs:
       release_id: ${{ steps.interrupt.outputs.release_id }}
     steps:
@@ -19,11 +19,11 @@ jobs:
       - id: interrupt
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: uv run --locked --extra cloud python scripts/verify_archive_recovery.py interrupt
+        run: uv run --locked --extra cloud python scripts/verify_archive_recovery.py interrupt --large-odb
   resume:
     needs: interrupt
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -33,7 +33,7 @@ jobs:
       - env:
           GITHUB_TOKEN: ${{ github.token }}
           RECOVERY_RELEASE_ID: ${{ needs.interrupt.outputs.release_id }}
-        run: uv run --locked --extra cloud python scripts/verify_archive_recovery.py resume --release-id "$RECOVERY_RELEASE_ID"
+        run: uv run --locked --extra cloud python scripts/verify_archive_recovery.py resume --release-id "$RECOVERY_RELEASE_ID" --large-odb
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: archive-recovery-verification-${{ github.run_id }}

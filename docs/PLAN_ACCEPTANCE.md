@@ -28,6 +28,8 @@ accepted for production**. A successful solver checkout does not establish entit
 
 ## Review of this completion pass
 
+See [the two-axis review](COMPLETION_REVIEW.md).
+
 Standards review found two regressions: publication could modify linked source
 README/tar files, and Linux history verification disagreed with Git EOL/BOM handling.
 Both were repaired with regression checks. Spec review independently found the same

@@ -62,7 +62,7 @@ export default function BatchSweep({spec, parameters, update}: {
             <label className="field"><span>Cách thực thi</span><select value={spec.execution_mode ?? "sequential"}
                 onChange={e => update({execution_mode: e.target.value})}>
                 <option value="sequential">Tuần tự · một lượt mỗi lần</option>
-                <option value="parallel">Đồng thời · theo giới hạn tài nguyên</option>
+                <option value="parallel">Đồng thời · mỗi lượt một runner riêng</option>
             </select></label>
             {spec.execution_mode === "parallel" && <label className="field"><span>Số lượt đồng thời tối đa</span>
                 <input type="number" min={1} max={8} step={1} value={spec.max_parallel_runs ?? 2}
@@ -71,8 +71,9 @@ export default function BatchSweep({spec, parameters, update}: {
                 <input type="number" min={0.5} step={0.5} value={spec.ram_per_run_gb ?? 4}
                     onChange={e => update({ram_per_run_gb: Number(e.target.value)})} /></label>
         </div>
-        <p className="hint">CPU mỗi lượt nằm trong thông số mô hình. Runner tham khảo có 4 CPU: hai lượt × 2 CPU có thể chạy đồng thời;
-            hai lượt × 4 CPU phải xếp hàng. Worker kiểm tra lại RAM/đĩa và chờ license khi cần.
+        <p className="hint">Mỗi lượt cloud chạy trong một GitHub job trên runner riêng có 4 CPU; mặc định solver dùng đủ 4 CPU.
+            Hai lượt đồng thời dùng hai runner, tổng cộng 8 CPU. Quota GitHub và license có thể khiến job chờ.
+            Worker kiểm tra RAM/đĩa riêng trên từng runner.
             Dự trù tài nguyên và thời gian là ước tính, không tự thay đổi lưới hoặc thời gian vật lý.</p>
     </section>;
 }

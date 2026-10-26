@@ -14,6 +14,7 @@ for name in (
     "execution.py",
     "estimates.py",
     "cloud_github.py",
+    "cloud_matrix.py",
     "cloud_api.py",
     "cloud_runtime.py",
     "runtime-evidence.json",

@@ -14,8 +14,36 @@ concurrency:
   group: honeycomb-licensed-solver
   cancel-in-progress: false
 jobs:
-  simulate:
+  prepare:
     if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - name: Verify qualification before claiming the batch
+        env:
+          PLATFORM_POLICY_EVIDENCE_URL: ${{ vars.PLATFORM_POLICY_EVIDENCE_URL }}
+        run: uv run --locked --extra cloud python -c 'from pathlib import Path; from scripts.cloud_worker import require_qualification; require_qualification(Path.cwd())'
+      - name: Claim batch and expand one design per runner
+        id: matrix
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLOUD_JOB_ID: ${{ inputs.job_id }}
+        run: uv run --locked --extra cloud python scripts/cloud_matrix.py prepare --job-id "$CLOUD_JOB_ID"
+  simulate:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    name: Design ${{ matrix.index }} — separate 4 CPU runner
     runs-on: ubuntu-22.04
     timeout-minutes: 330
     env:
@@ -53,12 +81,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
-        run: uv run --locked --extra cloud python scripts/cloud_worker.py --job-id "$CLOUD_JOB_ID" --abaqus /opt/SIMULIA/Commands/abaqus --root "$RUNNER_TEMP/honeycomb-results"
+          CLOUD_CHILD_ID: ${{ matrix.child_id }}
+        run: uv run --locked --extra cloud python scripts/cloud_worker.py --parent-id "$CLOUD_JOB_ID" --job-id "$CLOUD_CHILD_ID" --abaqus /opt/SIMULIA/Commands/abaqus --root "$RUNNER_TEMP/honeycomb-results"
       - name: Preserve bounded diagnostics when interrupted
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: interrupted-diagnostics-${{ github.run_id }}
+          name: interrupted-diagnostics-${{ github.run_id }}-${{ matrix.index }}
           retention-days: 7
           if-no-files-found: ignore
           path: |
@@ -66,3 +95,19 @@ jobs:
             ${{ runner.temp }}/honeycomb-results/**/requested-input.json
             ${{ runner.temp }}/honeycomb-results/**/resolved-input.json
             ${{ runner.temp }}/honeycomb-results/**/logs/*.log
+  finalize:
+    needs: [prepare, simulate]
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - name: Aggregate completed and interrupted runners
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLOUD_JOB_ID: ${{ inputs.job_id }}
+        run: uv run --locked --extra cloud python scripts/cloud_matrix.py finalize --job-id "$CLOUD_JOB_ID"

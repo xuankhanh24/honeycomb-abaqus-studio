@@ -15,8 +15,8 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from .cloud_github import JOB_ID, REPOSITORY, Catalog, Github
+from .cloud_matrix import matrix_plan
 from .cloud_runtime import qualification, technical_evidence
-from .execution import execution_plan
 from .models import BatchSpec, ModelSpec, catalogue, digest, expand
 
 OWNER_ID = 273490538
@@ -148,7 +148,7 @@ def create_app(github: Github | None = None) -> FastAPI:
             raise HTTPException(422, "Cloud cho phép tối đa 10 lượt mỗi batch.")
         return {
             "count": len(runs),
-            "execution": execution_plan(spec.model_dump(), [r["resolved"] for r in runs], 4, 15.61, 85.64),
+            "execution": matrix_plan(spec.model_dump()),
             "input_hash": digest(spec.model_dump()),
             "runs": [
                 {

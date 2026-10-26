@@ -1,4 +1,4 @@
-"""Real sequential Abaqus worker. No fake-solver fallback and no local-machine fallback."""
+"""Real Abaqus worker for one isolated cloud runner. No fake-solver fallback."""
 
 import argparse
 import json
@@ -11,6 +11,7 @@ from pathlib import Path
 from honeycomb_studio.cloud_archive import ReleaseArchive
 from honeycomb_studio.cloud_drive import backup_readable
 from honeycomb_studio.cloud_github import JOB_ID, Catalog, Github
+from honeycomb_studio.cloud_matrix import ShardCatalog
 from honeycomb_studio.cloud_progress import Progress, execution_deadline
 from honeycomb_studio.cloud_runtime import qualification
 from honeycomb_studio.cloud_streaming import RollingFields
@@ -31,6 +32,10 @@ def run(args):
         raise ValueError("Invalid job ID")
     github = Github(token=os.environ["GITHUB_TOKEN"])
     catalog = Catalog(github)
+    if getattr(args, "parent_id", None):
+        if not JOB_ID.fullmatch(args.parent_id):
+            raise ValueError("Invalid parent job ID")
+        catalog = ShardCatalog(catalog, args.parent_id, args.job_id, int(os.environ["GITHUB_RUN_ID"]))
     key = "jobs/" + args.job_id
     job, _ = catalog.get(key)
     if job is None:
@@ -235,6 +240,7 @@ def run(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--job-id", required=True)
+    parser.add_argument("--parent-id", help="Parent batch when running one Actions matrix design")
     parser.add_argument("--abaqus", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
     run(parser.parse_args())

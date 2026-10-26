@@ -684,7 +684,7 @@ export default function App() {
                                                 </p>
                                                 {preview.execution && <p className="measure">
                                                     Yêu cầu {preview.execution.requested_parallel_runs} lượt đồng thời ·
-                                                    dự kiến cho phép {preview.execution.effective_parallel_runs} trên runner tham khảo,
+                                                    tối đa {preview.execution.effective_parallel_runs} runner riêng,
                                                     {preview.execution.cpu_per_run} CPU/lượt.
                                                     Worker kiểm tra lại tài nguyên trước mỗi nhóm lượt.
                                                 </p>}
@@ -982,7 +982,7 @@ export default function App() {
                                         >
                                             Tải lịch sử và thiết đặt
                                         </button>
-                                        {selected.release_url && (
+                                        {selected.release_url && !selected.releases?.length && (
                                             <a
                                                 className="button"
                                                 href={selected.release_url}
@@ -991,6 +991,11 @@ export default function App() {
                                                 <ExternalLink size={14} />
                                             </a>
                                         )}
+                                        {selected.releases?.map((release: Doc) => (
+                                            <a className="button" key={release.index} href={release.url}>
+                                                Kết quả lượt {release.index + 1} <ExternalLink size={14} />
+                                            </a>
+                                        ))}
                                     </div>
                                     {!!status.gates.length && (
                                         <p className="hint">

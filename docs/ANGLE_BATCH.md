@@ -29,13 +29,28 @@ advanced input; switching to range mode explicitly clears those designs.
 
 ## Scheduling and runtime
 
-`execution_mode` is `sequential` by default or `parallel`. `max_parallel_runs`
-limits concurrency to 1–8; CPU per run remains the requested model CPU count.
+Cloud uses **one design = one GitHub matrix job = one separate four-CPU runner**.
+The web defaults to four solver CPUs per run; CPU requests above four are rejected,
+and smaller explicit requests remain unchanged. `execution_mode` is `sequential`
+by default (matrix max-parallel=1) or `parallel` (user-selected max-parallel 1–8).
+Ten runs requesting four CPUs each do not share one four-CPU machine. GitHub
+account quotas and license availability may queue runners. Each runner installs
+its own runtime, checks network before installation, and has its own 330-minute
+budget including preparation and archival. Installation overhead means speedup
+still requires measurement.
+
+The prepare job expands and claims the batch once. Each worker claims one shard,
+publishes its own Release and updates only its embedded catalog record using CAS;
+sibling results remain intact. Parent cancellation reaches every active worker.
+The finalizer marks runners that failed during preparation as blocked_environment;
+finished runs and their verified archives are retained. The web lists every run's
+Release. Qualification gates remain enforced before dispatch/preparation.
+
+Desktop/local execution uses shared-resource admission instead:
 `ram_per_run_gb` is an explicit admission budget, not measured solver memory.
 Admission takes an ordered prefix whose summed CPUs, RAM budgets and predicted
 scratch/output disk fit current resources after reserves. Actual RAM/disk reserves
-are monitored while jobs run. The web shows a plan against a labelled historical
-runner measurement; the worker recalculates at each wave.
+are monitored while jobs run. The local worker recalculates at each wave.
 
 On a four-CPU runner, two runs requesting two CPUs each can overlap. Two runs
 requesting four CPUs each queue. No requested CPU count, mesh, material, duration,
@@ -54,8 +69,10 @@ process identity for later adoption. Stop requests terminate owned processes and
 retain partial outputs. Resource planning is heuristic, and parallel execution is
 not a guarantee of lower wall time for every model.
 
-Production entitlement/runtime/platform gates remain unchanged. This change did
-not launch a new native parallel Abaqus study or claim it has been benchmarked.
+Production entitlement/runtime/platform gates remain unchanged. Native parallel
+smoke attempts have not passed: the latest attempt could not reach FlexNet over
+the private network (FLEXnet -7,96). A subsequent TCP-only probe also failed both
+license ports. Distributed four-CPU native performance has not been benchmarked.
 
 ## Verification and review
 

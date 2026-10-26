@@ -85,6 +85,8 @@ def main():
         logger.notices.append(f"Khôi phục artifact dự phòng: {len(set(missing))} tệp gốc không có trong backup. Xem recovery-receipt.json; không chứng nhận lưu trữ đầy đủ.")
     release = reserve_release(github, tag="linux-impact-7j-" + args.source_run_id,
                               sha=source_run["head_sha"], name="Recovered Linux 7 J · read retention gaps")
+    release = github.repo("PATCH", f"/releases/{release['id']}", {"draft": False,
+                "body": "Recovery upload in progress. Read the final manifest and recovery-receipt for retention gaps; scientific quality remains review."})
     with logger.stage("Upload dữ liệu giữ được và manifest có trạng thái lưu trữ đúng"):
         manifest = ReleaseArchive(github, release["id"]).publish(root, attempt="impact", complete=not missing)
     with logger.stage("Runner khôi phục archive vừa xuất và kiểm tra checksum"):

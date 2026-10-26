@@ -275,6 +275,9 @@ def publish():
     github = Github(token=os.environ["GITHUB_TOKEN"])
     github.client.timeout = 300
     release = reserve(receipt["kind"] == "linux-parallel-angle-smoke")
+    # Draft asset URLs use an untagged slug. Publish before recording download URLs.
+    release = github.repo("PATCH", f"/releases/{release['id']}", {"draft": False,
+                "body": "Uploading native outputs; completeness is not established until the final archive manifest exists. Research quality is separate."})
     archive = ReleaseArchive(github, release["id"])
     # Thousands of small reduction records must not exhaust Release asset limits.
     # Large binaries are hard-linked into this view; only small records are packed.

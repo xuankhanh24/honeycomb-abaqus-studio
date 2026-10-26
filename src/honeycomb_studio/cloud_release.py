@@ -1,6 +1,17 @@
 """Pin the source tag before a long job lets the default branch advance."""
 
 
+def canonical_manifest(manifest, assets):
+    by_id = {asset["id"]: asset for asset in assets}
+    for file in manifest["files"]:
+        for part in file["parts"]:
+            asset = by_id[part["asset_id"]]
+            if asset["digest"] != "sha256:" + part["sha256"] or asset["size"] != part["bytes"]:
+                raise ValueError("Canonical asset failed SHA-256/size validation")
+            part["url"] = asset["browser_download_url"]
+    return manifest
+
+
 def reserve_release(github, *, tag, sha, name):
     path = "/git/ref/tags/" + tag
     ref = github.repo("GET", path, allow_missing=True)

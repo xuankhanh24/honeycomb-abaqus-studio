@@ -258,6 +258,7 @@ def create_app(github: Github | None = None) -> FastAPI:
             ".github/workflows/abaqus-linux.yml": "Job cloud",
             ".github/workflows/recover-native-artifact.yml": "Khôi phục kết quả native",
             ".github/workflows/verify-impact-release.yml": "Kiểm tra dữ liệu đã lưu",
+            ".github/workflows/verify-native-recovery.yml": "Kiểm tra dữ liệu đã khôi phục",
         }
         try:
             runs = []

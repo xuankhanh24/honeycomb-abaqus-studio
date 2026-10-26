@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -20,11 +21,36 @@ from honeycomb_studio.models import BatchSpec, digest
 from honeycomb_studio.store import Store, write_json
 
 
+class ParallelSmokeEngine(Engine):
+    """Align two native solver commands for bounded development acceptance only."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.barrier = threading.Barrier(2)
+        self.command_intervals = {}
+
+    def _monitor(self, r, a, phase, args, spool=None):
+        if phase == "solving" and args is not None:
+            self.barrier.wait(timeout=300)
+            start = time.time()
+            try:
+                return super()._monitor(r, a, phase, args, spool)
+            finally:
+                self.command_intervals[r["id"]] = {"start": start, "end": time.time()}
+        return super()._monitor(r, a, phase, args, spool)
+
+    def _postprocess(self, r, a, batch):
+        super()._postprocess(r, a, batch)
+        r["quality"].update(ml_eligible=False, physical_validation="environment_smoke_only")
+        r.update(status="review", phase="completed", acceptance_profile="parallel_smoke")
+        write_json(Path(a["path"]) / "extracted/quality.json", r["quality"])
+        self.store.save("runs", r)
+
+
 def run(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True)
 
 
-def main():
+def main(parallel_smoke=False):
     root = Path.cwd()
     output = Path(os.environ["RUNNER_TEMP"]) / "honeycomb-impact"
     output.mkdir()
@@ -41,16 +67,19 @@ def main():
     private = Path(os.environ["RUNNER_TEMP"]) / "impact-private"
     private.mkdir(mode=0o700)
     config = private / "abaqus_v6.env"
+    cpus = 2 if parallel_smoke else 4
     config.write_text(
         "license_server_type=FLEXNET\nabaquslm_license_file="
         + repr(endpoint)
-        + "\nmp_mode=THREADS\nparallel=DOMAIN\ndomains=4\n"
+        + "\nmp_mode=THREADS\nparallel=DOMAIN\ndomains=" + str(cpus) + "\n"
     )
     os.environ.update(
         HONEYCOMB_IMPACT_ROOT=str(output),
         HONEYCOMB_LICENSE_HOST=host,
         HONEYCOMB_ADAPTERS=str(ADAPTERS),
         HONEYCOMB_LICENSE_CONFIG=str(config),
+        HONEYCOMB_SOLVER_CPUS=str(cpus),
+        HONEYCOMB_SOLVER_MEMORY="5g" if parallel_smoke else "11g",
     )
     wrapper = root / "scripts/linux_media/abaqus_container.py"
     wrapper.chmod(0o755)
@@ -59,16 +88,24 @@ def main():
     effective = json.loads(json.dumps(requested))
     effective["model"]["cpus"] = 4
     effective.update(runtime_budget_minutes=285)
+    if parallel_smoke:
+        effective.update(name="SMOKE ONLY - two native delta-angle jobs",
+                         execution_mode="parallel", max_parallel_runs=2, render_images=False,
+                         axes=[{"parameter": "reentrant_delta_deg", "values": [20, 30]}])
+        effective["model"].update(cpus=2, reentrant_geometry="angle", duration=.00002,
+                                  field_intervals=2, history_intervals=10, mesh_preset="quick")
     spec = BatchSpec.model_validate(effective)
     write_json(
         output / "execution-adjustments.json",
         {
-            "cpus": {"requested": requested["model"]["cpus"], "effective": 4},
+            "cpus": {"requested": requested["model"]["cpus"], "effective": cpus},
             "parallel_mode": "threads",
-            "domains": 4,
-            "render_images": True,
-            "notes": "Original model, extraction and rendering settings retained; only CPU allocation and wall-clock budget adjusted.",
-            "physics_changed": False,
+            "domains": cpus,
+            "render_images": not parallel_smoke,
+            "notes": "Explicitly shortened, quick-mesh parallel environment smoke; not research data" if parallel_smoke else "Original model, extraction and rendering settings retained; only CPU allocation and wall-clock budget adjusted.",
+            "physics_changed": parallel_smoke,
+            "profile": "parallel_smoke_not_research" if parallel_smoke else "research",
+            "smoke_overrides": effective if parallel_smoke else None,
             "solver_budget_minutes": 285,
         },
     )
@@ -92,7 +129,7 @@ def main():
     created = dropped = input_dropped = allowed = False
     engine = store = None
     receipt = {
-        "kind": "linux-7j-impact-acceptance",
+        "kind": "linux-parallel-angle-smoke" if parallel_smoke else "linux-7j-impact-acceptance",
         "workflow_run_id": os.environ["GITHUB_RUN_ID"],
         "source_commit": os.environ["GITHUB_SHA"],
         "solver_success": False,
@@ -110,13 +147,14 @@ def main():
         allowed = True
         store = Store(output)
         batch = store.create(spec)
-        engine = Engine(store, abaqus=str(wrapper), fake=False)
-        engine.runtime_fingerprint = "abaqus2020-centos7-4threads-impact-acceptance"
+        engine = (ParallelSmokeEngine if parallel_smoke else Engine)(store, abaqus=str(wrapper), fake=False)
+        engine.runtime_fingerprint = "abaqus2020-centos7-2threads-parallel-smoke" if parallel_smoke else "abaqus2020-centos7-4threads-impact-acceptance"
         engine.control(batch["id"], "start")
         engine.start_worker()
         started = time.monotonic()
         while True:
-            current = store.list("runs", batch["id"])[0]
+            all_runs = store.list("runs", batch["id"])
+            current = all_runs[0]
             phase = current["status"]
             progress = current.get("progress", {})
             print(
@@ -130,7 +168,7 @@ def main():
                 ),
                 flush=True,
             )
-            if phase in ("completed", "review", "failed", "interrupted"):
+            if all(r["status"] in ("completed", "review", "failed", "interrupted") for r in all_runs):
                 receipt.update(
                     status=phase,
                     summary=current.get("summary"),
@@ -140,6 +178,18 @@ def main():
                 if current["attempts"]:
                     attempt = Path(current["attempts"][-1]["path"])
                     receipt["solver_success"] = (attempt / "solver-complete.json").exists()
+                if parallel_smoke:
+                    intervals = list(engine.command_intervals.values())
+                    overlap = min(i["end"] for i in intervals) - max(i["start"] for i in intervals) if len(intervals) == 2 else 0
+                    success = len(all_runs) == 2 and overlap > 0 and all(
+                        (Path(r["attempts"][-1]["path"]) / "solver-complete.json").exists()
+                        and r["status"] == "review" for r in all_runs)
+                    receipt.update(status="review" if success else "failed", solver_success=success,
+                                   profile="parallel_smoke_not_research", ml_eligible=False,
+                                   solver_command_intervals=engine.command_intervals,
+                                   solver_command_overlap_seconds=max(0, overlap),
+                                   note="Command lifetimes overlap; not proof of exact integration-kernel overlap or full-study speedup",
+                                   runs=all_runs)
                 break
             b = store.get("batches", batch["id"])
             if b["status"] == "paused":
@@ -147,7 +197,7 @@ def main():
             if time.monotonic() - started > 285 * 60:
                 engine.control(batch["id"], "stop")
                 raise RuntimeError("Acceptance budget exceeded; full physics duration was not shortened")
-            time.sleep(45)
+            time.sleep(10 if parallel_smoke else 45)
     except Exception as exc:
         receipt["error"] = str(exc).replace(endpoint, "<private-endpoint>").replace(host, "<private-host>")
         raise
@@ -203,9 +253,9 @@ def publish():
         "POST",
         "/releases",
         {
-            "tag_name": "linux-impact-7j-" + os.environ["GITHUB_RUN_ID"],
+            "tag_name": ("linux-parallel-angle-smoke-" if receipt["kind"] == "linux-parallel-angle-smoke" else "linux-impact-7j-") + os.environ["GITHUB_RUN_ID"],
             "target_commitish": os.environ["GITHUB_SHA"],
-            "name": "Linux 7 J re-entrant perimeter test",
+            "name": "Native parallel delta-angle SMOKE ONLY" if receipt["kind"] == "linux-parallel-angle-smoke" else "Linux 7 J re-entrant perimeter test",
             "draft": False,
             "prerelease": True,
             "body": "Real development acceptance test. Read impact-receipt and quality before using data. Incomplete or review results are not certified.",
@@ -233,4 +283,4 @@ if __name__ == "__main__":
     if "--publish" in sys.argv:
         publish()
     else:
-        main()
+        main(parallel_smoke="--parallel-smoke" in sys.argv)

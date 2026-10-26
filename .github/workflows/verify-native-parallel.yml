@@ -1,0 +1,76 @@
+name: Native parallel delta-angle smoke acceptance
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+concurrency:
+  group: honeycomb-licensed-solver
+  cancel-in-progress: false
+jobs:
+  install:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare archive readers and isolated compatible Linux image
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y unrar p7zip-full
+          docker build --build-arg MODEL_UID=$(id -u) -t honeycomb-install-probe scripts/linux_media
+      - name: Download and inventory candidate
+        run: python3 scripts/inspect_linux_media.py
+      - name: Verify pinned ISO and run unmodified installer without network or license
+        run: |
+          media="$RUNNER_TEMP/abaqus-media-inspection/iso/DS.SIMULIA.Suite.2020.Linux64_Softgozar.com.iso"
+          echo "d0b227290b5f62ea826b08c18bde222417817fc0d04b91abb0072cb52ebe43ad  $media" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/abaqus-mount" output/install-probe
+          sudo chown 1000:1000 output/install-probe
+          sudo mount -o loop,ro "$media" "$RUNNER_TEMP/abaqus-mount"
+          docker volume create honeycomb-install
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+            --pids-limit 512 --memory 8g \
+            --mount "type=bind,source=$RUNNER_TEMP/abaqus-mount,target=/media,readonly" \
+            --mount "type=bind,source=$PWD/output/install-probe,target=/results" \
+            --mount type=volume,source=honeycomb-install,target=/opt \
+            honeycomb-install-probe
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --extra cloud
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:honeycomb-runner
+      - name: Run two explicitly shortened native smoke jobs with two delta angles
+        env:
+          ABAQUS_LICENSE_ENDPOINT: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
+          ABAQUS_VENDOR_PORT: ${{ secrets.ABAQUS_VENDOR_PORT }}
+        run: uv run --locked --extra cloud python scripts/linux_media/impact_test.py --parallel-smoke
+      - name: Preserve actual result files in checksum-verified release parts
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked --extra cloud python scripts/linux_media/impact_test.py --publish
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: linux-parallel-angle-smoke-${{ github.run_id }}
+          path: |
+            output/media-inspection/inspection.json
+            output/install-probe/*.json
+            output/install-probe/*.log
+            output/impact-*.json
+            ${{ runner.temp }}/honeycomb-impact/**/*.json
+            ${{ runner.temp }}/honeycomb-impact/**/*.log
+            ${{ runner.temp }}/honeycomb-impact/**/*.sta
+            ${{ runner.temp }}/honeycomb-impact/**/*.inp
+            ${{ runner.temp }}/honeycomb-impact/**/*.cae
+            ${{ runner.temp }}/honeycomb-impact/**/*.odb
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error

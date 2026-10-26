@@ -334,7 +334,7 @@ class Engine:
             self.store.save("runs", r)
             self.shutdown.wait(0.05 if spool is not None else 0.5)
             if self.shutdown.is_set():
-                return
+                raise Detached()
         if spool is not None:
             consume_spool(spool, self.field_sink)
         if stopped_at is not None or self._stopping(r):

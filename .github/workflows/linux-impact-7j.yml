@@ -9,6 +9,7 @@ concurrency:
   cancel-in-progress: false
 env:
   HONEYCOMB_ACTIONS_LOG: '1'
+  ABAQUS_MEDIA_DRIVE_FILE_ID: ${{ vars.ABAQUS_MEDIA_DRIVE_FILE_ID }}
   HONEYCOMB_LOG_TITLE: 'Mô phỏng thật 7 J · 6 ms — tiến độ và kết quả'
 jobs:
   install:
@@ -36,7 +37,9 @@ jobs:
           python3 scripts/actions_step.py --title "Cài công cụ giải nén bộ cài" --details output/actions-logs/packages.log -- bash -c 'sudo apt-get update -qq && sudo apt-get install -y unrar p7zip-full'
           python3 scripts/actions_step.py --title "Dựng môi trường Linux tương thích với Abaqus" --details output/actions-logs/image.log -- docker build --build-arg MODEL_UID=$(id -u) -t honeycomb-install-probe scripts/linux_media
       - name: '06 · Tải bộ cài: dung lượng, tốc độ và thời gian còn lại'
-        run: python3 scripts/actions_step.py --title "Tải và kiểm kê bộ cài Abaqus" --details output/actions-logs/download.log -- python3 scripts/inspect_linux_media.py
+        env:
+          HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
+        run: uv run --locked python scripts/actions_step.py --title "Chuẩn bị ISO: ưu tiên kho Drive riêng" --details output/actions-logs/download.log -- uv run --locked python scripts/prepare_linux_media.py
       - name: '07 · Kiểm tra SHA-256 và cài Abaqus trong môi trường cách ly'
         run: python3 scripts/actions_step.py --title "Kiểm tra mã SHA-256 và cài Abaqus" --details output/actions-logs/install.log -- bash scripts/linux_media/install_runtime.sh
       - name: '08 · Kết nối riêng tới máy chủ cấp phép Abaqus'

@@ -1,0 +1,35 @@
+name: Kiểm tra tốc độ tải ISO từ Drive riêng
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  download:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      HONEYCOMB_ACTIONS_LOG: '1'
+      HONEYCOMB_LOG_TITLE: Đo tốc độ tải ISO dùng lại · kiểm tra SHA-256 trên runner mới
+      ABAQUS_MEDIA_DRIVE_FILE_ID: ${{ vars.ABAQUS_MEDIA_DRIVE_FILE_ID }}
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - name: Tải ISO trực tiếp, không dùng RAR hoặc solver
+        env:
+          HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
+        run: |
+          test -n "$ABAQUS_MEDIA_DRIVE_FILE_ID"
+          uv run --locked python scripts/actions_step.py --title "Đo tốc độ tải ISO và kiểm tra SHA-256" --details output/actions-logs/drive-download.log -- uv run --locked python scripts/prepare_linux_media.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: private-iso-download-verification-${{ github.run_id }}
+          path: |
+            output/media-inspection/inspection.json
+            output/actions-logs/**
+          retention-days: 30

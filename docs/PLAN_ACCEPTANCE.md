@@ -35,7 +35,7 @@ two issues; no additional new scope violation was reported. Review was against
 pre-pass revision `ce025d9`; subsequent fixes include exact-byte history parsing,
 source preservation and the real large-ODB recovery test.
 
-Software checks: 117 Python tests passed on Windows; Ubuntu passes the matching
+Software checks: 118 Python tests passed on Windows; Ubuntu passes the matching
 suite with the platform-specific skip. Frontend has 5 passing data tests, TypeScript
 and production build. The final CI run links and production observation receipt
 are retained alongside this ledger. These checks do not certify physical or

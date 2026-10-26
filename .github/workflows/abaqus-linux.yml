@@ -20,16 +20,18 @@ jobs:
     timeout-minutes: 330
     env:
       CLOUD_JOB_ID: ${{ inputs.job_id }}
-      GITHUB_TOKEN: ${{ github.token }}
       PLATFORM_POLICY_EVIDENCE_URL: ${{ vars.PLATFORM_POLICY_EVIDENCE_URL }}
       ABAQUS_LINUX_BUNDLE_URL: ${{ secrets.ABAQUS_LINUX_BUNDLE_URL }}
       ABAQUS_LINUX_BUNDLE_SHA256: ${{ vars.ABAQUS_LINUX_BUNDLE_SHA256 }}
       ABAQUS_LICENSE_ENDPOINT: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
       ABAQUS_VENDOR_PORT: ${{ secrets.ABAQUS_VENDOR_PORT }}
       ABAQUS_DISK_BUDGET_JSON: ${{ vars.ABAQUS_DISK_BUDGET_JSON }}
-      HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
     steps:
+      - name: Start entire-job execution budget
+        run: echo "HONEYCOMB_WORKFLOW_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
@@ -48,6 +50,9 @@ jobs:
       - name: Install checksum-pinned Linux runtime
         run: uv run --locked --extra cloud python scripts/prepare_cloud_runtime.py
       - name: Run real solver and preserve research outputs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
         run: uv run --locked --extra cloud python scripts/cloud_worker.py --job-id "$CLOUD_JOB_ID" --abaqus /opt/SIMULIA/Commands/abaqus --root "$RUNNER_TEMP/honeycomb-results"
       - name: Preserve bounded diagnostics when interrupted
         if: always()

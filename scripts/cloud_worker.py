@@ -11,7 +11,7 @@ from pathlib import Path
 from honeycomb_studio.cloud_archive import ReleaseArchive
 from honeycomb_studio.cloud_drive import backup_readable
 from honeycomb_studio.cloud_github import JOB_ID, Catalog, Github
-from honeycomb_studio.cloud_progress import Progress
+from honeycomb_studio.cloud_progress import Progress, execution_deadline
 from honeycomb_studio.cloud_runtime import qualification
 from honeycomb_studio.engine import Engine
 from honeycomb_studio.models import BatchSpec, digest, expand
@@ -49,8 +49,8 @@ def run(args):
     engine = None
     result_status = "failed"
     release_id = None
-    started = time.monotonic()
     try:
+        deadline = execution_deadline(os.environ["HONEYCOMB_WORKFLOW_STARTED_EPOCH"])
         runtime = require_qualification(Path.cwd())
         if not args.abaqus.is_file() or os.name == "nt":
             raise RuntimeError("blocked_environment: a Linux Abaqus executable is required")
@@ -82,7 +82,7 @@ def run(args):
         engine = Engine(store, abaqus=str(args.abaqus), fake=False)
         engine.runtime_fingerprint = digest(runtime)
         batch = store.create(spec)
-        progress = Progress(github, catalog, args.job_id, store, batch["id"], started + 285 * 60)
+        progress = Progress(github, catalog, args.job_id, store, batch["id"], deadline)
         for sig in (signal.SIGTERM, signal.SIGINT):
             signal.signal(sig, lambda *_: progress.stop_solver())
         progress.start(os.environ["GITHUB_SHA"])
@@ -111,7 +111,7 @@ def run(args):
         )
         completed = []
         for run in store.list("runs", batch["id"]):
-            if progress.stop_reason or time.monotonic() - started > 285 * 60:
+            if progress.stop_reason or time.monotonic() >= deadline:
                 raise RuntimeError(
                     (progress.stop_reason or "timed_out") + ": completed runs retained; native restart unqualified."
                 )

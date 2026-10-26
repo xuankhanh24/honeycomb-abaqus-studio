@@ -156,6 +156,17 @@ def test_local_deadline_stops_solver_when_github_is_unreachable(tmp_path):
     store.db.close()
 
 
+def test_preparation_counts_towards_total_job_budget():
+    import pytest
+
+    from honeycomb_studio.cloud_progress import execution_deadline
+
+    # One hour of install/download leaves 225 minutes, not another 285 minutes.
+    assert execution_deadline(1000, wall_time=4600, monotonic_time=50) == 50 + 225 * 60
+    with pytest.raises(RuntimeError, match="timed_out"):
+        execution_deadline(1000, wall_time=1000 + 285 * 60, monotonic_time=50)
+
+
 def test_malformed_lock_fails_closed_and_checkout_without_entitlement_is_blocked(tmp_path, monkeypatch):
     monkeypatch.delenv("PLATFORM_POLICY_EVIDENCE_URL", raising=False)
     lock = tmp_path / "runtime-lock.json"

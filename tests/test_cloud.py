@@ -72,7 +72,8 @@ def test_bounded_archive_roundtrip_and_manifest_last(tmp_path):
     manifest = archive.publish(source, attempt="test", complete=True)
     assert archive.uploads[-1][0] == "test-artifact-manifest.json"
     assert manifest["complete"] is True
-    assert manifest["files"][0]["sha256"] == hashlib.sha256(raw).hexdigest()
+    odb = next(f for f in manifest["files"] if f["path"] == "model.odb")
+    assert odb["sha256"] == hashlib.sha256(raw).hexdigest()
     previous_parts = [name for name, _ in archive.uploads if name.endswith(".part")]
     archive.uploads.clear()
     archive.publish(source, attempt="test", complete=False, checkpoint="run-one")
@@ -130,6 +131,47 @@ def test_owner_csrf_idempotency_and_qualification(monkeypatch):
         body["spec"]["name"] = "Changed payload"
         assert client.post("/api/jobs", json=body, headers=headers).status_code == 409
         assert client.post("/api/jobs/" + "b" * 32 + "/dispatch", json={}, headers=headers).status_code == 409
+        assert client.post("/api/jobs/" + "b" * 32 + "/cancel", json={}, headers=headers).status_code == 200
+        assert client.get("/api/jobs/" + "b" * 32).json()["cancel_requested"] is True
+
+
+def test_local_deadline_stops_solver_when_github_is_unreachable(tmp_path):
+    from honeycomb_studio.cloud_progress import Progress
+    from honeycomb_studio.models import BatchSpec
+    from honeycomb_studio.store import Store
+
+    store = Store(tmp_path)
+    batch = store.create(BatchSpec())
+
+    class Offline:
+        def get(self, key):
+            progress.done.set()
+            raise ConnectionError("network unavailable")
+
+    progress = Progress(None, Offline(), "fixture", store, batch["id"], 0)
+    progress.loop()
+    saved = store.get("batches", batch["id"])
+    assert saved["pause_requested"] and saved["stop_immediately"]
+    assert progress.stop_reason == "timed_out"
+    store.db.close()
+
+
+def test_malformed_lock_fails_closed_and_checkout_without_entitlement_is_blocked(tmp_path, monkeypatch):
+    monkeypatch.delenv("PLATFORM_POLICY_EVIDENCE_URL", raising=False)
+    lock = tmp_path / "runtime-lock.json"
+    for data in ([], {"smoke_receipt": None, "license_receipt": None},
+                 {"license_receipt": {"features": [{"not": "a feature"}]}}):
+        lock.write_text(json.dumps(data))
+        assert len(qualification(lock)[1]) == 3
+    lock.write_text(json.dumps({
+        "release": "Abaqus 2020", "python": "2.7.15", "image_digest": "sha256:" + "a" * 64,
+        "installer_sha256": "b" * 64, "media_publisher_authenticity_verified": True,
+        "smoke_receipt": {"solver_success": True, "platform": "linux", "odb_reopened": True,
+                          "evidence_url": "https://github.com/example/observed"},
+        "license_receipt": {"linux_checkout": True, "features": ["cae", "explicit"],
+                            "evidence_url": "https://github.com/example/observed"},
+    }))
+    assert {r["status"] for r in qualification(lock)[1]} == {"blocked_license", "blocked_platform_policy"}
 
 
 def test_failed_upload_never_publishes_complete_manifest(tmp_path):

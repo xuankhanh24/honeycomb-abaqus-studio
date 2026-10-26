@@ -15,6 +15,8 @@ def test_many_reductions_bundle_losslessly_and_large_files_are_not_copied(tmp_pa
     source.mkdir()
     target.mkdir()
     (source / "model.odb").write_bytes(b"binary transport fixture")
+    (source / "RESTORE-README.txt").write_bytes(b"original source instructions")
+    (source / "field-reductions.tar").write_bytes(b"prior source bundle")
     (source / "credentials").mkdir()
     (source / "credentials/oauth.json").write_text("private test fixture")
     records = source / "extracted/reduced-fields"
@@ -22,6 +24,8 @@ def test_many_reductions_bundle_losslessly_and_large_files_are_not_copied(tmp_pa
     for i in range(1010):
         (records / f"{i}.json").write_bytes(json.dumps({"value": i}).encode())
     prepare(source, target)
+    assert (source / "RESTORE-README.txt").read_bytes() == b"original source instructions"
+    assert (source / "field-reductions.tar").read_bytes() == b"prior source bundle"
     assert os.path.samefile(source / "model.odb", target / "model.odb")
     assert not (target / "credentials").exists()
     assert len(list(target.iterdir())) == 3

@@ -10,6 +10,7 @@ class Progress:
         self.store, self.batch_id, self.deadline = store, batch_id, deadline
         self.done = threading.Event()
         self.check = None
+        self.stop_reason = None
         self.thread = threading.Thread(target=self.loop, daemon=True)
 
     def start(self, sha):
@@ -25,7 +26,8 @@ class Progress:
         )["id"]
         self.thread.start()
 
-    def stop_solver(self):
+    def stop_solver(self, reason="cancelled"):
+        self.stop_reason = self.stop_reason or reason
         batch = self.store.get("batches", self.batch_id)
         batch.update(pause_requested=True, stop_immediately=True)
         self.store.save("batches", batch)
@@ -33,9 +35,12 @@ class Progress:
     def loop(self):
         previous = None
         while not self.done.is_set():
+            # A GitHub outage must not disable the local solver deadline.
+            if time.monotonic() >= self.deadline:
+                self.stop_solver("timed_out")
             try:
                 job, _ = self.catalog.get("jobs/" + self.identity)
-                if time.monotonic() >= self.deadline or (job or {}).get("cancel_requested"):
+                if (job or {}).get("cancel_requested"):
                     self.stop_solver()
                 runs = self.store.list("runs", self.batch_id)
                 active = next(
@@ -75,6 +80,10 @@ class Progress:
                         if status == "completed"
                         else "neutral"
                         if status == "review"
+                        else "cancelled"
+                        if status == "cancelled"
+                        else "timed_out"
+                        if status == "timed_out"
                         else "failure",
                         "output": {
                             "title": status,

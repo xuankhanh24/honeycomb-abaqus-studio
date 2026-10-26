@@ -231,15 +231,15 @@ export default function App() {
                     throw new Error(
                         "Không tải được history. Chọn lại bài để thử lại.",
                     );
-                return r.text();
+                return r.arrayBuffer();
             })
-            .then(async (text) => {
-                const bytes = new TextEncoder().encode(text);
+            .then(async (bytes) => {
                 const hash = await crypto.subtle.digest("SHA-256", bytes);
                 const checksum = Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("");
                 if (checksum !== references[reference].sha256)
                     throw new Error("Checksum history không khớp; chưa hiển thị dữ liệu.");
                 if (abort.signal.aborted) return;
+                const text = new TextDecoder().decode(bytes);
                 const lines = text.trim().split(/\r?\n/),
                     keys = lines.shift()!.split(",");
                 setCurve(

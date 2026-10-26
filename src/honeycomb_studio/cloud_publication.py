@@ -9,12 +9,17 @@ def prepare(source: Path, target: Path):
     # Lazy import avoids a cycle when ReleaseArchive prepares its own publication view.
     from .cloud_archive import ALLOWED
 
+    has_reductions = any(source.glob("**/reduced-fields/*.json"))
     reductions = []
     for path in sorted(source.rglob("*")):
         relative = path.relative_to(source)
         if path.is_symlink() or not path.is_file() or path.suffix.lower() not in ALLOWED:
             continue
         if path.suffix.lower() == ".tar" and path.name != "field-reductions.tar":
+            continue
+        if relative.as_posix() == "RESTORE-README.txt" or (
+            has_reductions and relative.as_posix() == "field-reductions.tar"
+        ):
             continue
         if any(p in ("cache", "spool", "credentials", "backup-manifests", ".git") for p in relative.parts):
             continue

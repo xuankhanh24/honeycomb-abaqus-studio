@@ -330,7 +330,7 @@ def create_app(github: Github | None = None) -> FastAPI:
             )
 
         def claim(old):
-            if old["status"] != "draft":
+            if old["status"] != "draft" or old.get("cancel_requested"):
                 raise HTTPException(409, "Bài đã được đưa vào hàng đợi.")
             return {**old, "status": "dispatching"}
 
@@ -350,8 +350,10 @@ def create_app(github: Github | None = None) -> FastAPI:
     def cancel(identity: str, request: Request):
         require_owner(request)
         value = job(identity)
-        if value.get("workflow_run_id"):
-            github.repo("POST", f"/actions/runs/{int(value['workflow_run_id'])}/cancel", {})
+        if value["status"] in ("completed", "review", "failed", "archive_failed", "cancelled", "timed_out"):
+            raise HTTPException(409, "Bài đã kết thúc; kết quả được giữ nguyên.")
+        # The worker observes this flag and stops its owned solver, then archives
+        # partial outputs. GitHub's immediate cancel would kill that cleanup.
         catalog.update("jobs/" + identity, lambda old: {**old, "cancel_requested": True})
         return {"cancel_requested": True}
 

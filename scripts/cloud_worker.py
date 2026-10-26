@@ -111,9 +111,9 @@ def run(args):
         )
         completed = []
         for run in store.list("runs", batch["id"]):
-            if time.monotonic() - started > 285 * 60:
+            if progress.stop_reason or time.monotonic() - started > 285 * 60:
                 raise RuntimeError(
-                    "Job budget reached; completed runs are retained. Native solver restart is not qualified."
+                    (progress.stop_reason or "timed_out") + ": completed runs retained; native restart unqualified."
                 )
             engine._execute(run, batch)
             finished = store.get("runs", run["id"])
@@ -141,7 +141,7 @@ def run(args):
                 },
             )
             if finished["status"] not in ("completed", "review"):
-                raise RuntimeError("A run did not complete; see its preserved attempt logs")
+                raise RuntimeError((progress.stop_reason or "failed") + ": see preserved attempt logs")
             # Preserve each completed run before spending runner time on the next one.
             ReleaseArchive(github, release_id).publish(
                 args.root, attempt=f"workflow-{workflow_id}", complete=False, checkpoint=run["id"]
@@ -152,7 +152,7 @@ def run(args):
         result_status = next(
             (
                 s
-                for s in ("blocked_environment", "blocked_license", "blocked_platform_policy")
+                for s in ("blocked_environment", "blocked_license", "blocked_platform_policy", "cancelled", "timed_out")
                 if s in message
             ),
             "failed",
@@ -160,21 +160,7 @@ def run(args):
         catalog.update(key, lambda old: {**old, "status": result_status, "error": message})
         raise
     finally:
-        if progress:
-            progress.finish(result_status)
-        if store:
-            try:
-                catalog.update(
-                    "index",
-                    lambda old: {
-                        "jobs": [
-                            dict(row, status=result_status) if row["id"] == args.job_id else row
-                            for row in (old or {}).get("jobs", [])
-                        ]
-                    },
-                )
-            except Exception:
-                pass
+        archive_error = None
         if release_id:
             try:
                 ReleaseArchive(github, release_id).publish(
@@ -182,21 +168,22 @@ def run(args):
                     attempt=f"workflow-{workflow_id}",
                     complete=result_status in ("completed", "review"),
                 )
-                catalog.update(key, lambda old: {**old, "status": result_status, "archive_verified": True})
+            except Exception as exc:
+                archive_error = exc
+                result_status = "archive_failed"
+            try:
+                catalog.update(key, lambda old: {
+                    **old, "status": result_status, "archive_verified": archive_error is None,
+                })
             except Exception:
-                catalog.update(
-                    key,
-                    lambda old: {
-                        **old,
-                        "status": "archive_failed",
-                        "archive_verified": False,
-                        "error": "Archive incomplete; runner files must not be treated as a durable complete dataset.",
-                    },
-                )
-                raise
+                # The release manifest remains the durable truth even if the
+                # convenience catalog cannot be updated.
+                write_json(args.root / "catalog-update-pending.json", {
+                    "status": result_status, "archive_verified": archive_error is None,
+                })
             # Secondary backup and status-update failure cannot invalidate the
             # already verified primary archive.
-            if store:
+            if store and archive_error is None:
                 backup = backup_readable(
                     store, batch["id"], Path(os.environ["RUNNER_TEMP"]) / "private-drive"
                 )
@@ -204,8 +191,20 @@ def run(args):
                     catalog.update(key, lambda old: {**old, "drive_backup": backup})
                 except Exception:
                     write_json(args.root / "drive-backup-status.json", backup)
-        if store:
-            store.db.close()
+        try:
+            if progress:
+                progress.finish(result_status)
+            catalog.update("index", lambda old: {
+                "jobs": [dict(row, status=result_status) if row["id"] == args.job_id else row
+                         for row in (old or {}).get("jobs", [])]
+            })
+        except Exception:
+            pass
+        finally:
+            if store:
+                store.db.close()
+        if archive_error:
+            raise RuntimeError("Archive incomplete; retained runner diagnostics are not a durable dataset") from archive_error
 
 
 if __name__ == "__main__":

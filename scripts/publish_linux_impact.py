@@ -27,6 +27,8 @@ def main():
                          ("field-view.json", "linux-perimeter-7j-fields.json"),
                          ("run-report.pdf", "linux-perimeter-7j-report.pdf")):
         data = paths[name].read_bytes()
+        if name == "impact_history.csv":
+            data = data.decode("utf-8-sig").replace("\r\n", "\n").encode("utf-8")
         (dest / target).write_bytes(data)
         products[name] = {"url": "/reference/" + target, "sha256": hashlib.sha256(data).hexdigest(),
                           "bytes": len(data)}

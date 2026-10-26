@@ -3,7 +3,7 @@
     "id": "linux-perimeter-7j",
     "name": "Re-entrant · 0° · 7 J · Linux · ngàm bốn cạnh",
     "history": "/reference/linux-perimeter-7j.csv",
-    "sha256": "1b1191f8ce9f75be1a54355407717203358f424f6414c3d439cf43fe88c8afd8",
+    "sha256": "4728580029ef692f0867152a38b230540e92c609d8d583596dabc50729b57acc",
     "source_sha256": "2337be13c5846e7184e0e925300ddf3eec7585070745577fe0d11b940f9c8036",
     "platform": "Linux Abaqus 2020 · CentOS 7 / Ubuntu 22.04",
     "clamp_mode": "perimeter",

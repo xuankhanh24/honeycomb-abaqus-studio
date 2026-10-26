@@ -1,0 +1,41 @@
+name: Verify interrupted publication across fresh runners
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  interrupt:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      release_id: ${{ steps.interrupt.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - id: interrupt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked --extra cloud python scripts/verify_archive_recovery.py interrupt
+  resume:
+    needs: interrupt
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RECOVERY_RELEASE_ID: ${{ needs.interrupt.outputs.release_id }}
+        run: uv run --locked --extra cloud python scripts/verify_archive_recovery.py resume --release-id "$RECOVERY_RELEASE_ID"
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: archive-recovery-verification-${{ github.run_id }}
+          path: output/archive-recovery-verification.json
+          retention-days: 30

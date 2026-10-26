@@ -1,0 +1,56 @@
+{
+  "checked_at": "2026-10-26T02:29:20.403984+00:00",
+  "deployment": "https://honeycomb-abaqus-studio.vercel.app",
+  "anonymous_write_denied": true,
+  "preview_passed": true,
+  "native_impact_visible": true,
+  "qualified_solver_dispatch": false,
+  "verified_assets": [
+    {
+      "url": "/reference/linux-perimeter-7j.csv",
+      "sha256": "4728580029ef692f0867152a38b230540e92c609d8d583596dabc50729b57acc",
+      "bytes": 352782
+    },
+    {
+      "url": "/reference/linux-perimeter-7j-fields.json",
+      "sha256": "4f0bf2a8f6f7edc139bce5d8f252c1cddb76900384555c6640a742ffd258907d",
+      "bytes": 2389281
+    },
+    {
+      "url": "/reference/linux-perimeter-7j-report.pdf",
+      "sha256": "01c388c3774bc94b9e2f90be4953e9114163a3985d2ab401fcf33da68f95bf53",
+      "bytes": 1022565
+    },
+    {
+      "url": "/reference/hexagonal.csv",
+      "sha256": "49c1bdf60f64d60d97adacebe7f31279e21d7aea5b938519bd2b718438a907fa",
+      "bytes": 361733
+    },
+    {
+      "url": "/reference/hexagonal-fields.json",
+      "sha256": "7bdd0a84ff04628c75f49be1fe0a05402a97cc6404c71683b2ec0ad65a656bda",
+      "bytes": 2396364
+    },
+    {
+      "url": "/reference/reentrant0.csv",
+      "sha256": "d9f2e807eea17f9b970ad2ce38bfd6d789757b93a391b9f6ba695b2a9e441908",
+      "bytes": 372793
+    },
+    {
+      "url": "/reference/reentrant_0-fields.json",
+      "sha256": "f8cf18b8fde9f6cc7ba97c30538dd242160b47d37bc695eb8c89d4bc6fc680a4",
+      "bytes": 2346551
+    },
+    {
+      "url": "/reference/reentrant90.csv",
+      "sha256": "9402eca88d58a4b205137eacda4d9a7ba9f180b538a7c76fb6c73f3ba8b7cb5c",
+      "bytes": 370153
+    },
+    {
+      "url": "/reference/reentrant_90-fields.json",
+      "sha256": "39803ceb82894c5f2568f9530684d37068268635ec8937d09049a9e62abef044",
+      "bytes": 2319575
+    }
+  ],
+  "browser_observation": "Real force curve, 5.980 J ALLPD, 13/13 display frames at 6 ms, differing-clamp comparison table"
+}

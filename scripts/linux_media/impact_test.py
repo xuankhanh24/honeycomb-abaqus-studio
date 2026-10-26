@@ -38,14 +38,6 @@ class ParallelSmokeEngine(Engine):
                 self.command_intervals[r["id"]] = {"start": start, "end": time.time()}
         return super()._monitor(r, a, phase, args, spool)
 
-    def _postprocess(self, r, a, batch):
-        super()._postprocess(r, a, batch)
-        r["quality"].update(ml_eligible=False, physical_validation="environment_smoke_only")
-        r.update(status="review", phase="completed", acceptance_profile="parallel_smoke")
-        write_json(Path(a["path"]) / "extracted/quality.json", r["quality"])
-        self.store.save("runs", r)
-
-
 def run(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True)
 
@@ -90,6 +82,7 @@ def main(parallel_smoke=False):
     effective.update(runtime_budget_minutes=285)
     if parallel_smoke:
         effective.update(name="SMOKE ONLY - two native delta-angle jobs",
+                         data_profile="smoke",
                          execution_mode="parallel", max_parallel_runs=2, render_images=False,
                          axes=[{"parameter": "reentrant_delta_deg", "values": [20, 30]}])
         effective["model"].update(cpus=2, reentrant_geometry="angle", duration=.00002,

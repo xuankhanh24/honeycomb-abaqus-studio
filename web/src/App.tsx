@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import { decodeHistory } from "./history-data";
 import BatchSweep from "./BatchSweep";
+import { updateAngleInput } from "./angle-input";
 import {
     Box,
     SlidersHorizontal,
@@ -254,7 +255,7 @@ export default function App() {
     }, [references, reference]);
     function update(key: string, value: unknown) {
         setSpec((s) => {
-            const n = { ...s!, model: { ...s!.model, [key]: value } };
+            const n = { ...s!, model: updateAngleInput(s!.model, key, value) };
             setJson(JSON.stringify(n, null, 2));
             return n;
         });

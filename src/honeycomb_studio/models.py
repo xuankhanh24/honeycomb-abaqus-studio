@@ -323,6 +323,7 @@ class BatchSpec(StrictModel):
         description="Advanced archive: duplicate every recorded ODB field to Parquet; research mode otherwise",
     )
     backup_after_run: bool = False
+    data_profile: Literal["research", "smoke"] = "research"
     execution_mode: Literal["sequential", "parallel"] = "sequential"
     max_parallel_runs: int = Field(2, ge=1, le=8)
     ram_per_run_gb: float = Field(4, ge=0.5, le=512, description="Declared admission RAM budget per simultaneous run; not measured usage")

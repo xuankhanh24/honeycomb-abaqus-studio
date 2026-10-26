@@ -110,3 +110,56 @@ def test_backup_failure_cannot_turn_success_into_solver_failure(tmp_path, monkey
     engine._postprocess(r, a, b)
     saved = store.get("runs", r["id"])
     assert saved["status"] == "completed" and saved["backup_status"] == "waiting_connection"
+
+
+def test_native_smoke_scope_applies_before_reports_viewer_and_completion_event(tmp_path, monkeypatch):
+    import json
+
+    store = Store(tmp_path)
+    batch = store.create(BatchSpec(data_profile="smoke", render_images=False))
+    run = store.list("runs", batch["id"])[0]
+    path = Path(run["path"]) / "attempts/001"
+    (path / "extracted").mkdir(parents=True)
+    (path / "raw").mkdir()
+    # Clearly labelled transport fixture: no Abaqus or actual ODB is used here.
+    (path / "raw/hc.odb").write_bytes(b"test-only ODB placeholder")
+    write_json(path / "extracted/complete.json", {"complete": True})
+    write_json(path / "extracted/inventory.json", {"fields": []})
+    attempt = {"number": 1, "path": str(path), "job_name": "hc"}
+    run["attempts"] = [attempt]
+    engine = Engine(store)
+    summary = {"initial_kinetic_energy_J": 7, "solver_completed": True,
+               "maximum_energy_balance_drift_percent": .01, "artificial_energy_over_max_internal_percent": 1}
+    monkeypatch.setattr("honeycomb_studio.engine.history_summary", lambda *a, **kw: (summary, []))
+    checked = []
+
+    def report(r, *args, **kwargs):
+        assert r["quality"]["ml_eligible"] is False
+        assert r["quality"]["physical_validation"] == "environment_smoke_only"
+        assert r["summary"]["data_profile"] == "smoke"
+        checked.append("report")
+        return str(path / "report.pdf")
+
+    def monitor(r, attempt, phase, args):
+        config = json.loads((path / "viewer-config.json").read_text(encoding="utf-8"))
+        assert config["source"]["data_profile"] == "smoke"
+        assert config["source"]["test_only"] is False  # Native producer, environment-only dataset.
+        write_json(path / "extracted/field-view.json", {"test_fixture": True})
+        checked.append("viewer")
+
+    def batch_report(batch, runs):
+        assert runs[0]["quality"]["ml_eligible"] is False
+        checked.append("batch_report")
+
+    events = []
+    monkeypatch.setattr(engine, "_monitor", monitor)
+    monkeypatch.setattr("honeycomb_studio.engine.run_report", report)
+    monkeypatch.setattr("honeycomb_studio.engine.batch_report", batch_report)
+    monkeypatch.setattr(store, "event", lambda bid, rid, data: events.append(data))
+    engine._postprocess(run, attempt, batch)
+    assert checked == ["viewer", "report", "batch_report"]
+    assert store.get("runs", run["id"])["status"] == "review"
+    completed = next(e for e in events if e["type"] == "completed")
+    assert completed["quality"]["ml_eligible"] is False
+    assert completed["quality"]["physical_validation"] == "environment_smoke_only"
+    store.db.close()

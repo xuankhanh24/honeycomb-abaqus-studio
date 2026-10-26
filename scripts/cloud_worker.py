@@ -67,6 +67,7 @@ def run(args):
         spec_data = json.loads(json.dumps(spec_data))
         spec_data.update(max_runs=10, backup_after_run=False)
         if job["profile"] == "smoke":
+            spec_data["data_profile"] = "smoke"
             short = {"duration": 0.0001, "field_intervals": 4, "history_intervals": 100}
             spec_data["model"].update(short)
             spec_data["designs"] = [dict(d, **short) for d in spec_data.get("designs", [])]

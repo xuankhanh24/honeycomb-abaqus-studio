@@ -286,6 +286,12 @@ public sealed partial class MainWindow : Window
                     {
                         if (combo.SelectedItem is not ComboBoxItem selected) return;
                         string mode = selected.Tag.ToString()!;
+                        if (key == "reentrant_geometry" && mode != Value(key)?.ToString())
+                        {
+                            double height = Number("reentrant_cell_height", 5);
+                            if (mode == "angle") SetValue("reentrant_delta_deg", JsonValue.Create(Math.Atan2(Number("reentrant_indent", 1.25), height / 2) * 180 / Math.PI));
+                            else SetValue("reentrant_indent", JsonValue.Create(height / 2 * Math.Tan(Number("reentrant_delta_deg", 26.56505117707799) * Math.PI / 180)));
+                        }
                         if (key == "hex_geometry" && mode == "parametric")
                         {
                             SetValue("hex_b", JsonValue.Create(Number("cell_size", 6.35)/Math.Sqrt(3)));

@@ -667,6 +667,13 @@ class Engine:
         summary, rows = history_summary(extracted, r["resolved"], actual, checkpoint=checkpoint)
         expected = r["resolved"]["energy_J"]
         q = quality(summary)
+        data_profile = batch["spec"].get("data_profile", "research")
+        if data_profile == "smoke":
+            r["acceptance_profile"] = "smoke"
+            summary["data_profile"] = "smoke"
+            q.update(ml_eligible=False, physical_validation="environment_smoke_only",
+                     scope_note="Short environment smoke; not a research dataset or physical acceptance")
+            write_json(extracted / "summary.json", summary)
         if abs(summary["initial_kinetic_energy_J"] - expected) / expected > 0.01:
             q["findings"].append("Động năng đầu sai khác >1% so với input")
             q.update(numerical_quality="review", ml_eligible=False)
@@ -687,6 +694,7 @@ class Engine:
                         "energy_J": r["resolved"]["energy_J"],
                         "runtime_fingerprint": self.runtime_fingerprint,
                         "test_only": False,
+                        "data_profile": data_profile,
                     },
                 },
             )

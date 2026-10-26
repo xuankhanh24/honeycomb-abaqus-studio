@@ -50,14 +50,17 @@ class Progress:
             if time.monotonic() >= self.deadline:
                 self.stop_solver("timed_out")
             try:
-                job, _ = self.catalog.get("jobs/" + self.identity)
-                if (job or {}).get("cancel_requested"):
-                    self.stop_solver()
                 runs = self.store.list("runs", self.batch_id)
                 logger = get_actions_log()
                 if logger:
                     logger.runs(runs)
                     logger.resources()
+            except Exception:
+                runs = []
+            try:
+                job, _ = self.catalog.get("jobs/" + self.identity)
+                if (job or {}).get("cancel_requested"):
+                    self.stop_solver()
                 active = [r for r in runs if r["status"] not in ("completed", "review", "failed", "queued")]
                 phase = ", ".join(sorted({r["status"] for r in active})) if active else "waiting"
                 if phase != previous:
@@ -82,6 +85,17 @@ class Progress:
     def finish(self, status):
         self.done.set()
         self.thread.join(timeout=35)
+        try:
+            logger = get_actions_log()
+            if logger:
+                runs = self.store.list("runs", self.batch_id)
+                logger.runs(runs)
+                logger.emit("RESULT", f"Batch: {status} | Review yêu cầu xem chất lượng; không suy ra kiểm chứng vật lý.")
+                for run in runs:
+                    if run.get("error"):
+                        logger.failure(run["error"], run["id"], "artifact: logs của attempt và manifest trên Releases")
+        except Exception:
+            pass  # Reporting must preserve finalization even if the store is unavailable.
         if self.check:
             try:
                 self.github.repo(

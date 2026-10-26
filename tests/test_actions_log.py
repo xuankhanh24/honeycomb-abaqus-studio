@@ -109,3 +109,28 @@ def test_upload_marks_verified_only_after_remote_digest(tmp_path, monkeypatch, v
     transfer = get_actions_log().transfers["Upload model.part"]
     assert transfer["done"] == len(content)
     assert (transfer["state"] == "Đã xác minh") is valid
+
+
+def test_local_progress_remains_visible_when_github_is_offline(tmp_path, monkeypatch, capsys):
+    from honeycomb_studio.cloud_progress import Progress
+    from honeycomb_studio.models import BatchSpec
+    from honeycomb_studio.store import Store
+
+    monkeypatch.setenv("HONEYCOMB_ACTIONS_LOG", "1")
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "summary.md"))
+    monkeypatch.setenv("HONEYCOMB_LOG_DIR", str(tmp_path))
+    store = Store(tmp_path / "store")
+    batch = store.create(BatchSpec())
+
+    class Offline:
+        def get(self, key):
+            progress.done.set()
+            raise ConnectionError("network offline")
+
+    progress = Progress(None, Offline(), "fixture", store, batch["id"], 0)
+    try:
+        progress.loop()
+        assert "[RUN]" in capsys.readouterr().out
+        assert progress.stop_reason == "timed_out"
+    finally:
+        store.db.close()

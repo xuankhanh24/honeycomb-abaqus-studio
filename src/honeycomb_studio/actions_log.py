@@ -16,12 +16,35 @@ from contextlib import contextmanager
 from pathlib import Path
 
 PHASES = {
-    "queued": "Chờ chạy", "building": "Dựng CAE / lưới", "checking": "Datacheck",
-    "solving": "Abaqus/Explicit", "extracting": "Đọc ODB", "verifying_export": "Kiểm tra dữ liệu xuất",
+    "queued": "Chờ chạy", "building": "Dựng mô hình và chia lưới", "checking": "Kiểm tra mô hình trước khi tính",
+    "solving": "Đang tính mô phỏng Abaqus/Explicit", "extracting": "Đọc kết quả ODB", "verifying_export": "Kiểm tra dữ liệu xuất",
     "analyzing": "Tính chỉ số", "rendering": "Xuất hình", "reporting": "Tạo báo cáo",
     "cataloguing": "Lưu manifest", "completed": "Hoàn tất", "review": "Hoàn tất · cần xem xét",
     "failed": "Thất bại", "interrupted": "Đã dừng", "waiting_license": "Chờ license",
     "recovering": "Khôi phục tiến trình",
+}
+
+CATEGORIES = {
+    "START": "BẮT ĐẦU", "OK": "HOÀN TẤT BƯỚC", "FAIL": "CÓ LỖI", "FIX": "CÁCH KIỂM TRA",
+    "PROCESS": "TIẾN TRÌNH", "HEARTBEAT": "VẪN ĐANG CHẠY", "DETAILS": "LOG CHI TIẾT",
+    "TRANSFER": "TRUYỀN DỮ LIỆU", "RUN": "TIẾN ĐỘ MÔ PHỎNG", "PHASE": "GIAI ĐOẠN MỚI",
+    "HOST": "TÀI NGUYÊN MÁY CHẠY", "CONTAINER": "TÀI NGUYÊN MÔI TRƯỜNG ABAQUS",
+    "CACHE": "DÙNG LẠI DỮ LIỆU ĐÃ KIỂM TRA", "ARCHIVE": "LƯU KẾT QUẢ", "RESULT": "KẾT QUẢ",
+    "TEST": "KIỂM TRA", "PLAN": "THÔNG TIN LƯỢT CHẠY",
+}
+PHASE_HELP = {
+    "building": "Tạo hình học, vật liệu, điều kiện biên và lưới; chưa bắt đầu tính va chạm.",
+    "checking": "Abaqus kiểm tra input và lưới; nếu lỗi, mở checking.log của lần thử này.",
+    "solving": "Đang tính va chạm thật. Phần trăm = thời gian vật lý đã tính / thời gian yêu cầu; thời gian chờ thực tế có thể dài hơn.",
+    "extracting": "Solver đã kết thúc; đang đọc các frame trong ODB và xuất dữ liệu số.",
+    "verifying_export": "Đối chiếu số frame và số mẫu đã xử lý với danh mục trong ODB.",
+    "analyzing": "Tính lực, chuyển vị, năng lượng và kiểm tra chất lượng số.",
+    "rendering": "Đang tạo hình kết quả; chưa hoàn tất toàn bộ công việc.",
+    "reporting": "Đang tạo báo cáo và ghi nguồn gốc dữ liệu.",
+    "review": "Đã có kết quả nhưng cần xem quality.json; không tự chứng nhận dữ liệu đủ điều kiện ML.",
+    "completed": "Đã hoàn tất xử lý kết quả; vẫn cần xem chất lượng và bằng chứng kiểm chứng vật lý.",
+    "waiting_license": "Chưa lấy được quyền dùng Abaqus; kiểm tra máy chủ license và kết nối riêng.",
+    "failed": "Lượt chạy gặp lỗi; xem thông báo lỗi và log chi tiết của đúng giai đoạn.",
 }
 
 
@@ -115,7 +138,7 @@ def snapshot(run):
 
 
 def runs_markdown(runs):
-    rows = ["| Lượt | Giai đoạn | Tiến độ của giai đoạn | Thời gian vật lý | Đã chạy | ETA ước tính | PID |",
+    rows = ["| Lượt | Giai đoạn | Tiến độ của giai đoạn | Thời gian vật lý | Đã chạy | Còn khoảng (ước tính) | Mã tiến trình (PID) |",
             "|---|---|---|---|---|---|---|"]
     for run in runs:
         item = snapshot(run)
@@ -127,6 +150,10 @@ def runs_markdown(runs):
 
 def hint(text):
     lower = str(text).lower()
+    if "403" in lower and "release" in lower:
+        return "Kiểm tra quyền ghi Releases và tag mã nguồn đã được giữ chỗ từ đầu lượt chạy. Xem phản hồi GitHub; không chạy lại solver chỉ để sửa bước tải lên."
+    if "404" in lower and "github.com" in lower:
+        return "Kiểm tra Release đã công bố và URL asset đúng tag, không dùng URL bản nháp untagged. Giữ lại dữ liệu trước khi thử tải lại."
     if any(k in lower for k in ("license", "flexnet", "checkout", "blocked_license")):
         return "Kiểm tra máy license online/Tailscale, hai cổng manager/vendor và log checking.log/solving.log."
     if any(k in lower for k in ("sha256", "checksum", "digest", "truncated")):
@@ -153,12 +180,15 @@ class ActionsLog:
         self.notices = []
         self.resource_rows = []
         self.cpu_primed = False
+        self.last_phases = {}
+        self.title = os.getenv("HONEYCOMB_LOG_TITLE", "Theo dõi công việc Honeycomb Studio")
 
     def emit(self, category, text, **data):
         with self.lock:
             text = line(text)
             try:
-                print(f"[{duration(self.clock() - self.started)}] [{category}] {text}", file=self.stream, flush=True)
+                label = CATEGORIES.get(category, category)
+                print(f"[{duration(self.clock() - self.started)}] [{category}] {label} | {text}", file=self.stream, flush=True)
             except (OSError, UnicodeError):
                 pass
             if self.events_path:
@@ -175,8 +205,8 @@ class ActionsLog:
         if not self.summary_path:
             return
         with self.lock:
-            rows = ["## Honeycomb Studio · Tiến trình", "",
-                    "Phần trăm thuộc từng giai đoạn; ETA là ước tính. Không suy ra kiểm chứng vật lý từ trạng thái solver.", ""]
+            rows = ["## " + markdown(self.title), "",
+                    "Phần trăm thuộc từng giai đoạn, không phải toàn bộ công việc. Thời gian còn lại chỉ là ước tính. Solver chạy xong chưa đồng nghĩa đã kiểm chứng vật lý.", ""]
             if self.stages:
                 rows += ["| Bước | Trạng thái | Thời gian |", "|---|---|---|"]
                 rows += [f"| {markdown(name)} | {markdown(state)} | {duration(elapsed)} |"
@@ -185,7 +215,7 @@ class ActionsLog:
             if self.current_runs:
                 rows += [runs_markdown(self.current_runs), ""]
             if self.transfers:
-                rows += ["### Truyền dữ liệu", "", "| Tệp | Trạng thái | Byte / tổng | Tốc độ TB |", "|---|---|---|---|"]
+                rows += ["### Tải lên / tải xuống", "", "| Tệp | Trạng thái | Đã truyền / tổng | Tốc độ trung bình |", "|---|---|---|---|"]
                 rows += [f"| {markdown(name)} | {markdown(t['state'])} | {size(t['done'])} / {size(t['total'])} | {size(t['rate'])}/s |"
                          for name, t in list(self.transfers.items())[-12:]]
             if self.resource_rows:
@@ -230,12 +260,19 @@ class ActionsLog:
             print("::endgroup::", file=self.stream, flush=True)
         self.summary()
 
-    def runs(self, runs, *, scope="process tree"):
+    def runs(self, runs, *, scope="nhóm tiến trình"):
         self.current_runs = runs
         for index, run in enumerate(runs, 1):
             item = snapshot(run)
-            self.emit("RUN", f"{index}/{len(runs)} {item['id']} | {item['label']} | {bar(item['percent'])} | "
-                      f"vật lý {item['physical']} | phase {item['elapsed']} | ETA≈{item['eta']} | "
+            if self.last_phases.get(item["id"]) != item["phase"]:
+                self.emit("PHASE", f"=== {item['label']} · lượt {index}/{len(runs)} === " + PHASE_HELP.get(item["phase"], ""))
+                self.last_phases[item["id"]] = item["phase"]
+                if item["phase"] == "review":
+                    for finding in (run.get("quality") or {}).get("findings", []):
+                        self.notices.append(f"{item['id']}: {line(finding)}")
+                        self.emit("RESULT", "Cần xem xét kết quả: " + line(finding))
+            self.emit("RUN", f"Lượt {index}/{len(runs)} · {item['id']} | {item['label']} | {bar(item['percent'])} | "
+                      f"thời gian vật lý {item['physical']} | đã chạy giai đoạn {item['elapsed']} | còn khoảng {item['eta']} | "
                       f"PID {item['pid'] or '—'} | RAM {scope}: {item['ram']}")
         self.summary()
 
@@ -247,7 +284,7 @@ class ActionsLog:
             cpu = psutil.cpu_percent(interval=None)
             cpu_text = f"{cpu:.1f}%" if self.cpu_primed else "— (đang lấy mẫu)"
             self.cpu_primed = True
-            host = (f"Host CPU {cpu_text} | RAM {size(memory.used)}/{size(memory.total)} | "
+            host = (f"Máy chạy: CPU {cpu_text} | RAM {size(memory.used)}/{size(memory.total)} | "
                     f"RAM khả dụng {size(memory.available)} | Đĩa trống {size(shutil.disk_usage(root).free)}")
             self.resource_rows = [host]
             self.emit("HOST", host)
@@ -267,7 +304,7 @@ class ActionsLog:
                     for record in result.stdout.splitlines():
                         item = json.loads(record)
                         measured = (f"{item.get('Name')} | CPU {item.get('CPUPerc', '—')} "
-                                    f"(100%=1 core) | RAM {item.get('MemUsage', '—')} | PIDs {item.get('PIDs', '—')}")
+                                    f"(100%=1 lõi CPU) | RAM {item.get('MemUsage', '—')} | Số tiến trình {item.get('PIDs', '—')}")
                         self.resource_rows.append(measured)
                         self.emit("CONTAINER", measured)
             except (OSError, subprocess.TimeoutExpired, ValueError):
@@ -301,7 +338,7 @@ class Transfer:
             self.log.transfers[self.label] = {"done": self.count, "total": self.total, "rate": rate, "state": state}
             if force or self.total is None or self.total >= 1024**2:
                 self.log.emit("TRANSFER", f"{self.label} | {bar(percent)} | {size(self.count)}/{size(self.total)} "
-                              f"| TB {size(rate)}/s | ETA≈{duration(eta)} | {state}")
+                              f"| tốc độ trung bình {size(rate)}/s | còn khoảng {duration(eta)} | {state}")
             self.log.summary()
         self.last, self.last_count = now, self.count
 

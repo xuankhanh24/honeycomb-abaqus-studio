@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       job_id:
-        description: 'Existing owner-created catalog job ID'
+        description: 'Mã bài đã lưu bởi chủ dự án'
         required: true
         type: string
 permissions:
@@ -15,6 +15,7 @@ concurrency:
   cancel-in-progress: false
 env:
   HONEYCOMB_ACTIONS_LOG: '1'
+  HONEYCOMB_LOG_TITLE: 'Mô phỏng nghiên cứu — tiến độ và kết quả'
 jobs:
   prepare:
     if: github.ref == 'refs/heads/main'
@@ -29,11 +30,11 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v10.3.0
       - run: uv sync --locked --extra cloud
-      - name: Verify qualification before claiming the batch
+      - name: Kiểm tra điều kiện nghiệm thu trước khi nhận bài
         env:
           PLATFORM_POLICY_EVIDENCE_URL: ${{ vars.PLATFORM_POLICY_EVIDENCE_URL }}
         run: uv run --locked --extra cloud python -c 'from pathlib import Path; from scripts.cloud_worker import require_qualification; require_qualification(Path.cwd())'
-      - name: Claim batch and expand one design per runner
+      - name: Nhận bài và bố trí một mô hình cho mỗi máy chạy
         id: matrix
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -45,7 +46,7 @@ jobs:
       fail-fast: false
       max-parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
-    name: Design ${{ matrix.index }} — separate 4 CPU runner
+    name: Mô hình ${{ matrix.index }} · máy chạy riêng, 4 CPU
     runs-on: ubuntu-22.04
     timeout-minutes: 330
     env:
@@ -57,7 +58,7 @@ jobs:
       ABAQUS_VENDOR_PORT: ${{ secrets.ABAQUS_VENDOR_PORT }}
       ABAQUS_DISK_BUDGET_JSON: ${{ vars.ABAQUS_DISK_BUDGET_JSON }}
     steps:
-      - name: Start entire-job execution budget
+      - name: Bắt đầu tính ngân sách thời gian toàn bộ công việc
         run: echo "HONEYCOMB_WORKFLOW_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7.0.1
         with:
@@ -66,26 +67,26 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked --extra cloud
-      - name: Verify qualified runtime before installing anything
+      - name: Kiểm tra môi trường đã nghiệm thu trước khi cài đặt
         run: |
           uv run --locked --extra cloud python -c 'from pathlib import Path; from scripts.cloud_worker import require_qualification; require_qualification(Path.cwd())'
-      - name: Join private license network
+      - name: Kết nối riêng tới máy chủ cấp phép Abaqus
         uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:honeycomb-runner
-      - name: Verify private license network before installing
+      - name: Kiểm tra kết nối máy chủ cấp phép trước khi cài đặt
         run: uv run --locked --extra cloud python scripts/check_license_network.py
-      - name: Install checksum-pinned Linux runtime
-        run: python3 scripts/actions_step.py --title "Install checksum-pinned runtime" --details output/actions-logs/runtime.log -- uv run --locked --extra cloud python scripts/prepare_cloud_runtime.py
-      - name: Run real solver and preserve research outputs
+      - name: Cài môi trường Linux và kiểm tra SHA-256
+        run: python3 scripts/actions_step.py --title "Cài môi trường Abaqus đã ghim SHA-256" --details output/actions-logs/runtime.log -- uv run --locked --extra cloud python scripts/prepare_cloud_runtime.py
+      - name: Chạy mô phỏng thật và giữ dữ liệu nghiên cứu
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
           CLOUD_CHILD_ID: ${{ matrix.child_id }}
         run: uv run --locked --extra cloud python scripts/cloud_worker.py --parent-id "$CLOUD_JOB_ID" --job-id "$CLOUD_CHILD_ID" --abaqus /opt/SIMULIA/Commands/abaqus --root "$RUNNER_TEMP/honeycomb-results"
-      - name: Preserve bounded diagnostics when interrupted
+      - name: Giữ log chẩn đoán khi bị gián đoạn
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
@@ -109,7 +110,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v10.3.0
       - run: uv sync --locked --extra cloud
-      - name: Aggregate completed and interrupted runners
+      - name: Tổng hợp các lượt hoàn tất và các lượt bị gián đoạn
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CLOUD_JOB_ID: ${{ inputs.job_id }}

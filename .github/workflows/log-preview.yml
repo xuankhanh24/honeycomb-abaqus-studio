@@ -21,17 +21,17 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
-      - name: '01 - Environment setup with elapsed time and process heartbeat'
+      - name: '01 · Cài môi trường và theo dõi thời gian, tiến trình'
         env:
           HONEYCOMB_ACTIONS_LOG: '1'
-        run: python3 scripts/actions_step.py --title "Prepare Python environment" --details output/actions-logs/environment.log -- uv sync --locked --extra cloud
-      - name: '02 - Redaction, percentages, failure handling and web link tests'
-        run: uv run --locked pytest tests/test_actions_log.py tests/test_actions_activity.py -q
-      - name: '03 - Real HTTP loopback transfer and labelled progress preview'
+        run: python3 scripts/actions_step.py --title "Cài môi trường Python" --details output/actions-logs/environment.log -- uv sync --locked --extra cloud
+      - name: '02 · Kiểm tra che thông tin riêng, tiến độ, lỗi và link web'
+        run: uv run --locked pytest tests/test_actions_log.py tests/test_actions_vietnamese.py tests/test_actions_activity.py -q
+      - name: '03 · Kiểm tra truyền HTTP nội bộ và mẫu hiển thị tiến độ'
         env:
           HONEYCOMB_ACTIONS_LOG: '1'
         run: uv run --locked python scripts/preview_actions_log.py
-      - name: '04 - Preserve redacted detail logs and structured events'
+      - name: '04 · Lưu log chi tiết và dữ liệu sự kiện đã che thông tin riêng'
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:

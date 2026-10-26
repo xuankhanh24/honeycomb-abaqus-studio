@@ -31,7 +31,7 @@ def download(index, directory):
     count = 0
     started = last = time.monotonic()
     logger = get_actions_log()
-    transfer = logger.transfer(f"Download media {index + 1}/5", SIZES[index]) if logger else None
+    transfer = logger.transfer(f"Tải bộ cài · phần {index + 1}/5", SIZES[index]) if logger else None
     with urllib.request.urlopen(url, timeout=90) as response, path.open("xb") as stream:
         if response.status != 200:
             raise ValueError("Expected a complete archive volume")

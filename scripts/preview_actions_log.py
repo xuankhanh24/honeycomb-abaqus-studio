@@ -37,14 +37,14 @@ def main():
     log = get_actions_log()
     if log is None:
         raise SystemExit("Enable HONEYCOMB_ACTIONS_LOG=1")
-    log.emit("TEST", "FORMAT PREVIEW ONLY · No Abaqus solver or license used. Network rates below are loopback, not Internet throughput.")
-    log.notices.append("Formatting fixtures only; solver percentages below are test input, not a research run.")
+    log.emit("TEST", "CHỈ KIỂM TRA ĐỊNH DẠNG LOG · Không chạy Abaqus hoặc dùng license. Tốc độ bên dưới là HTTP nội bộ, không phải băng thông Internet.")
+    log.notices.append("Chỉ dùng dữ liệu mẫu để kiểm tra hiển thị; phần trăm mô phỏng dưới đây không phải kết quả nghiên cứu.")
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{server.server_port}/fixture"
     try:
-        with log.stage("Real HTTP download · loopback fixture"):
-            transfer = log.transfer("Download loopback fixture", len(PAYLOAD))
+        with log.stage("Tải xuống qua HTTP nội bộ · dữ liệu kiểm tra"):
+            transfer = log.transfer("Tải xuống dữ liệu mẫu nội bộ", len(PAYLOAD))
             received = bytearray()
             with urllib.request.urlopen(url, timeout=10) as response:
                 while block := response.read(65536):
@@ -52,8 +52,8 @@ def main():
                     transfer.advance(len(block))
             assert hashlib.sha256(received).hexdigest() == EXPECTED
             transfer.verified()
-        with log.stage("Real HTTP upload · loopback fixture"):
-            transfer = log.transfer("Upload loopback fixture", len(received))
+        with log.stage("Tải lên qua HTTP nội bộ · dữ liệu kiểm tra"):
+            transfer = log.transfer("Tải lên dữ liệu mẫu nội bộ", len(received))
             def chunks():
                 for offset in range(0, len(received), 65536):
                     block = received[offset:offset + 65536]
@@ -63,7 +63,7 @@ def main():
             with urllib.request.urlopen(request, timeout=10) as response:
                 assert response.read().decode() == EXPECTED
             transfer.verified()
-        with log.stage("Progress layout · labelled fixtures"):
+        with log.stage("Kiểm tra bố cục tiến độ · các dòng FIXTURE là dữ liệu mẫu"):
             log.runs([
                 {"id": "FIXTURE-solving", "status": "solving", "resolved": {"duration": .006},
                  "progress": {"solver_percent": 32.5, "simulation_time_s": .00195, "phase_elapsed_seconds": 1440, "eta_solver_seconds": 2990}},

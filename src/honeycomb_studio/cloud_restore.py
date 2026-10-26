@@ -137,7 +137,7 @@ def restore(manifest: dict, root: Path, *, client=None, allow_incomplete=False):
                 stream.seek(part["offset"])
                 stream.truncate()
                 digest, count = hashlib.sha256(), 0
-                transfer = logger.transfer("Download " + file["path"] + f" part {part['index']}", part["bytes"]) if logger else None
+                transfer = logger.transfer("Tải xuống " + file["path"] + f" · phần {part['index'] + 1}", part["bytes"]) if logger else None
                 with client.stream("GET", part["url"]) as response:
                     response.raise_for_status()
                     for block in response.iter_bytes(65536):

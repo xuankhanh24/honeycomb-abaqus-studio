@@ -100,6 +100,13 @@ def main(parallel_smoke=False):
         effective = parallel_smoke_input(requested)
     spec = BatchSpec.model_validate(effective)
     expand(spec)
+    logger = get_actions_log()
+    if logger:
+        if parallel_smoke:
+            logger.emit("PLAN", "KIỂM TRA SMOKE NGẮN | Hai góc lõi, mỗi mô hình 2 CPU, thời gian vật lý 20 micro-giây; không phải kết quả nghiên cứu đầy đủ.")
+        else:
+            logger.emit("PLAN", "MÔ PHỎNG THẬT 7 J | Đủ 6 mili-giây thời gian vật lý | 4 CPU | Lưới tham chiếu | Ngàm bốn cạnh | Không mass scaling.")
+        logger.emit("PLAN", "Thứ tự: dựng mô hình → kiểm tra input → tính va chạm → đọc ODB → kiểm tra dữ liệu → tạo hình/báo cáo → tải lên và xác minh checksum.")
     write_json(
         output / "execution-adjustments.json",
         {

@@ -129,7 +129,7 @@ class ReleaseArchive:
         }
         from .cloud_github import REPOSITORY
 
-        transfer = logger.transfer("Upload " + getattr(self, "_upload_label", name), path.stat().st_size) if logger else None
+        transfer = logger.transfer("Tải lên " + getattr(self, "_upload_label", name), path.stat().st_size) if logger else None
         def chunks(stream):
             for block in iter(lambda: stream.read(4 * 1024**2), b""):
                 if transfer:

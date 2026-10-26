@@ -19,7 +19,7 @@ from honeycomb_studio.actions_log import ActionsLog, clean, duration, get_action
 
 class StepFailed(RuntimeError):
     def __init__(self, code, details, tail):
-        super().__init__(f"Lệnh kết thúc với exit code {code}")
+        super().__init__(f"Lệnh kết thúc với mã lỗi {code} (exit code {code})")
         self.code, self.details, self.tail = code, str(details), "\n".join(tail)
 
 
@@ -77,7 +77,7 @@ def main():
                     now = time.monotonic()
                     if now >= next_tick:
                         log.emit("HEARTBEAT", f"{args.title} | PID {process.pid} | đã chạy {duration(now - started)} | "
-                                 f"output cuối cách {duration(now - last_output)} | %: chưa có số đo")
+                                 f"thông báo gần nhất cách {duration(now - last_output)} | tiến độ: chưa đo được %")
                         log.resources(containers=True)
                         next_tick = now + args.heartbeat
                 code = process.wait()

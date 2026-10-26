@@ -44,7 +44,7 @@ def main():
     logger = get_actions_log()
     with urllib.request.urlopen(url, timeout=60) as source, media.open("wb") as dest:
         declared = source.headers.get("Content-Length")
-        transfer = logger.transfer("Download runtime", int(declared) if declared else None) if logger else None
+        transfer = logger.transfer("Tải bộ cài môi trường Abaqus", int(declared) if declared else None) if logger else None
         while chunk := source.read(4 * 1024**2):
             total += len(chunk)
             if total > budgets["download"]:

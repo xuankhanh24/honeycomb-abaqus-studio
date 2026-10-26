@@ -106,7 +106,7 @@ def test_upload_marks_verified_only_after_remote_digest(tmp_path, monkeypatch, v
     else:
         with pytest.raises(ValueError, match="SHA-256"):
             archive._upload(path, "model.part")
-    transfer = get_actions_log().transfers["Upload model.part"]
+    transfer = get_actions_log().transfers["Tải lên model.part"]
     assert transfer["done"] == len(content)
     assert (transfer["state"] == "Đã xác minh") is valid
 

@@ -1,4 +1,4 @@
-name: Native Linux 7 J sphere impact acceptance
+name: Mô phỏng thật 7 J · 6 ms trên Linux
 on:
   workflow_dispatch:
 permissions:
@@ -9,48 +9,54 @@ concurrency:
   cancel-in-progress: false
 env:
   HONEYCOMB_ACTIONS_LOG: '1'
+  HONEYCOMB_LOG_TITLE: 'Mô phỏng thật 7 J · 6 ms — tiến độ và kết quả'
 jobs:
   install:
+    name: Chuẩn bị, mô phỏng và lưu kết quả
     runs-on: ubuntu-22.04
     timeout-minutes: 330
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v7.0.1
+      - name: '01 · Lấy mã nguồn của lượt chạy'
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v10.3.0
+      - name: '02 · Chuẩn bị công cụ quản lý Python'
+        uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
-      - name: Prepare Python environment
-        run: python3 scripts/actions_step.py --title "Cai moi truong Python" --details output/actions-logs/python.log -- uv sync --locked --extra cloud
-      - name: Reserve exact source tag before long execution
+      - name: '03 · Cài môi trường Python và thư viện'
+        run: python3 scripts/actions_step.py --title "Cài môi trường Python" --details output/actions-logs/python.log -- uv sync --locked --extra cloud
+      - name: '04 · Giữ chỗ Release đúng phiên bản mã nguồn'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: uv run --locked --extra cloud python scripts/linux_media/impact_test.py --reserve
-      - name: Prepare archive readers and isolated compatible Linux image
+      - name: '05 · Cài công cụ giải nén và dựng môi trường Linux'
         run: |
-          python3 scripts/actions_step.py --title "Cai cong cu doc media" --details output/actions-logs/packages.log -- bash -c 'sudo apt-get update -qq && sudo apt-get install -y unrar p7zip-full'
-          python3 scripts/actions_step.py --title "Dung moi truong Linux" --details output/actions-logs/image.log -- docker build --build-arg MODEL_UID=$(id -u) -t honeycomb-install-probe scripts/linux_media
-      - name: '02 - Download media: bytes, speed, ETA'
-        run: python3 scripts/actions_step.py --title "Download va kiem ke media" --details output/actions-logs/download.log -- python3 scripts/inspect_linux_media.py
-      - name: '03 - Verify ISO and install isolated Abaqus'
-        run: python3 scripts/actions_step.py --title "Xac minh ISO va cai Abaqus" --details output/actions-logs/install.log -- bash scripts/linux_media/install_runtime.sh
-      - uses: tailscale/github-action@v4
+          python3 scripts/actions_step.py --title "Cài công cụ giải nén bộ cài" --details output/actions-logs/packages.log -- bash -c 'sudo apt-get update -qq && sudo apt-get install -y unrar p7zip-full'
+          python3 scripts/actions_step.py --title "Dựng môi trường Linux tương thích với Abaqus" --details output/actions-logs/image.log -- docker build --build-arg MODEL_UID=$(id -u) -t honeycomb-install-probe scripts/linux_media
+      - name: '06 · Tải bộ cài: dung lượng, tốc độ và thời gian còn lại'
+        run: python3 scripts/actions_step.py --title "Tải và kiểm kê bộ cài Abaqus" --details output/actions-logs/download.log -- python3 scripts/inspect_linux_media.py
+      - name: '07 · Kiểm tra SHA-256 và cài Abaqus trong môi trường cách ly'
+        run: python3 scripts/actions_step.py --title "Kiểm tra mã SHA-256 và cài Abaqus" --details output/actions-logs/install.log -- bash scripts/linux_media/install_runtime.sh
+      - name: '08 · Kết nối riêng tới máy chủ cấp phép Abaqus'
+        uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
           tags: tag:honeycomb-runner
-      - name: Run unchanged 6 ms 7 J sphere impact with perimeter-clamped re-entrant core
+      - name: '09 · Chạy mô phỏng thật: va chạm 7 J, đủ 6 ms, ngàm bốn cạnh'
         env:
           ABAQUS_LICENSE_ENDPOINT: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
           ABAQUS_VENDOR_PORT: ${{ secrets.ABAQUS_VENDOR_PORT }}
         run: uv run --locked --extra cloud python scripts/linux_media/impact_test.py
-      - name: Preserve actual result files in checksum-verified release parts
+      - name: '10 · Tải kết quả lên GitHub Releases và đối chiếu SHA-256'
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: uv run --locked --extra cloud python scripts/linux_media/impact_test.py --publish
-      - uses: actions/upload-artifact@v7.0.2
+      - name: '11 · Lưu bản dự phòng và log để chẩn đoán'
+        uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: linux-impact-7j-${{ github.run_id }}

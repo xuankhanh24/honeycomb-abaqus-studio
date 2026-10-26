@@ -1,12 +1,20 @@
 name: Verify retained Linux 7 J result download
 on:
   workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: 'Completed Native Linux 7 J workflow run whose Release will be verified'
+        required: true
+        default: '40206764997'
+        type: string
 permissions:
   contents: read
 jobs:
   verify:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
+    env:
+      SOURCE_RUN_ID: ${{ inputs.source_run_id || '40206764997' }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -18,13 +26,16 @@ jobs:
       - name: Download complete archive manifest
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download linux-impact-7j-40206764997 -p impact-artifact-manifest.json -D output
+        run: |
+          python3 -c 'import os, re; assert re.fullmatch(r"[0-9]{1,20}", os.environ["SOURCE_RUN_ID"]), "Expected a numeric Actions source run ID"'
+          gh release download "linux-impact-7j-$SOURCE_RUN_ID" -p impact-artifact-manifest.json -D output
       - name: Restore every part and verify native data retention
         run: |
           uv run --locked --extra cloud python scripts/restore_cloud_archive.py output/impact-artifact-manifest.json "$RUNNER_TEMP/impact-restored"
           uv run --locked --extra cloud python - <<'PY'
           import hashlib, json, os, tarfile
           from pathlib import Path
+          from honeycomb_studio.contracts import QualityReport
           from honeycomb_studio.data import verify_export
           root = Path(os.environ['RUNNER_TEMP']) / 'impact-restored'
           with tarfile.open(root / 'field-reductions.tar') as bundle:
@@ -34,7 +45,13 @@ jobs:
           for completed in root.glob('**/extracted/complete.json'):
               exports.append(verify_export(completed.parent))
           receipt = json.loads((root / 'impact-receipt.json').read_text())
+          assert receipt['workflow_run_id'] == os.environ['SOURCE_RUN_ID']
+          assert receipt['kind'] == 'linux-7j-impact-acceptance'
           assert receipt['solver_success'] and receipt['summary']['frames'] == 121
+          qualities = list(root.glob('**/extracted/quality.json'))
+          assert len(qualities) == 1
+          quality = QualityReport.model_validate_json(qualities[0].read_text(encoding='utf-8'))
+          assert quality.solver_completed and quality.physical_validation == 'not_established'
           models = list(root.glob('**/raw/model_manifest.json'))
           assert len(models) == 1
           model = json.loads(models[0].read_text())
@@ -47,11 +64,12 @@ jobs:
                   digest = hashlib.file_digest(stream, 'sha256').hexdigest()
               odbs.append({'name':path.name, 'bytes':path.stat().st_size, 'sha256':digest})
           assert len(odbs) == 2
-          result = {'kind':'linux-impact-release-roundtrip', 'source_run_id':'40206764997',
+          result = {'kind':'linux-impact-release-roundtrip', 'source_run_id':os.environ['SOURCE_RUN_ID'],
                     'verification_run_id':os.environ['GITHUB_RUN_ID'], 'all_release_parts_verified':True,
                     'reduced_records_restored':count, 'export_checks':exports, 'odbs':odbs,
                     'status':receipt['status'], 'solver_success':True,
-                    'fresh_solver_or_license_used':False, 'original_full_6ms_input_verified':True}
+                    'fresh_solver_or_license_used':False, 'original_full_6ms_input_verified':True,
+                    'quality_contracts_verified':len(qualities), 'quality':quality.model_dump()}
           Path('output/impact-restore-verification.json').write_text(json.dumps(result, indent=2))
           print(json.dumps(result, indent=2))
           PY

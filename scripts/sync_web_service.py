@@ -11,6 +11,8 @@ fingerprints = {}
 for name in (
     "__init__.py",
     "models.py",
+    "execution.py",
+    "estimates.py",
     "cloud_github.py",
     "cloud_api.py",
     "cloud_runtime.py",

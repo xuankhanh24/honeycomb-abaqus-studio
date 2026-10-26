@@ -16,6 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .cloud_github import JOB_ID, REPOSITORY, Catalog, Github
 from .cloud_runtime import qualification, technical_evidence
+from .execution import execution_plan
 from .models import BatchSpec, ModelSpec, catalogue, digest, expand
 
 OWNER_ID = 273490538
@@ -130,7 +131,7 @@ def create_app(github: Github | None = None) -> FastAPI:
 
     @app.get("/api/template")
     def template():
-        model = ModelSpec(core_topology="reentrant_0", clamp_mode="perimeter", cpus=4)
+        model = ModelSpec(core_topology="reentrant_0", reentrant_geometry="angle", clamp_mode="perimeter", cpus=4)
         return {
             "spec": BatchSpec(model=model, max_runs=10).model_dump(),
             "parameters": catalogue(),
@@ -147,6 +148,7 @@ def create_app(github: Github | None = None) -> FastAPI:
             raise HTTPException(422, "Cloud cho phép tối đa 10 lượt mỗi batch.")
         return {
             "count": len(runs),
+            "execution": execution_plan(spec.model_dump(), [r["resolved"] for r in runs], 4, 15.61, 85.64),
             "input_hash": digest(spec.model_dump()),
             "runs": [
                 {
@@ -169,7 +171,7 @@ def create_app(github: Github | None = None) -> FastAPI:
 
         resolved = model.resolved()
         pitch = (
-            min(model.cell_size - model.reentrant_indent, model.reentrant_cell_height)
+            min(model.cell_size - resolved["reentrant_indent"], model.reentrant_cell_height)
             if model.core_topology == "reentrant_0"
             else min(
                 2 * resolved["hex_l"] * math.sin(math.radians(resolved["hex_theta_deg"])),
@@ -186,7 +188,7 @@ def create_app(github: Github | None = None) -> FastAPI:
                 model.core_height,
                 model.cell_size,
                 model.reentrant_cell_height,
-                model.reentrant_indent,
+                resolved["reentrant_indent"],
                 model.phase_x,
                 model.phase_z,
             )
@@ -196,6 +198,8 @@ def create_app(github: Github | None = None) -> FastAPI:
                 "height": model.core_height,
                 "depth": model.panel,
                 "walls": walls,
+                "reentrant_indent_mm": resolved["reentrant_indent"],
+                "delta_deg": resolved["reentrant_delta_deg"],
                 "kind": "geometry_preview_not_solver_result",
             }
 

@@ -52,10 +52,8 @@ class Progress:
                 if (job or {}).get("cancel_requested"):
                     self.stop_solver()
                 runs = self.store.list("runs", self.batch_id)
-                active = next(
-                    (r for r in runs if r["status"] not in ("completed", "review", "failed", "queued")), None
-                )
-                phase = active["status"] if active else "waiting"
+                active = [r for r in runs if r["status"] not in ("completed", "review", "failed", "queued")]
+                phase = ", ".join(sorted({r["status"] for r in active})) if active else "waiting"
                 if phase != previous:
                     self.catalog.update("jobs/" + self.identity, lambda old: {**old, "phase": phase})
                     previous = phase
@@ -65,8 +63,8 @@ class Progress:
                     {
                         "output": {
                             "title": "Phase: " + phase,
-                            "summary": "Sequential licensed solver. Progress is observed, not predicted.",
-                            "text": str((active or {}).get("progress", {}))[:10000],
+                            "summary": f"{len(active)} active runs. Progress is observed, not predicted.",
+                            "text": str([{ "id": r["id"], "phase": r["status"], "progress": r.get("progress", {})} for r in active])[:10000],
                         }
                     },
                 )

@@ -85,6 +85,8 @@ class ModelSpec(StrictModel):
     hex_theta_deg: float = parameter(60.0, "θ — góc vách nghiêng với phương đứng", "deg", "Hình 7; ô đều θ=60°", gt=0, lt=90)
     reentrant_cell_height: float = parameter(5.0, "Chiều cao ô lõm", "mm", "Assumed image-1 geometry", gt=0)
     reentrant_indent: float = parameter(1.25, "Độ lõm mỗi bên ô", "mm", "Assumed image-1 geometry", gt=0)
+    reentrant_geometry: Literal["indent", "angle"] = parameter("indent", "Cách nhập ô lõm", source="Nhập độ lõm hoặc góc δ với phương đứng")
+    reentrant_delta_deg: float = parameter(26.56505117707799, "δ — góc vách nghiêng với phương đứng", "deg", "d = h/2 × tan(δ)", gt=0, lt=90)
     reentrant_depth_seed: float = parameter(1.0, "Seed lõi theo chiều sâu Y", "mm", "Image-1 reference mesh", gt=0)
     phase_z: float = parameter(0.0, "Dịch pha ô lõm Z", "mm")
     foil: float = parameter(0.0635, "t — chiều dày foil đơn", "mm", "Paper section 3; vách kép dày 2t", gt=0)
@@ -167,9 +169,10 @@ class ModelSpec(StrictModel):
         if self.foil * 2 >= cell_width / 4:
             raise ValueError("Foil quá dày so với ô")
         if self.core_topology == "reentrant_0":
-            if self.reentrant_indent >= self.cell_size / 2:
+            indent = self.effective_indent()
+            if indent >= self.cell_size / 2:
                 raise ValueError("Độ lõm phải nhỏ hơn nửa bề rộng ô để eo ô còn mở")
-            if self.foil * 2 >= min(self.reentrant_cell_height, self.cell_size - 2 * self.reentrant_indent) / 4:
+            if self.foil * 2 >= min(self.reentrant_cell_height, self.cell_size - 2 * indent) / 4:
                 raise ValueError("Vách quá dày so với chiều cao hoặc eo ô lõm")
             if self.core_angle != 0 or self.phase_y != 0:
                 raise ValueError("Lõi tổ ong lõm Re-entrant cố định hướng 0° trong XZ; dùng phase_x và phase_z để dịch pha")
@@ -185,6 +188,10 @@ class ModelSpec(StrictModel):
         ) + self.skin_patch_half >= free_half:
             raise ValueError("Vùng tinh lưới mặt phải nằm trong vùng tự do bên trong ngàm")
         return self
+
+    def effective_indent(self):
+        return (self.reentrant_cell_height / 2 * math.tan(math.radians(self.reentrant_delta_deg))
+                if self.reentrant_geometry == "angle" else self.reentrant_indent)
 
     def resolved(self) -> dict:
         d = self.model_dump()
@@ -217,16 +224,18 @@ class ModelSpec(StrictModel):
         if self.friction and "ALLFD" not in d["history_variables"]:
             d["history_variables"].append("ALLFD")
         if self.core_topology == "reentrant_0":
-            length = math.hypot(self.reentrant_indent, self.reentrant_cell_height / 2)
+            indent = d["reentrant_indent"] = self.effective_indent()
+            length = math.hypot(indent, self.reentrant_cell_height / 2)
             d["side"] = None
             d["periodic_density_kg_m3"] = (
                 (2 * self.cell_size + 2 * length) * self.foil * self.core_material.density
-                / ((self.cell_size - self.reentrant_indent) * self.reentrant_cell_height)
+                / ((self.cell_size - indent) * self.reentrant_cell_height)
             )
             d["core_cell_plane"] = "XZ"
             d["core_extrusion_axis"] = "Y"
             d["reentrant_inclined_length_mm"] = length
-            d["reentrant_angle_to_z_deg"] = math.degrees(math.atan2(self.reentrant_indent, self.reentrant_cell_height / 2))
+            d["reentrant_angle_to_z_deg"] = math.degrees(math.atan2(indent, self.reentrant_cell_height / 2))
+            d["reentrant_delta_deg"] = d["reentrant_angle_to_z_deg"]
         else:
             if self.hex_geometry == "regular":
                 d["hex_b"] = d["hex_l"] = self.cell_size / math.sqrt(3)
@@ -314,6 +323,9 @@ class BatchSpec(StrictModel):
         description="Advanced archive: duplicate every recorded ODB field to Parquet; research mode otherwise",
     )
     backup_after_run: bool = False
+    execution_mode: Literal["sequential", "parallel"] = "sequential"
+    max_parallel_runs: int = Field(2, ge=1, le=8)
+    ram_per_run_gb: float = Field(4, ge=0.5, le=512, description="Declared admission RAM budget per simultaneous run; not measured usage")
 
 
 def digest(data: Any) -> str:
@@ -340,6 +352,10 @@ def set_parameter(data: dict, key: str, value: Any):
 
 def expand(spec: BatchSpec) -> list[dict]:
     keys = [a.parameter for a in spec.axes]
+    if spec.model.core_topology == "reentrant_0":
+        inactive = "reentrant_indent" if spec.model.reentrant_geometry == "angle" else "reentrant_delta_deg"
+        if inactive in keys:
+            raise ValueError("Chọn đúng cách nhập độ lõm/góc δ trước khi khảo sát " + inactive)
     if spec.model.core_topology != "hexagonal" and any(k.startswith("hex_") for k in keys):
         raise ValueError("Tham số b, l, θ chỉ áp dụng cho lõi lục giác")
     if spec.model.core_topology == "hexagonal":

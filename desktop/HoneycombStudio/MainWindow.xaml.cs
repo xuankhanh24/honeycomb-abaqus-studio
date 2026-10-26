@@ -159,6 +159,7 @@ public sealed partial class MainWindow : Window
             if (Value("core_topology")?.ToString() == "reentrant_0")
             {
                 double w = Number("cell_size", 6.35), h = Number("reentrant_cell_height", 5), a = Number("reentrant_indent", 1.25);
+                if (Value("reentrant_geometry")?.ToString() == "angle") a = h / 2 * Math.Tan(Number("reentrant_delta_deg", 26.56505117707799) * Math.PI / 180);
                 double l = Math.Sqrt(a*a+h*h/4);
                 double density = (2*w+2*l)*t*rho/((w-a)*h);
                 geometryFormula.Text = $"Ô lõm: HD = (2w + 2l)tρ / [(w − a)h], l = √(a² + (h/2)²)\nw = {w:G6}; h = {h:G6}; a = {a:G6}; t = {t:G6} mm; ρ = {rho:G6} kg/m³ → HD = {density:G6} kg/m³";
@@ -217,6 +218,8 @@ public sealed partial class MainWindow : Window
                 if (key == "ball_diameter" && Value("ball_size_mode")?.ToString() == "radius") continue;
                 if (key == "clamp_diameter" && Value("clamp_mode")?.ToString() == "perimeter") continue;
                 if (!reentrant && (key.StartsWith("reentrant_") || key == "phase_z")) continue;
+                if (key == "reentrant_indent" && Value("reentrant_geometry")?.ToString() == "angle") continue;
+                if (key == "reentrant_delta_deg" && Value("reentrant_geometry")?.ToString() != "angle") continue;
                 if (reentrant && key is "core_angle" or "phase_y" or "core_z_divisions") continue;
                 var row = new Grid { ColumnSpacing = 16 };
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(310) });
@@ -267,12 +270,13 @@ public sealed partial class MainWindow : Window
                     };
                     editor = combo;
                 }
-                else if (key is "hex_geometry" or "ball_size_mode" or "loading")
+                else if (key is "hex_geometry" or "ball_size_mode" or "loading" or "reentrant_geometry")
                 {
                     var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
                     var choices = key switch
                     {
                         "hex_geometry" => new[] { ("Ô đều theo kích thước ô", "regular"), ("Nhập b, l, θ", "parametric") },
+                        "reentrant_geometry" => new[] { ("Nhập độ lõm d", "indent"), ("Nhập góc δ với phương đứng", "angle") },
                         "ball_size_mode" => new[] { ("Nhập bán kính R", "radius"), ("Nhập đường kính D", "diameter") },
                         _ => new[] { ("Nhập năng lượng E (J)", "energy"), ("Nhập vận tốc v (m/s)", "velocity") }
                     };
@@ -418,6 +422,7 @@ public sealed partial class MainWindow : Window
             .Select(p => p["key"]!.ToString())
             .Where(k => Value(k) is JsonValue v && v.TryGetValue<double>(out _) || k == "bottom_skin" || k.EndsWith(".hardening"))
             .Where(k => reentrant ? k is not ("core_angle" or "phase_y" or "core_z_divisions") : !k.StartsWith("reentrant_") && k != "phase_z")
+            .Where(k => k != (Value("reentrant_geometry")?.ToString() == "angle" ? "reentrant_indent" : "reentrant_delta_deg"))
             .Where(k => k != "clamp_diameter" || Value("clamp_mode")?.ToString() != "perimeter")
             .Where(k => !k.StartsWith("hex_") || !reentrant && Value("hex_geometry")?.ToString() == "parametric")
             .Where(k => k != "cell_size" || reentrant || Value("hex_geometry")?.ToString() != "parametric")
@@ -450,6 +455,8 @@ public sealed partial class MainWindow : Window
         spec["project_id"] = ProjectName.Text; spec["notes"] = StudyNotes.Text;
         spec["runtime_budget_minutes"] = RuntimeBudget.Value; spec["min_free_gb"] = DiskReserve.Value;
         spec["min_available_ram_gb"] = RamReserve.Value; spec["max_runs"] = (int)MaxRuns.Value;
+        spec["execution_mode"] = ((ComboBoxItem)ExecutionMode.SelectedItem).Tag!.ToString();
+        spec["max_parallel_runs"] = (int)MaxParallelRuns.Value; spec["ram_per_run_gb"] = RamPerRun.Value;
         spec["export_all_fields"] = FullFieldArchive.IsChecked == true; spec["render_images"] = RenderImages.IsChecked == true; spec["backup_after_run"] = BackupAfterRun.IsChecked == true;
         var array = new JsonArray();
         foreach (var axis in axes)
@@ -466,6 +473,7 @@ public sealed partial class MainWindow : Window
         var preview = await client.Post("/v1/preview", Spec());
         var resolved = await client.Post("/v1/resolve", model.DeepClone());
         PreviewSummary.Text = $"{preview["count"]} lượt · Ước tính solver {preview["estimated_solver_minutes"]} phút · ODB gốc {preview["estimated_raw_odb_gb"]} GB, chưa gồm dữ liệu xuất và scratch.\n{preview["runtime_note"]}";
+        if (preview["execution"] is JsonObject execution) PreviewSummary.Text += $"\nĐồng thời dự kiến {execution["effective_parallel_runs"]}/{execution["requested_parallel_runs"]} lượt; {execution["cpu_per_run"]} CPU/lượt. Worker kiểm tra lại tài nguyên trước khi cấp lượt.";
         PreviewJson.Text = new JsonObject { ["preview"] = preview.DeepClone(), ["input_thuc_te_mo_hinh_nen"] = resolved.DeepClone() }.ToJsonString(pretty);
         Message("Preview hợp lệ. Kiểm tra danh sách lượt và input thực tế trước khi tạo job.");
     }

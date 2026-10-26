@@ -5,6 +5,7 @@ import re
 import shutil
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import psutil
@@ -12,6 +13,7 @@ import psutil
 from . import solver
 from .data import checksum, consume_spool, history_summary, manifest, quality, verify_export
 from .estimates import predict
+from .execution import execution_plan
 from .models import BatchSpec, digest
 from .reports import batch_report, run_report
 from .store import Store, now, write_input_csv, write_json
@@ -36,6 +38,10 @@ class Interrupted(Exception):
     pass
 
 
+class Detached(Exception):
+    """Engine shutdown preserves the owned native process for later adoption."""
+
+
 class LicenseUnavailable(Exception):
     pass
 
@@ -51,6 +57,9 @@ class Engine:
         self.guard = threading.RLock()
         self.worker = None
         self.current_run = None
+        self.current_runs = set()
+        self.build_guard = threading.Lock()
+        self.postprocess_guard = threading.Lock()
         self.backup = None
         self.field_sink = None
         # Process identity survives engine crashes. Never launch a replacement while
@@ -86,7 +95,7 @@ class Engine:
                     elif r["status"] == "waiting_license":
                         r.update(status="queued", retry_after=0, license_retry_count=0)
                         self.store.save("runs", r)
-                    elif r["status"] in ACTIVE and r["id"] != self.current_run:
+                    elif r["status"] in ACTIVE and r["id"] not in self.current_runs:
                         r["status"] = "recovering"
                         self.store.save("runs", r)
             elif action in ("stop", "pause_after_current"):
@@ -139,22 +148,15 @@ class Engine:
                         batch["status"] = "paused"
                         self.store.save("batches", batch)
                         continue
-                    run = next(
-                        (
+                    candidates = [
                             r
                             for r in runs
                             if r["status"] in ("queued", "recovering")
                             or r["status"] == "waiting_license"
                             and r.get("retry_after", 0) <= time.time()
-                        ),
-                        None,
-                    )
-                    if run:
-                        self.current_run = run["id"]
-                        try:
-                            self._execute(run, batch)
-                        finally:
-                            self.current_run = None
+                    ]
+                    if candidates:
+                        self.execute_wave(candidates, batch)
                         work = True
                         break
                     if any(r["status"] == "waiting_license" for r in runs):
@@ -176,6 +178,52 @@ class Engine:
             except Exception as exc:
                 self.store.event(None, None, {"type": "worker_error", "error": str(exc)})
                 self.shutdown.wait(1)
+
+    def execute_wave(self, candidates, batch):
+        if not candidates:
+            return []
+        adopting = [r for r in candidates if r["status"] == "recovering" and r.get("attempts")
+                    and solver.owned_tree_alive(r["attempts"][-1].get("process"))]
+        if adopting:
+            # These processes already exist and consume RAM. Monitor/stop them
+            # even when no budget remains for launching any additional process.
+            candidates = adopting
+            slots = len(adopting)
+        elif self.fake:
+            slots = batch["spec"].get("max_parallel_runs", 2) if batch["spec"].get("execution_mode") == "parallel" else 1
+        else:
+            plan = execution_plan(batch["spec"], [r["resolved"] for r in candidates],
+                                  psutil.cpu_count() or 1, psutil.virtual_memory().available / 1024**3,
+                                  shutil.disk_usage(self.store.root).free / 1e9)
+            slots = plan["effective_parallel_runs"]
+            self.store.event(batch["id"], None, {"type": "admission", **plan})
+            if not slots:
+                batch = self.store.get("batches", batch["id"])
+                batch.update(status="paused", pause_requested=True,
+                             resource_error="Không đủ CPU/RAM/đĩa cho một lượt với cấu hình đã nhập")
+                self.store.save("batches", batch)
+                return []
+        wave = candidates[:slots]
+        self.current_runs = {r["id"] for r in wave}
+        self.current_run = wave[0]["id"]
+
+        def execute(run):
+            try:
+                self._execute(run, batch)
+            finally:
+                with self.guard:
+                    self.current_runs = self.current_runs - {run["id"]}
+                    self.current_run = next(iter(self.current_runs), None)
+
+        try:
+            with ThreadPoolExecutor(max_workers=slots, thread_name_prefix="honeycomb-run") as pool:
+                futures = [pool.submit(execute, run) for run in wave]
+                for future in futures:
+                    future.result()
+        finally:
+            self.current_runs = set()
+            self.current_run = None
+        return [self.store.get("runs", r["id"]) for r in wave]
 
     def _stopping(self, r: dict):
         b = self.store.get("batches", r["batch_id"])
@@ -199,6 +247,8 @@ class Engine:
         previous_cpu = None
         stopped_at = None
         while solver.owned_tree_alive(record):
+            if self.shutdown.is_set():
+                raise Detached()
             solver.refresh_owned_tree(record)
             if (
                 not self.fake
@@ -211,6 +261,12 @@ class Engine:
                     stop_immediately=True,
                     resource_error="Đã chạm dung lượng dự phòng; giải phóng/chuyển dữ liệu rồi tiếp tục",
                 )
+                self.store.save("batches", b)
+            if (not self.fake and psutil.virtual_memory().available <
+                    self.store.get("batches", r["batch_id"])["spec"].get("min_available_ram_gb", 2) * 1024**3):
+                b = self.store.get("batches", r["batch_id"])
+                b.update(pause_requested=True, stop_immediately=True,
+                         resource_error="RAM khả dụng dưới mức dự phòng; dừng các lượt đang chạy để giữ dữ liệu")
                 self.store.save("batches", b)
             if self._stopping(r):
                 if stopped_at is None:
@@ -302,16 +358,18 @@ class Engine:
         try:
             recovering = r["status"] == "recovering"
             previous = r["attempts"][-1] if r["attempts"] else None
+            live = recovering and previous and solver.owned_tree_alive(previous.get("process"))
+            if (self._stopping(r) or self.shutdown.is_set()) and not live:
+                raise Interrupted("Đã dừng trước khi cấp tiến trình cho lượt")
             if recovering and previous and solver.owned_tree_alive(previous.get("process")):
-                self._monitor(
-                    r,
-                    previous,
-                    previous.get("process_phase", "solving"),
-                    None,
-                    Path(previous["path"]) / "extracted"
-                    if previous.get("process_phase") == "extracting"
-                    else None,
-                )
+                phase = previous.get("process_phase", "solving")
+                # Adopted extractors share the same bounded publication sink.
+                if phase in ("extracting", "rendering"):
+                    with self.postprocess_guard:
+                        self._monitor(r, previous, phase, None,
+                                      Path(previous["path"]) / "extracted" if phase == "extracting" else None)
+                else:
+                    self._monitor(r, previous, phase, None)
             # Reuse an attempt only when solver success is established independently.
             solved = previous and (Path(previous["path"]) / "solver-complete.json").exists()
             if previous and not solved:
@@ -400,58 +458,61 @@ class Engine:
                         "clone": checksum(ADAPTERS / "clone.py"),
                     }
                 )
-                cache = self.store.root / "cache" / cache_key
-                hit = (cache / "model.cae").exists() and (cache / "model_manifest.json").exists()
-                if hit:
-                    cfg.update(
-                        cache_cae=str(cache / "model.cae"), cache_manifest=str(cache / "model_manifest.json")
-                    )
-                config = attempt / "build-config.json"
-                write_json(config, cfg)
                 if self.fake:
                     self._fake(r, a)
                     return
-                self._phase(r, "building")
-                self._monitor(
-                    r,
-                    a,
-                    "building",
-                    [
-                        "cae",
-                        "noGUI=" + str(ADAPTERS / ("clone.py" if hit else "build.py")),
-                        "--",
-                        str(config),
-                    ],
-                )
-                if not (attempt / "raw" / (a["job_name"] + ".inp")).exists():
-                    raise RuntimeError("Bộ dựng không tạo INP")
-                if (attempt / "raw/model_manifest.json").exists():
-                    write_input_csv(
-                        attempt / "actual-input.csv",
-                        json.loads((attempt / "raw/model_manifest.json").read_text()),
+                with self.build_guard:
+                    if self._stopping(r) or self.shutdown.is_set():
+                        raise Interrupted("Đã dừng trong khi chờ dựng mô hình")
+                    cache = self.store.root / "cache" / cache_key
+                    hit = (cache / "model.cae").exists() and (cache / "model_manifest.json").exists()
+                    if hit:
+                        cfg.update(
+                            cache_cae=str(cache / "model.cae"), cache_manifest=str(cache / "model_manifest.json")
+                        )
+                    config = attempt / "build-config.json"
+                    write_json(config, cfg)
+                    self._phase(r, "building")
+                    self._monitor(
+                        r,
+                        a,
+                        "building",
+                        [
+                            "cae",
+                            "noGUI=" + str(ADAPTERS / ("clone.py" if hit else "build.py")),
+                            "--",
+                            str(config),
+                        ],
                     )
-                self._phase(r, "checking")
-                self._monitor(
-                    r,
-                    a,
-                    "checking",
-                    [
-                        "job=" + a["job_name"] + "_check",
-                        "input=" + a["job_name"] + ".inp",
-                        "datacheck",
-                        "cpus=" + str(r["resolved"]["cpus"]),
-                        "interactive",
-                    ],
-                )
-                dat = solver.tail(attempt / "raw" / (a["job_name"] + "_check.dat"), 100000)
-                if "***ERROR" in dat.upper():
-                    raise RuntimeError("Datacheck có lỗi; xem .dat")
-                if not hit:
-                    cache.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(attempt / "raw" / (a["job_name"] + ".cae"), cache / "model.cae")
-                    shutil.copy2(attempt / "raw" / "model_manifest.json", cache / "model_manifest.json")
-                a["cache_key"] = cache_key
-                a["cache_hit"] = hit
+                    if not (attempt / "raw" / (a["job_name"] + ".inp")).exists():
+                        raise RuntimeError("Bộ dựng không tạo INP")
+                    if (attempt / "raw/model_manifest.json").exists():
+                        write_input_csv(
+                            attempt / "actual-input.csv",
+                            json.loads((attempt / "raw/model_manifest.json").read_text()),
+                        )
+                    self._phase(r, "checking")
+                    self._monitor(
+                        r,
+                        a,
+                        "checking",
+                        [
+                            "job=" + a["job_name"] + "_check",
+                            "input=" + a["job_name"] + ".inp",
+                            "datacheck",
+                            "cpus=" + str(r["resolved"]["cpus"]),
+                            "interactive",
+                        ],
+                    )
+                    dat = solver.tail(attempt / "raw" / (a["job_name"] + "_check.dat"), 100000)
+                    if "***ERROR" in dat.upper():
+                        raise RuntimeError("Datacheck có lỗi; xem .dat")
+                    if not hit:
+                        cache.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(attempt / "raw" / (a["job_name"] + ".cae"), cache / "model.cae")
+                        shutil.copy2(attempt / "raw" / "model_manifest.json", cache / "model_manifest.json")
+                    a["cache_key"] = cache_key
+                    a["cache_hit"] = hit
                 self._phase(r, "solving")
                 self._monitor(
                     r,
@@ -473,7 +534,14 @@ class Engine:
                 write_json(attempt / "solver-complete.json", {"completed_at": now(), "sta": sta})
                 a["solver_progress"] = sta
             assert a is not None
-            self._postprocess(r, a, batch)
+            # Arrow/Matplotlib, rolling publication and shared batch reports stay
+            # serialized while independent solver processes can overlap.
+            with self.postprocess_guard:
+                if self._stopping(r) or self.shutdown.is_set():
+                    raise Interrupted("Đã dừng trong khi chờ hậu xử lý; ODB hoàn tất được giữ")
+                self._postprocess(r, a, batch)
+        except Detached:
+            self.store.event(r["batch_id"], r["id"], {"type": "engine_detached", "process_preserved": True})
         except LicenseUnavailable as exc:
             if r["attempts"]:
                 r["attempts"][-1].update(ended_at=now(), process=None, error=str(exc))

@@ -22,6 +22,7 @@ from .contracts import PUBLIC_CONTRACTS
 from .data import archive, dataset, pareto, write_rows
 from .engine import Engine
 from .estimates import predict, records
+from .execution import execution_plan
 from .models import BatchSpec, ModelSpec, catalogue, expand
 from .reports import batch_report, incomplete_report, run_report
 from .solver import command, tail
@@ -200,6 +201,7 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
             "backup": backup.status(),
             "worker_alive": bool(engine.worker and engine.worker.is_alive()),
             "current_run_id": engine.current_run,
+            "current_run_ids": sorted(engine.current_runs),
         }
 
     @app.get("/v1/template")
@@ -259,6 +261,9 @@ def make_app(store: Store, engine: Engine, token: str, config_dir: Path, start_w
         return {
             "runs": entries,
             "count": len(runs),
+            "execution": execution_plan(spec.model_dump(), [r["resolved"] for r in runs],
+                                        psutil.cpu_count() or 1, psutil.virtual_memory().available / 1024**3,
+                                        shutil.disk_usage(store.root).free / 1e9),
             "estimated_solver_minutes": estimate_minutes,
             "estimated_raw_odb_gb": sum(e["estimate"]["raw_odb_gb"] for e in entries),
             "estimated_other_phases_minutes": sum(

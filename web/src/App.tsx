@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import { decodeHistory } from "./history-data";
+import BatchSweep from "./BatchSweep";
 import {
     Box,
     SlidersHorizontal,
@@ -22,6 +23,8 @@ type Geometry = {
     height: number;
     depth: number;
     walls: [number[], number[], boolean][];
+    delta_deg?: number;
+    reentrant_indent_mm?: number;
 };
 function number(value: unknown, digits = 3) {
     if (value === null || value === undefined || value === "") return "Chưa có";
@@ -65,7 +68,9 @@ const groups: [string, string[]][] = [
             "core_topology",
             "cell_size",
             "reentrant_cell_height",
+            "reentrant_geometry",
             "reentrant_indent",
+            "reentrant_delta_deg",
             "hex_geometry",
             "hex_b",
             "hex_l",
@@ -96,10 +101,12 @@ const groups: [string, string[]][] = [
             "mesh_preset",
             "field_intervals",
             "history_intervals",
+            "cpus",
         ],
     ],
 ];
 const choices: Record<string, [string, string][]> = {
+    reentrant_geometry: [["angle", "Nhập góc δ với phương đứng"], ["indent", "Nhập độ lõm d"]],
     core_topology: [
         ["reentrant_0", "Tổ ong lõm Re-entrant · 0°"],
         ["hexagonal", "Tổ ong lục giác"],
@@ -253,6 +260,14 @@ export default function App() {
         });
         setPreview(null);
     }
+    function updateStudy(changes: Doc) {
+        setSpec(s => {
+            const next = {...s!, ...changes};
+            setJson(JSON.stringify(next, null, 2));
+            return next;
+        });
+        setPreview(null);
+    }
     async function openJob(id: string) {
         selectedId.current = id;
         const d = await api("/api/jobs/" + id);
@@ -270,15 +285,30 @@ export default function App() {
         }
     }
     const model = spec?.model ?? {};
+    const previewKeys = [...new Set([
+        ...(spec?.axes ?? []).map((axis: Doc) => axis.parameter),
+        ...(model.core_topology === "reentrant_0" ? ["reentrant_delta_deg", "reentrant_indent"] : []),
+        "energy_J", "velocity_m_s", "cpus"
+    ])] as string[];
+    function previewValue(resolved: Doc, key: string) {
+        const value = key.split(".").reduce((item: any, part) => item?.[part], resolved);
+        return {raw: value == null ? "—" : String(value),
+            text: value == null ? "—" : typeof value === "number" ? Number(value.toPrecision(10)).toString() : String(value)};
+    }
     function visible(k: string) {
         if (k.startsWith("hex_"))
             return (
                 model.core_topology === "hexagonal" &&
                 (k === "hex_geometry" || model.hex_geometry === "parametric")
             );
-        if (k.startsWith("reentrant_"))
-            return model.core_topology === "reentrant_0";
+        if (k.startsWith("reentrant_")) {
+            if (model.core_topology !== "reentrant_0") return false;
+            if (k === "reentrant_indent") return model.reentrant_geometry !== "angle";
+            if (k === "reentrant_delta_deg") return model.reentrant_geometry === "angle";
+            return true;
+        }
         if (k === "core_angle") return model.core_topology === "hexagonal";
+        if (k === "phase_y") return model.core_topology === "hexagonal";
         if (k === "cell_size")
             return (
                 model.core_topology !== "hexagonal" ||
@@ -516,6 +546,13 @@ export default function App() {
                                                 lượng trước khi chạy.
                                             </p>
                                         </section>
+                                        <BatchSweep spec={spec} update={updateStudy} parameters={params.filter(p =>
+                                            p.sweep_allowed && /float|int/.test(p.type) && !/list|tuple|dict|Literal/.test(p.type) && visible(p.key) &&
+                                            (model.mesh_preset === "custom" || !["reentrant_depth_seed", "core_centre_seed", "core_outer_seed", "skin_centre_seed", "skin_outer_seed", "ball_seed", "core_z_divisions"].includes(p.key))
+                                        ).map(p => ({...p,
+                                            title: (p.key.startsWith("face_material.") ? "Mặt · " : p.key.startsWith("core_material.") ? "Lõi · " : "") + p.title,
+                                            default: p.key.split(".").reduce((value: any, key: string) => value?.[key], model) ?? (p.key === "bottom_skin" ? model.skin : p.default)
+                                        }))} />
                                         <details>
                                             <summary>
                                                 Toàn bộ input, vật liệu và khảo
@@ -644,19 +681,22 @@ export default function App() {
                                                     theo cùng quy tắc với
                                                     worker.
                                                 </p>
+                                                {preview.execution && <p className="measure">
+                                                    Yêu cầu {preview.execution.requested_parallel_runs} lượt đồng thời ·
+                                                    dự kiến cho phép {preview.execution.effective_parallel_runs} trên runner tham khảo,
+                                                    {preview.execution.cpu_per_run} CPU/lượt.
+                                                    Worker kiểm tra lại tài nguyên trước mỗi nhóm lượt.
+                                                </p>}
                                                 <div className="table-scroll">
                                                     <table>
                                                         <thead>
                                                             <tr>
                                                                 <th>Lượt</th>
-                                                                <th>
-                                                                    Năng lượng
-                                                                    (J)
-                                                                </th>
-                                                                <th>
-                                                                    Vận tốc
-                                                                    (m/s)
-                                                                </th>
+                                                                {previewKeys.map(key => {
+                                                                    const parameter = params.find(p => p.key === key);
+                                                                    const prefix = key.startsWith("face_material.") ? "Mặt · " : key.startsWith("core_material.") ? "Lõi · " : "";
+                                                                    return <th key={key}>{prefix}{parameter?.title ?? key}{parameter?.unit ? ` (${parameter.unit})` : ""}</th>;
+                                                                })}
                                                                 <th>
                                                                     Input hash
                                                                 </th>
@@ -667,7 +707,7 @@ export default function App() {
                                                                 (r: Doc) => (
                                                                     <tr
                                                                         key={
-                                                                            r.input_hash
+                                                                                r.input_hash
                                                                         }
                                                                     >
                                                                         <td>
@@ -675,24 +715,10 @@ export default function App() {
                                                                                 r.index
                                                                             }
                                                                         </td>
-                                                                        <td>
-                                                                            {Number(
-                                                                                r
-                                                                                    .resolved
-                                                                                    .energy_J,
-                                                                            ).toFixed(
-                                                                                3,
-                                                                            )}
-                                                                        </td>
-                                                                        <td>
-                                                                            {Number(
-                                                                                r
-                                                                                    .resolved
-                                                                                    .velocity_m_s,
-                                                                            ).toFixed(
-                                                                                4,
-                                                                            )}
-                                                                        </td>
+                                                                        {previewKeys.map(key => {
+                                                                            const value = previewValue(r.resolved, key);
+                                                                            return <td key={key} title={value.raw}>{value.text}</td>;
+                                                                        })}
                                                                         <td>
                                                                             <code
                                                                                 title={
@@ -794,6 +820,10 @@ export default function App() {
                                                         {geometry.walls.length}
                                                     </dd>
                                                 </div>
+                                                {geometry.delta_deg !== undefined && <div>
+                                                    <dt>Góc δ với phương đứng / độ lõm</dt>
+                                                    <dd>{number(geometry.delta_deg)}° / {number(geometry.reentrant_indent_mm)} mm</dd>
+                                                </div>}
                                             </dl>
                                         </>
                                     ) : (

@@ -66,9 +66,6 @@ def run(args):
             raise ValueError("Requested input digest does not match the catalog")
         spec_data = json.loads(json.dumps(spec_data))
         spec_data.update(max_runs=10, backup_after_run=False)
-        spec_data["model"]["cpus"] = 4
-        for design in spec_data.get("designs", []):
-            design["cpus"] = 4
         if job["profile"] == "smoke":
             short = {"duration": 0.0001, "field_intervals": 4, "history_intervals": 100}
             spec_data["model"].update(short)
@@ -115,42 +112,57 @@ def run(args):
             },
         )
         completed = []
-        for run in store.list("runs", batch["id"]):
+        pending = store.list("runs", batch["id"])
+        wave_index = 0
+        while pending:
             if progress.stop_reason or time.monotonic() >= deadline:
-                raise RuntimeError(
-                    (progress.stop_reason or "timed_out") + ": completed runs retained; native restart unqualified."
-                )
-            engine._execute(run, batch)
-            finished = store.get("runs", run["id"])
-            record = {k: finished.get(k) for k in ("id", "status", "summary", "quality", "error")}
-            attempt = finished.get("attempts", [])
-            view = Path(attempt[-1]["path"]) / "extracted/field-view.json" if attempt else None
-            if view and view.is_file() and view.stat().st_size <= 4 * 1024**2:
-                try:
-                    uploaded = ReleaseArchive(github, release_id).upload(
-                        view, f"workflow-{workflow_id}-{run['id']}-field-view.json"
-                    )
-                    record["field_view"] = {**uploaded, "sha256": uploaded["digest"].removeprefix("sha256:")}
-                except Exception:
-                    # Display convenience is secondary to the complete numerical archive.
-                    record["field_view_status"] = "direct_view_upload_failed; use verified archive"
-            completed.append(record)
-            catalog.update(
-                key,
-                lambda old: {
-                    **old,
-                    "runs": completed,
+                raise RuntimeError((progress.stop_reason or "timed_out") + ": completed runs retained")
+            if store.get("batches", batch["id"]).get("pause_requested"):
+                reason = "blocked_license" if any(r["status"] == "waiting_license" for r in pending) else "blocked_environment"
+                raise RuntimeError(reason + ": batch paused; inspect retained admission/license diagnostics")
+            eligible = [run for run in pending if run["status"] != "waiting_license" or run.get("retry_after", 0) <= time.time()]
+            if not eligible:
+                if store.get("batches", batch["id"]).get("pause_requested"):
+                    raise RuntimeError("blocked_license: retries exhausted; all attempt logs retained")
+                time.sleep(min(5, max(.1, min(run["retry_after"] for run in pending) - time.time())))
+                continue
+            wave = engine.execute_wave(eligible, batch)
+            wave_index += 1
+            if not wave:
+                raise RuntimeError("blocked_environment: insufficient CPU/RAM/disk for requested run configuration")
+            for finished in wave:
+                record = {k: finished.get(k) for k in ("id", "status", "summary", "quality", "error")}
+                attempt = finished.get("attempts", [])
+                view = Path(attempt[-1]["path"]) / "extracted/field-view.json" if attempt else None
+                if view and view.is_file() and view.stat().st_size <= 4 * 1024**2:
+                    try:
+                        uploaded = ReleaseArchive(github, release_id).upload(
+                            view, f"workflow-{workflow_id}-{finished['id']}-field-view.json"
+                        )
+                        record["field_view"] = {**uploaded, "sha256": uploaded["digest"].removeprefix("sha256:")}
+                    except Exception:
+                        # Display convenience is secondary to the complete numerical archive.
+                        record["field_view_status"] = "direct_view_upload_failed; use verified archive"
+                completed = [r for r in completed if r["id"] != record["id"]] + [record]
+                catalog.update(
+                    key,
+                    lambda old: {
+                        **old,
+                        "runs": completed,
                     "status": finished["status"]
-                    if finished["status"] not in ("completed", "review")
-                    else "running",
-                },
-            )
-            if finished["status"] not in ("completed", "review"):
-                raise RuntimeError((progress.stop_reason or "failed") + ": see preserved attempt logs")
-            # Preserve each completed run before spending runner time on the next one.
+                    if finished["status"] not in ("completed", "review", "waiting_license")
+                        else "running",
+                    },
+                )
+            # Every process in this wave has closed its files. Archive before
+            # admitting the next wave; never snapshot a live solver output.
             ReleaseArchive(github, release_id).publish(
-                args.root, attempt=f"workflow-{workflow_id}", complete=False, checkpoint=run["id"]
+                args.root, attempt=f"workflow-{workflow_id}", complete=False, checkpoint=f"wave-{wave_index:04d}"
             )
+            if any(run["status"] not in ("completed", "review", "waiting_license") for run in wave):
+                raise RuntimeError((progress.stop_reason or "failed") + ": see preserved attempt logs")
+            done = {run["id"] for run in wave if run["status"] in ("completed", "review")}
+            pending = [store.get("runs", run["id"]) for run in pending if run["id"] not in done]
         result_status = "review" if any(r["status"] == "review" for r in completed) else "completed"
     except Exception as exc:
         message = str(exc)

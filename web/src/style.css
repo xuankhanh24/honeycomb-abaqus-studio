@@ -317,6 +317,27 @@ p {
     gap: 9px;
     margin-top: 24px;
 }
+.sweep-axis {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 14px;
+    margin: 16px 0;
+    display: grid;
+    grid-template-columns: minmax(160px, 2fr) repeat(3, minmax(70px, 1fr)) auto;
+    gap: 12px;
+    align-items: end;
+}
+.sweep-axis legend { font-size: 12px; padding: 0 5px; }
+.sweep-end { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; }
+.sweep-end input { min-height: auto; width: auto; }
+@media (max-width: 1100px) {
+    .sweep-axis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .sweep-parameter { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+    .sweep-axis { grid-template-columns: minmax(0, 1fr); }
+    .sweep-axis .field { min-width: 0; }
+}
 details {
     border-top: 1px solid var(--line);
     margin-top: 24px;

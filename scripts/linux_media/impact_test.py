@@ -16,6 +16,7 @@ from publication import prepare
 from honeycomb_studio.actions_log import get_actions_log
 from honeycomb_studio.cloud_archive import ALLOWED, ReleaseArchive
 from honeycomb_studio.cloud_github import Github
+from honeycomb_studio.cloud_release import reserve_release
 from honeycomb_studio.data import manifest
 from honeycomb_studio.engine import ADAPTERS, Engine
 from honeycomb_studio.models import BatchSpec, digest, expand
@@ -256,6 +257,15 @@ def main(parallel_smoke=False):
         raise RuntimeError("Impact acceptance did not finish; real diagnostics retained")
 
 
+def reserve(parallel_smoke=False):
+    return reserve_release(
+        Github(token=os.environ["GITHUB_TOKEN"]),
+        tag=("linux-parallel-angle-smoke-" if parallel_smoke else "linux-impact-7j-") + os.environ["GITHUB_RUN_ID"],
+        sha=os.environ["GITHUB_SHA"],
+        name="Native parallel delta-angle SMOKE ONLY" if parallel_smoke else "Linux 7 J re-entrant perimeter test",
+    )
+
+
 def publish():
     """Archive actual outputs, including partial outputs, without certifying them as complete."""
     output = Path(os.environ["RUNNER_TEMP"]) / "honeycomb-impact"
@@ -264,18 +274,7 @@ def publish():
     receipt = json.loads((output / "impact-receipt.json").read_text())
     github = Github(token=os.environ["GITHUB_TOKEN"])
     github.client.timeout = 300
-    release = github.repo(
-        "POST",
-        "/releases",
-        {
-            "tag_name": ("linux-parallel-angle-smoke-" if receipt["kind"] == "linux-parallel-angle-smoke" else "linux-impact-7j-") + os.environ["GITHUB_RUN_ID"],
-            "target_commitish": os.environ["GITHUB_SHA"],
-            "name": "Native parallel delta-angle SMOKE ONLY" if receipt["kind"] == "linux-parallel-angle-smoke" else "Linux 7 J re-entrant perimeter test",
-            "draft": False,
-            "prerelease": True,
-            "body": "Real development acceptance test. Read impact-receipt and quality before using data. Incomplete or review results are not certified.",
-        },
-    )
+    release = reserve(receipt["kind"] == "linux-parallel-angle-smoke")
     archive = ReleaseArchive(github, release["id"])
     # Thousands of small reduction records must not exhaust Release asset limits.
     # Large binaries are hard-linked into this view; only small records are packed.
@@ -288,6 +287,8 @@ def publish():
         archive.publish(
             publication, attempt="impact", complete=receipt.get("status") in ("completed", "review")
         )
+    github.repo("PATCH", f"/releases/{release['id']}", {"draft": False,
+                "body": "Real native outputs. Read impact-artifact-manifest.json and impact-receipt.json; review results are not certified."})
     print("Results release: " + release["html_url"], flush=True)
     write_json(Path("output/impact-release.json"), {"url": release["html_url"]})
 
@@ -295,7 +296,9 @@ def publish():
 if __name__ == "__main__":
     import sys
 
-    if "--publish" in sys.argv:
+    if "--reserve" in sys.argv:
+        reserve(parallel_smoke="--parallel-smoke" in sys.argv)
+    elif "--publish" in sys.argv:
         publish()
     else:
         main(parallel_smoke="--parallel-smoke" in sys.argv)

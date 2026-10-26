@@ -18,6 +18,15 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - name: Prepare Python environment
+        run: python3 scripts/actions_step.py --title "Cai moi truong Python" --details output/actions-logs/python.log -- uv sync --locked --extra cloud
+      - name: Reserve exact source tag before long execution
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked --extra cloud python scripts/linux_media/impact_test.py --reserve
       - name: Prepare archive readers and isolated compatible Linux image
         run: |
           python3 scripts/actions_step.py --title "Cai cong cu doc media" --details output/actions-logs/packages.log -- bash -c 'sudo apt-get update -qq && sudo apt-get install -y unrar p7zip-full'
@@ -26,11 +35,6 @@ jobs:
         run: python3 scripts/actions_step.py --title "Download va kiem ke media" --details output/actions-logs/download.log -- python3 scripts/inspect_linux_media.py
       - name: '03 - Verify ISO and install isolated Abaqus'
         run: python3 scripts/actions_step.py --title "Xac minh ISO va cai Abaqus" --details output/actions-logs/install.log -- bash scripts/linux_media/install_runtime.sh
-      - uses: astral-sh/setup-uv@v10.3.0
-        with:
-          enable-cache: true
-      - name: Prepare Python environment
-        run: python3 scripts/actions_step.py --title "Cai moi truong Python" --details output/actions-logs/python.log -- uv sync --locked --extra cloud
       - uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
@@ -62,6 +66,17 @@ jobs:
             ${{ runner.temp }}/honeycomb-impact/**/*.inp
             ${{ runner.temp }}/honeycomb-impact/**/*.cae
             ${{ runner.temp }}/honeycomb-impact/**/*.odb
+            ${{ runner.temp }}/honeycomb-impact/**/*.csv
+            ${{ runner.temp }}/honeycomb-impact/**/*.parquet
+            ${{ runner.temp }}/honeycomb-impact/**/*.pdf
+            ${{ runner.temp }}/honeycomb-impact/**/*.docx
+            ${{ runner.temp }}/honeycomb-impact/**/*.png
+            ${{ runner.temp }}/honeycomb-impact/**/*.gif
+            ${{ runner.temp }}/honeycomb-impact/**/*.dat
+            ${{ runner.temp }}/honeycomb-impact/**/*.msg
+            ${{ runner.temp }}/honeycomb-impact/**/*.txt
+            ${{ runner.temp }}/honeycomb-impact/**/*.md
+            ${{ runner.temp }}/honeycomb-impact/**/*.tar
           compression-level: 0
           retention-days: 30
           if-no-files-found: error

@@ -1,0 +1,42 @@
+name: Recover retained native Actions artifact
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        required: true
+        type: string
+permissions:
+  contents: write
+  actions: read
+jobs:
+  recover:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      HONEYCOMB_ACTIONS_LOG: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - name: Download original fallback artifact without rerunning the solver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -c 'import os; assert os.environ["SOURCE_RUN_ID"].isdigit()'
+          python3 scripts/actions_step.py --title "Download artifact goc" --details output/actions-logs/artifact-download.log -- gh run download "$SOURCE_RUN_ID" --name "linux-impact-7j-$SOURCE_RUN_ID" --dir "$RUNNER_TEMP/original-backup"
+      - name: Verify originals, publish retained data and test archive roundtrip
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked python scripts/recover_native_artifact.py --source-run-id "$SOURCE_RUN_ID" --artifact-root "$RUNNER_TEMP/original-backup"
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: native-recovery-verification-${{ github.run_id }}
+          path: |
+            output/native-recovery-verification.json
+            output/actions-logs/**
+          retention-days: 30

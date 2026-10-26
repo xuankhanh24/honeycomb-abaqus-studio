@@ -16,6 +16,12 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --extra cloud
+      - name: Preflight native acceptance input before media preparation
+        run: uv run --locked --extra cloud pytest tests/test_native_smoke_spec.py -q
       - name: Prepare archive readers and isolated compatible Linux image
         run: |
           sudo apt-get update -qq
@@ -37,10 +43,6 @@ jobs:
             --mount "type=bind,source=$PWD/output/install-probe,target=/results" \
             --mount type=volume,source=honeycomb-install,target=/opt \
             honeycomb-install-probe
-      - uses: astral-sh/setup-uv@v10.3.0
-        with:
-          enable-cache: true
-      - run: uv sync --locked --extra cloud
       - uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}

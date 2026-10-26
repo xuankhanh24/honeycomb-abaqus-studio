@@ -57,6 +57,18 @@ def test_batch_reports_preserve_vietnamese_inputs_partial_results_and_black_text
     assert Path(incomplete_report(runs[1], format="docx")).exists()
 
 
+def test_smoke_report_has_explicit_scope_even_when_opened_without_release_context(tmp_path):
+    store = Store(tmp_path)
+    batch = store.create(BatchSpec(name="Native environment qualification", data_profile="smoke"))
+    runs = store.list("runs", batch["id"])
+    file = batch_report(batch, runs, format="docx")
+    text = "\n".join(p.text for p in Document(file).paragraphs)
+    assert "SMOKE — KIỂM TRA MÔI TRƯỜNG" in text
+    assert "không phải dữ liệu nghiên cứu" in text
+    assert "không dùng cho huấn luyện" in text
+    store.db.close()
+
+
 def test_batch_dataset_endpoint_exports_all_eligible_runs_and_exclusion_audit(tmp_path):
     store = Store(tmp_path / "data")
     batch = store.create(BatchSpec(axes=[Axis(parameter="energy_J", values=[1, 2, 3, 4])]))

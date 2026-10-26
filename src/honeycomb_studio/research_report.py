@@ -73,6 +73,10 @@ def build(run, attempt: Path, rows, checkpoint=None, format="pdf"):
         story.append(table([[number(x) for x in row] for row in values], list(widths)))
 
     text("BÁO CÁO VA ĐẬP HONEYCOMB", "Title")
+    smoke = quality.get("physical_validation") == "environment_smoke_only" or summary.get("data_profile") == "smoke"
+    if smoke:
+        text("SMOKE — KIỂM TRA MÔI TRƯỜNG", "Heading1")
+        text("Bài chạy ngắn để kiểm tra phần mềm. Không phải dữ liệu nghiên cứu, không dùng cho huấn luyện hoặc kết luận hấp thụ năng lượng.")
     text("1. Kết quả chính và điều kiện tải", "Heading1")
     text("Lượt " + str(run.get("index", 1)) + " | Mã truy vết: " + run["id"])
     metrics = [key for key in TARGETS if key not in ("end_impactor_velocity_m_s",)]
@@ -116,7 +120,7 @@ def build(run, attempt: Path, rows, checkpoint=None, format="pdf"):
     text(
         "Chất lượng số: "
         + ("đạt các ngưỡng kiểm tra" if quality.get("numerical_quality") == "passed" else "cần xem xét")
-        + ". Hội tụ và tương đương thí nghiệm: chưa xác nhận. Dữ liệu dùng cho khảo sát trong miền mô hình đã giả định."
+        + (". Phạm vi: chỉ kiểm tra môi trường, loại khỏi dữ liệu huấn luyện." if smoke else ". Hội tụ và tương đương thí nghiệm: chưa xác nhận. Dữ liệu dùng cho khảo sát trong miền mô hình đã giả định.")
     )
     for finding in quality.get("findings", []):
         text("Cần xem xét: " + finding)

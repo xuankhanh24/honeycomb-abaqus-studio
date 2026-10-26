@@ -17,7 +17,7 @@ from honeycomb_studio.cloud_archive import ALLOWED, ReleaseArchive
 from honeycomb_studio.cloud_github import Github
 from honeycomb_studio.data import manifest
 from honeycomb_studio.engine import ADAPTERS, Engine
-from honeycomb_studio.models import BatchSpec, digest
+from honeycomb_studio.models import BatchSpec, digest, expand
 from honeycomb_studio.store import Store, write_json
 
 
@@ -40,6 +40,20 @@ class ParallelSmokeEngine(Engine):
 
 def run(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True)
+
+
+def parallel_smoke_input(requested):
+    effective = json.loads(json.dumps(requested))
+    effective.update(name="SMOKE ONLY - two native delta-angle jobs", data_profile="smoke",
+                     execution_mode="parallel", max_parallel_runs=2, max_runs=2,
+                     sampling="grid", designs=[], render_images=False, runtime_budget_minutes=30,
+                     axes=[{"parameter": "reentrant_delta_deg", "values": [20, 30]}])
+    effective["model"].update(cpus=2, reentrant_geometry="angle", duration=.00002,
+                              field_intervals=2, history_intervals=10, mesh_preset="quick")
+    spec = BatchSpec.model_validate(effective)
+    if len(expand(spec)) != 2:
+        raise ValueError("Native parallel smoke requires exactly two distinct validated runs")
+    return effective
 
 
 def main(parallel_smoke=False):
@@ -81,13 +95,9 @@ def main(parallel_smoke=False):
     effective["model"]["cpus"] = 4
     effective.update(runtime_budget_minutes=285)
     if parallel_smoke:
-        effective.update(name="SMOKE ONLY - two native delta-angle jobs",
-                         data_profile="smoke",
-                         execution_mode="parallel", max_parallel_runs=2, render_images=False,
-                         axes=[{"parameter": "reentrant_delta_deg", "values": [20, 30]}])
-        effective["model"].update(cpus=2, reentrant_geometry="angle", duration=.00002,
-                                  field_intervals=2, history_intervals=10, mesh_preset="quick")
+        effective = parallel_smoke_input(requested)
     spec = BatchSpec.model_validate(effective)
+    expand(spec)
     write_json(
         output / "execution-adjustments.json",
         {

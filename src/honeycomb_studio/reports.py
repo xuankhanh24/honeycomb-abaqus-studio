@@ -245,6 +245,10 @@ def batch_report(batch: dict, runs: list[dict], format="pdf"):
     ]
     from .batch_details import append_inputs, append_overview, append_results
 
+    if batch.get("spec", {}).get("data_profile") == "smoke":
+        story.append(Paragraph("SMOKE — KIỂM TRA MÔI TRƯỜNG", s["Heading1"]))
+        story.append(Paragraph("Bài chạy ngắn, không phải dữ liệu nghiên cứu và không dùng cho huấn luyện hoặc kết luận hấp thụ năng lượng.", s["BodyText"]))
+
     append_overview(story, batch, runs)
     from .research import TARGETS
 

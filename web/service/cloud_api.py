@@ -256,6 +256,8 @@ def create_app(github: Github | None = None) -> FastAPI:
             ".github/workflows/linux-impact-7j.yml": "Thử nghiệm native 7 J",
             ".github/workflows/verify-native-parallel.yml": "Thử nghiệm native song song",
             ".github/workflows/abaqus-linux.yml": "Job cloud",
+            ".github/workflows/recover-native-artifact.yml": "Khôi phục kết quả native",
+            ".github/workflows/verify-impact-release.yml": "Kiểm tra dữ liệu đã lưu",
         }
         try:
             runs = []

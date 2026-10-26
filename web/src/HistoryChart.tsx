@@ -12,7 +12,7 @@ import {
 export default function HistoryChart({
     curve,
 }: {
-    curve: Record<string, number>[];
+    curve: Record<string, number | null>[];
 }) {
     return (
         <ResponsiveContainer width="100%" height={320}>
@@ -21,7 +21,7 @@ export default function HistoryChart({
                 <XAxis
                     dataKey="time_ms"
                     type="number"
-                    domain={[0, 6]}
+                    domain={["dataMin", "dataMax"]}
                     tickFormatter={(v) => Number(v).toFixed(1)}
                     label={{
                         value: "Thời gian (ms)",
@@ -40,8 +40,8 @@ export default function HistoryChart({
                 <Tooltip />
                 <Legend verticalAlign="top" />
                 <Line
-                    dataKey="contact_force_N_from_m_a"
-                    name="Lực tiếp xúc m·a"
+                    dataKey="contact_force_N"
+                    name="Lực tiếp xúc"
                     stroke="#1769aa"
                     dot={false}
                     isAnimationActive={false}

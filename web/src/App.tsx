@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, lazy, Suspense } from "react";
+import { decodeHistory } from "./history-data";
 import {
     Box,
     SlidersHorizontal,
@@ -234,21 +235,9 @@ export default function App() {
                 return r.arrayBuffer();
             })
             .then(async (bytes) => {
-                const hash = await crypto.subtle.digest("SHA-256", bytes);
-                const checksum = Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("");
-                if (checksum !== references[reference].sha256)
-                    throw new Error("Checksum history không khớp; chưa hiển thị dữ liệu.");
+                const rows = await decodeHistory(bytes, references[reference].sha256);
                 if (abort.signal.aborted) return;
-                const text = new TextDecoder().decode(bytes);
-                const lines = text.trim().split(/\r?\n/),
-                    keys = lines.shift()!.split(",");
-                setCurve(
-                    lines.map((l) =>
-                        Object.fromEntries(
-                            l.split(",").map((v, i) => [keys[i], Number(v)]),
-                        ),
-                    ),
-                );
+                setCurve(rows);
             })
             .catch((e) => {
                 if (e.name !== "AbortError") setError(String(e));

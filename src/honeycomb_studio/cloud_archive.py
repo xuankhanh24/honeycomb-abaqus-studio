@@ -7,6 +7,7 @@ import json
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -153,7 +154,7 @@ class ReleaseArchive:
             return self._publish(prepared, attempt=attempt, complete=complete, checkpoint=checkpoint)
 
     def _publish(self, root: Path, *, attempt: str, complete: bool, checkpoint: str | None = None):
-        files = []
+        files: list[dict[str, Any]] = []
         root = root.resolve()
         with tempfile.TemporaryDirectory(prefix="honeycomb-upload-") as temp:
             for path in sorted(root.rglob("*")):
@@ -183,6 +184,18 @@ class ReleaseArchive:
                 if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
                     raise ValueError("Source changed during archival; no complete manifest will be published")
                 files.append(record)
+            streamed = root / "stream-index.json"
+            if streamed.exists():
+                from .cloud_restore import validate_manifest
+
+                inventory = json.loads(streamed.read_text(encoding="utf-8"))
+                validate_manifest(inventory, allow_incomplete=True)
+                names = {f["path"].casefold() for f in files}
+                for entry in inventory["files"]:
+                    if entry["path"].casefold() in names:
+                        raise ValueError("Duplicate local/remote archive path")
+                    names.add(entry["path"].casefold())
+                    files.append(entry)
             manifest = {
                 "schema_version": "1",
                 "kind": "honeycomb-release-archive",

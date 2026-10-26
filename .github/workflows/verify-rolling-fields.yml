@@ -1,0 +1,30 @@
+name: Verify rolling native Parquet storage
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - name: Read existing native field samples
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download native-field-inputs-20261026 -p native-field-inputs.tar -D output
+      - name: Stream, evict, restore and compare original Parquet bytes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked --extra cloud python scripts/verify_native_field_stream.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: rolling-native-fields-verification-${{ github.run_id }}
+          path: output/rolling-native-fields-verification.json
+          retention-days: 30

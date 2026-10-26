@@ -13,6 +13,7 @@ from honeycomb_studio.cloud_drive import backup_readable
 from honeycomb_studio.cloud_github import JOB_ID, Catalog, Github
 from honeycomb_studio.cloud_progress import Progress, execution_deadline
 from honeycomb_studio.cloud_runtime import qualification
+from honeycomb_studio.cloud_streaming import RollingFields
 from honeycomb_studio.engine import Engine
 from honeycomb_studio.models import BatchSpec, digest, expand
 from honeycomb_studio.store import Store, write_json
@@ -49,6 +50,7 @@ def run(args):
     engine = None
     result_status = "failed"
     release_id = None
+    field_sink = None
     try:
         deadline = execution_deadline(os.environ["HONEYCOMB_WORKFLOW_STARTED_EPOCH"])
         runtime = require_qualification(Path.cwd())
@@ -100,6 +102,9 @@ def run(args):
             },
         )
         release_id = release["id"]
+        if job["profile"] == "full":
+            field_sink = RollingFields(args.root, ReleaseArchive(github, release_id), f"workflow-{workflow_id}")
+            engine.field_sink = field_sink
         catalog.update(
             key,
             lambda old: {
@@ -161,6 +166,13 @@ def run(args):
         raise
     finally:
         archive_error = None
+        if field_sink is not None:
+            try:
+                field_sink.flush()
+            except Exception:
+                # Failed volumes retain their local Parquet and are included in
+                # the incomplete final archive. Never certify interrupted export.
+                result_status = "failed"
         if release_id:
             try:
                 ReleaseArchive(github, release_id).publish(

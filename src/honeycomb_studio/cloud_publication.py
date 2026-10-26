@@ -9,7 +9,7 @@ def prepare(source: Path, target: Path):
     # Lazy import avoids a cycle when ReleaseArchive prepares its own publication view.
     from .cloud_archive import ALLOWED
 
-    has_reductions = any(source.glob("**/reduced-fields/*.json"))
+    has_reductions = any(source.glob("**/reduced-fields/*.json")) or any(source.glob("**/remote-fields/*.json"))
     reductions = []
     for path in sorted(source.rglob("*")):
         relative = path.relative_to(source)
@@ -21,11 +21,11 @@ def prepare(source: Path, target: Path):
             has_reductions and relative.as_posix() == "field-reductions.tar"
         ):
             continue
-        if any(p in ("cache", "spool", "credentials", "backup-manifests", ".git") for p in relative.parts):
+        if any(p in ("cache", "spool", "credentials", "backup-manifests", ".git", ".cloud-stream") for p in relative.parts):
             continue
         if path.name in ("session.json", "engine-settings.json"):
             continue
-        if "reduced-fields" in relative.parts:
+        if "reduced-fields" in relative.parts or "remote-fields" in relative.parts:
             reductions.append((path, relative))
             continue
         dest = target / relative
@@ -40,7 +40,10 @@ def prepare(source: Path, target: Path):
         "extract field-reductions.tar into the restored root with Python 3.12+ "
         "tarfile.extractall(path=restored_root, filter='data'). It preserves the original "
         "relative paths and bytes of every reduced-field JSON. Original CAE/INP/ODB "
-        "and numerical exports are unchanged. Attempt artifact-manifest.json files "
+        "and numerical exports are unchanged. Also unpack streamed-fields/*.tar into "
+        "the same restored root to recover original full Parquet paths; use "
+        "scripts/restore_cloud_archive.py --unpack-fields for exclusive, verified extraction. "
+        "Attempt artifact-manifest.json files "
         "refer to the fully restored tree. Research quality remains separate from "
         "transport completeness.\n"
     )

@@ -52,6 +52,7 @@ class Engine:
         self.worker = None
         self.current_run = None
         self.backup = None
+        self.field_sink = None
         # Process identity survives engine crashes. Never launch a replacement while
         # an owned process is still alive; worker can adopt and drain it first.
         for r in store.list("runs"):
@@ -225,7 +226,7 @@ class Engine:
                 if phase != "solving" or time.monotonic() - stopped_at > 15:
                     solver.terminate_owned(record)
             if spool is not None:
-                consume_spool(spool)
+                consume_spool(spool, self.field_sink)
             progress = (
                 solver.sta_progress(raw / (a["job_name"] + ".sta"), r["resolved"]["duration"])
                 if phase == "solving"
@@ -279,7 +280,7 @@ class Engine:
             if self.shutdown.is_set():
                 return
         if spool is not None:
-            consume_spool(spool)
+            consume_spool(spool, self.field_sink)
         if stopped_at is not None or self._stopping(r):
             raise Interrupted("Đã dừng; tiếp tục sẽ tạo attempt mới")
         log_text = solver.tail(logs / (phase + ".log"), 12000)
@@ -567,7 +568,9 @@ class Engine:
             self._monitor(
                 r, a, "extracting", ["python", str(ADAPTERS / "extract.py"), str(config)], spool=extracted
             )
-        consume_spool(extracted)
+        consume_spool(extracted, self.field_sink)
+        if self.field_sink is not None:
+            self.field_sink.flush()
         if not (extracted / "complete.json").exists():
             raise RuntimeError("Trích xuất ODB chưa hoàn tất")
         last_tick = [0.0]

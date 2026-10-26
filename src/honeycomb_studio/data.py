@@ -7,6 +7,7 @@ import math
 import re
 import uuid
 import zipfile
+from itertools import chain
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from .field_storage import remote_reductions
 from .models import digest
 from .quantities import describe_column
 from .research import FEATURES, PROVENANCE, TARGETS, field_reduction, merge_statistics
@@ -24,7 +26,7 @@ def safe_name(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]", "_", text)[:100]
 
 
-def consume_spool(directory: Path) -> int:
+def consume_spool(directory: Path, field_sink=None) -> int:
     count = 0
     policy = directory / "export-policy.json"
     compact = policy.exists() and not json.loads(policy.read_text(encoding="utf-8"))["full_fields"]
@@ -83,6 +85,8 @@ def consume_spool(directory: Path) -> int:
                 if check.metadata.num_rows != table.num_rows:
                     raise ValueError("Parquet row count mismatch")
             temp.replace(dest)
+            if field_sink is not None and meta["kind"] == "field":
+                field_sink(dest, field_reduction(arrays, meta))
         source.unlink()
         ready.unlink()
         count += 1
@@ -307,17 +311,18 @@ def history_summary(
     if checkpoint:
         checkpoint(len(parts), len(parts))
     reduced = sorted((directory / "reduced-fields").glob("*.json"))
-    for index, path in enumerate(reduced):
+    remote_count = sum(1 for _ in (directory / "remote-fields").glob("*.json"))
+    entries = chain((json.loads(path.read_text(encoding="utf-8")) for path in reduced), remote_reductions(directory))
+    for index, entry in enumerate(entries):
         if checkpoint:
-            checkpoint(index, len(reduced))
-        entry = json.loads(path.read_text(encoding="utf-8"))
+            checkpoint(index, len(reduced) + remote_count)
         merge_statistics(field_stats, entry["field"], entry["statistics"], entry.get("components"))
         key, extreme = entry.get("extremum_key"), entry.get("extremum")
         if extreme and (key not in extrema or extreme["value"] > extrema[key]["value"]):
             extrema[key] = extreme
         if "impactor_force_z_N" in entry:
             force_checks.append((entry["time_s"], entry["impactor_force_z_N"]))
-    summary["field_storage"] = "reduced" if reduced else "full_parquet"
+    summary["field_storage"] = "full_parquet_remote" if remote_count else "reduced" if reduced else "full_parquet"
     # Chunks for the same frame must be summed before comparing against RP history.
     if force_checks:
         sums = {}
@@ -722,6 +727,10 @@ def verify_export(directory: Path, checkpoint=None) -> dict:
     parts = 0
     for path in (directory / "reduced-fields").glob("*.json"):
         item = json.loads(path.read_text(encoding="utf-8"))
+        key = (item["step"], item["frame"], item["field"])
+        observed[key] = observed.get(key, 0) + item["rows"]
+        parts += 1
+    for item in remote_reductions(directory):
         key = (item["step"], item["frame"], item["field"])
         observed[key] = observed.get(key, 0) + item["rows"]
         parts += 1

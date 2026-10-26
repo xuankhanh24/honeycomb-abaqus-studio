@@ -26,6 +26,8 @@ Public evidence and unfinished native acceptance remain in [CLOUD_WEB.md](../doc
 
 The workflow verifies table-mode validation, exact 5/7/9 J previews, geometry, mobile preview, the real saved-job catalog/detail, existing results and asset hashes, plus denied anonymous writes. It also runs the three fixes' regression tests and engine smoke contract on Ubuntu. No catalog responses are mocked; the workflow does not authenticate an owner, dispatch a solver or change saved jobs. Its screenshots, JSON receipt and JUnit results are retained in the run's `production-web-review-*` artifact.
 
+Result acceptance waits for the actual force-curve path and ODB-view canvas, then uses the timeline to select the final 6-ms frame before taking its screenshot. Browser console errors retain their resource URLs; only the intentionally rejected preview requests and an optional undeclared favicon 404 are classified as expected. Missing application assets or JavaScript errors still fail the run.
+
 ```shell
 gh workflow run production-web.yml --ref main -f expected_sha=<full-deployed-commit-sha>
 ```

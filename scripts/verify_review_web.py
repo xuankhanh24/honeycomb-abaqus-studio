@@ -27,7 +27,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     receipt = {"deployment": BASE, "expected_sha": args.expected_sha, "checks": [],
                "catalog_mocked": False, "solver_started": False, "owner_authenticated": False,
-               "page_errors": [], "console_errors": []}
+               "page_errors": [], "console_errors": [], "console_error_details": []}
 
     def passed(case, **details):
         receipt["checks"].append({"case": case, "status": "passed", **details})
@@ -101,8 +101,12 @@ def main():
             page = browser.new_page(viewport={"width": 1440, "height": 1000})
             page.set_default_timeout(60000)
             page.on("pageerror", lambda error: receipt["page_errors"].append(str(error)))
-            page.on("console", lambda message: receipt["console_errors"].append(message.text)
-                    if message.type == "error" else None)
+            def console_message(message):
+                if message.type == "error":
+                    receipt["console_errors"].append(message.text)
+                    receipt["console_error_details"].append({"text": message.text, **message.location})
+
+            page.on("console", console_message)
             try:
                 # No routes or API responses are intercepted: use the actual catalog and deployed backend.
                 page.goto(BASE, wait_until="networkidle", timeout=90000)
@@ -171,11 +175,27 @@ def main():
                 passed("Real management job list and existing job detail", jobs=len(jobs))
                 page.get_by_role("button", name="Dữ liệu", exact=True).click()
                 expect(page.get_by_role("heading", name="Kết quả mô phỏng", exact=True)).to_be_visible()
+                expect(page.locator(".recharts-line-curve")).to_be_visible()
+                canvas = page.locator(".field-view canvas")
+                expect(canvas).to_be_visible()
+                timeline = page.get_by_role("slider", name="Thời điểm kết quả", exact=True)
+                last_frame = timeline.get_attribute("max")
+                assert last_frame is not None and int(last_frame) > 0
+                timeline.focus()
+                timeline.press("End")
+                expect(timeline).to_have_value(last_frame)
+                expect(canvas).to_have_attribute("aria-label", re.compile(r"6\.000 ms"))
                 page.wait_for_load_state("networkidle")
                 page.screenshot(path=str(out / "management-data.png"), full_page=True)
-                passed("Existing results remain visible in management web")
+                passed("Existing force curve and result viewer load; final frame is interactive",
+                       displayed_frames=int(last_frame) + 1)
                 assert not receipt["page_errors"], receipt["page_errors"]
-                unexpected = [e for e in receipt["console_errors"] if "422" not in e]
+                # Chrome may request an optional favicon that the application does not declare.
+                optional = [e for e in receipt["console_error_details"]
+                            if e.get("url") == BASE + "/favicon.ico" and "404" in e["text"]]
+                receipt["optional_resource_errors"] = optional
+                unexpected = [e for e in receipt["console_error_details"] if e not in optional
+                              and not (e.get("url") == BASE + "/api/preview" and "422" in e["text"])]
                 assert not unexpected, unexpected
             except Exception:
                 page.screenshot(path=str(out / "browser-failure.png"), full_page=True)

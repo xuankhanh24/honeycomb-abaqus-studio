@@ -4,7 +4,7 @@
 
 ## Platform
 
-Windows desktop, x64, WinUI 3.
+Windows desktop, x64, WinUI 3, plus a public React/TypeScript web workbench on Vercel.
 
 ## Stack
 
@@ -16,11 +16,11 @@ Vietnamese engineering researcher building reproducible honeycomb impact simulat
 
 ## Operating context
 
-Local Abaqus/Explicit 2017; reference 7 J model supplied by the user. One solver at a time, eight CPUs by default, approximately 16 GB RAM. Target solver budget 20–30 minutes is an estimate, not a guaranteed runtime.
+Local Abaqus/Explicit 2017; reference 7 J model supplied by the user. Sequential execution is the default; optional concurrent solver waves respect requested CPU counts, declared RAM budgets and disk reserves. The Linux development trial used Abaqus 2020 in CentOS 7 userspace on a four-CPU Ubuntu Actions host. Production cloud dispatch remains gated by runtime, entitlement and platform qualification. Runtime estimates are not guarantees.
 
 ## Capabilities and constraints
 
-Preserve raw input/results and every attempt. Export all recorded ODB fields. Never label solver completion as physical validation. Keep large simulation data out of Git. Private GitHub repository owned by xuankhanh24. Optional Google Drive OAuth backup with resumable transfer and verified restore.
+Preserve raw input/results and every attempt. Research exports histories/statistics while retaining original ODB; optional Full exports recorded fields to Parquet with verified rolling publication on the cloud worker. Never label solver completion as physical validation. Keep large simulation data out of Git history; public results reside in GitHub Releases. The public repository belongs to xuankhanh24. Optional Google Drive OAuth backup has verified transfer/restore. Re-entrant geometry accepts indentation or delta angle to vertical, with a validated multi-parameter range editor.
 
 ## Product principles
 

@@ -1,0 +1,39 @@
+{
+  "deployment": "https://honeycomb-abaqus-studio.vercel.app",
+  "delta_input": true,
+  "preview_count": 6,
+  "axes": [
+    {
+      "parameter": "reentrant_delta_deg",
+      "start": 20,
+      "stop": 30,
+      "step": 5
+    },
+    {
+      "parameter": "core_material.young",
+      "start": 70000,
+      "stop": 75000,
+      "step": 5000
+    }
+  ],
+  "execution": {
+    "requested_parallel_runs": 2,
+    "effective_parallel_runs": 2,
+    "cpu_per_run": 2,
+    "limits": {
+      "requested": 2,
+      "cpu": 2,
+      "ram": 3,
+      "disk": 8
+    },
+    "ram_per_run_gb": 4.0,
+    "disk_per_run_gb": 8,
+    "estimated_serial_minutes": 1029.6815415821502,
+    "optimistic_solver_parallel_minutes": 474.3407707910751,
+    "estimate_only": true,
+    "note": "T\u00e0i nguy\u00ean web l\u00e0 s\u1ed1 \u0111o tham kh\u1ea3o; worker ki\u1ec3m tra l\u1ea1i. Kh\u00f4ng t\u1ef1 \u0111\u1ed5i CPU/l\u01b0\u1edbi/th\u1eddi gian v\u1eadt l\u00fd."
+  },
+  "angle30_indent_mm": 1.4433756729740643,
+  "anonymous_write_denied": true,
+  "native_solver_executed": false
+}

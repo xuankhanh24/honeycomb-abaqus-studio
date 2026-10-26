@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-25T07:05:24.4321253Z",
+  "generatedAt": "2026-10-26T04:46:04.4792171Z",
   "title": "Design System: Honeycomb Studio Web Extension",
   "extensions": {
     "breakpoints": [
@@ -71,6 +71,13 @@
       "description": "Flat bordered readiness container.",
       "html": "<section class='ds-panel'><h2>Điều kiện chạy cloud</h2><p>Chưa đủ bằng chứng nghiệm thu Linux/license để chạy thật.</p></section>",
       "css": ".ds-panel{font-family:Segoe UI,system-ui,sans-serif;background:#fff;border:1px solid var(--line,#dbe1e8);border-radius:8px;padding:20px;color:#202d3d}.ds-panel h2{font-size:16px;font-weight:650;margin:0 0 14px}.ds-panel p{font-size:12px;line-height:1.65;color:#536174}"
+    },
+    {
+      "name": "Batch range fieldset",
+      "kind": "custom",
+      "description": "Unit-bearing range inputs, optional endpoint inclusion and a named remove action, inside the existing parameter sheet.",
+      "html": "<fieldset class=\"ds-range\"><legend>Tham số 1</legend><label class=\"ds-parameter\">Tham số và đơn vị<select><option>δ — góc vách nghiêng với phương đứng (deg)</option></select></label><label>Đầu<input type=\"number\" value=\"20\"></label><label>Cuối<input type=\"number\" value=\"30\"></label><label>Bước nhảy<input type=\"number\" value=\"5\"></label><button type=\"button\" aria-label=\"Bỏ tham số 1\">Bỏ</button><label class=\"ds-end\"><input type=\"checkbox\">Thêm điểm cuối nếu lệch bước</label></fieldset>",
+      "css": ".ds-range{font:12px Segoe UI,system-ui,sans-serif;color:#202d3d;border:1px solid var(--line,#dbe1e8);border-radius:4px;padding:14px;margin:16px 0;display:grid;grid-template-columns:minmax(160px,2fr) repeat(3,minmax(70px,1fr)) auto;gap:12px;align-items:end}.ds-range legend{padding:0 5px}.ds-range label{display:flex;flex-direction:column;gap:7px;min-width:0}.ds-range input,.ds-range select{width:100%;font:inherit;font-variant-numeric:tabular-nums;min-height:38px;padding:8px 10px;border:1px solid #bbc7d5;border-radius:4px;background:#fff;color:#24364b;box-sizing:border-box}.ds-range button{font:600 13px Segoe UI,system-ui,sans-serif;min-height:38px;padding:8px 13px;border:1px solid #c7d0db;border-radius:5px;background:#fff;color:#24364b;cursor:pointer}.ds-range button:hover{background:#eef3f8;border-color:#8fa4bb}.ds-range :is(input,select,button):focus-visible{outline:3px solid #267fc1;outline-offset:3px}.ds-range .ds-end{grid-column:1/-1;flex-direction:row;gap:8px;align-items:center}.ds-end input{width:auto;min-height:auto}@media(max-width:1100px){.ds-range{grid-template-columns:repeat(3,minmax(0,1fr))}.ds-range .ds-parameter{grid-column:1/-1}}@media(max-width:520px){.ds-range{grid-template-columns:minmax(0,1fr)}}"
     }
   ],
   "narrative": {

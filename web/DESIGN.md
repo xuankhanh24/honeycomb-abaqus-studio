@@ -137,6 +137,8 @@ Responsive behavior is implemented as follows:
 - At 800px and below, navigation becomes a static horizontal scroll row above the page. Rail footer and workspace label disappear. The top bar becomes 57px high. The workbench stacks; the inspector and fields each use two columns. Result facts and setup rows become one column. The inspector note spans both columns.
 - At 520px and below, fields and inspector become one column. Main padding is 24px 14px 35px and sheets use 18px 15px. Heading actions move to their own row with the primary action expanding. The unit tag wraps, geometry height is capped at 250px, and long fact values wrap within a 55% maximum width.
 
+Batch range groups remain inside the parameter sheet, using bordered fieldsets rather than a new panel hierarchy. Each desktop row places the parameter selector, start, stop, step and remove action together; the endpoint checkbox spans the row. At 1100px and below, the selector spans three numeric columns; at 520px and below, each field stacks into one column. The resolved preview keeps every selected sweep axis in a horizontally scrollable table, including nested material parameters with their units.
+
 Mobile retains all parameter and evidence content through vertical scrolling. The inspected reference captures are `output/cloud-web/mobile-final.png` and `output/cloud-web/desktop-final.png`; they show scrolled content, so the source establishes the complete page structure.
 
 ## Elevation & Depth
@@ -156,6 +158,16 @@ Primary actions use Action Blue with white text, darkening on hover. Secondary a
 ### Inputs / Fields
 
 Text, numeric and select controls use a white surface, cool input border, 4px corners and 8px by 10px padding. Labels sit above controls; units sit beside labels. Conditional model fields follow topology, ball-size, loading and clamp choices. The advanced JSON area is expandable, uses monospace, resizes vertically and applies changes through a named action. All interactive elements share the explicit focus-visible outline. A skip link appears on keyboard focus.
+
+### Angle input and batch ranges
+
+The re-entrant geometry selector switches between indentation and δ measured from vertical, showing only the active input. The geometry inspector pairs δ in degrees with resolved indentation in mm. The parameter metadata states the relationship `d = h/2 × tan(δ)`; input checking returns the resolved values rather than treating the entered angle as a solved result.
+
+A labeled fieldset holds each sweep axis, with a unit-bearing parameter selector, start, stop and step inputs, a remove action and an optional endpoint checkbox. Duplicate parameters are disabled in the selector. The live status distinguishes an invalid range from the estimated Cartesian combination count and explicitly flags counts above the cloud limit of 10 runs per batch. JSON-backed value lists and LHS/design tables retain a named route back to range editing.
+
+Execution defaults to sequential. Concurrent mode reveals a maximum-run input, alongside declared RAM per run in GiB; CPU per run stays in the model parameters. Supporting copy explains resource admission with the four-CPU reference runner and identifies estimates as estimates. The checked preview distinguishes requested from effective concurrency; the worker rechecks CPU, RAM, disk and license availability before execution. These controls preserve runtime gates and owner permissions.
+
+Preview columns include every selected sweep axis, then resolved δ/indentation for re-entrant geometry, energy, velocity, CPUs and input identity, with duplicate columns removed. Nested face/core material names carry their context and units; resolved values remain traceable through the input hash. Keep the preview inspectable before saving a study.
 
 ### Navigation
 
@@ -196,3 +208,5 @@ The existing Data task now includes a lazy-loaded canvas viewer below the refere
 The canvas preserves its fitted viewport over time and exposes a textual field/time description. A labeled slider and explicit play/pause button control frames; animation starts paused. The adjacent scale states units, missing-data behavior and deformation exaggeration. A disclosure table gives sampled element/node identities and values. Copy explicitly identifies sparse sampling, original Windows/circular-clamp provenance and the difference between sampled and whole-ODB extremes.
 
 Controls use four columns on desktop, two below 800px and one below 520px. Timeline controls wrap on narrow screens. A file-open control remains keyboard focusable with the shared visible focus treatment. Loading, malformed-file, checksum-failure and missing-field states have readable feedback. Desktop and 390px mobile were inspected in the actual browser; mobile document width did not exceed the viewport. See `output/cloud-web/field-desktop.png` and `field-mobile.png`. The mechanical detector found advisory mismatches in pre-existing stylesheet colors/type ramp; these were recorded without altering the established surface outside this extension.
+
+<!-- Angle/batch extension evidence: web/src/App.tsx, web/src/BatchSweep.tsx, web/src/style.css and web/service/models.py. Preserves the incumbent Fluent workbench; no new visual world or approved comp. Root agent performed DOM interaction and overflow checks and captured output/angle-batch-ui/desktop-detail.png, mobile.png, desktop-final.png and mobile-final.png; the documenter did not independently run a browser. A finish review identified missing arbitrary sweep-axis preview columns; implementation now includes them. A final reviewer verdict was unavailable, so no final reviewer pass is claimed. -->

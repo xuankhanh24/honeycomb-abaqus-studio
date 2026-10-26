@@ -368,7 +368,9 @@ def quality(summary: dict) -> dict:
         ("contact_force_check_max_relative_percent", 2.0),
     ):
         value = summary.get(key)
-        if value is not None and value > threshold:
+        if value is None or not math.isfinite(value):
+            findings.append(f"Thiếu hoặc không hữu hạn: {key}; chưa đủ bằng chứng kiểm tra chất lượng")
+        elif value > threshold:
             findings.append(f"{key}={value:.5g}% vượt {threshold}%")
     if abs(summary["initial_kinetic_energy_J"]) < 1e-12:
         findings.append("Động năng ban đầu bằng 0")

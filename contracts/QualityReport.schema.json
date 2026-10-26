@@ -24,7 +24,8 @@
       "enum": [
         "not_established",
         "established",
-        "test_solver"
+        "test_solver",
+        "environment_smoke_only"
       ],
       "title": "Physical Validation",
       "type": "string"

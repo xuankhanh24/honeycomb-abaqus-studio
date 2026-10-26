@@ -22,6 +22,15 @@ def test_public_contract_and_unauthorized_write():
         assert client.get("/api/status").json()["qualified_linux_solver"] is False
 
 
+def test_health_identifies_the_deployed_revision(monkeypatch):
+    monkeypatch.setenv("VERCEL_GIT_COMMIT_SHA", "a" * 40)
+    with TestClient(create_app()) as client:
+        assert client.get("/api/health").json()["revision"] == "a" * 40
+    monkeypatch.delenv("VERCEL_GIT_COMMIT_SHA")
+    with TestClient(create_app()) as client:
+        assert client.get("/api/health").json()["revision"] is None
+
+
 def test_geometry_and_body_bounds():
     with TestClient(create_app()) as client:
         model = client.get("/api/template").json()["spec"]["model"]

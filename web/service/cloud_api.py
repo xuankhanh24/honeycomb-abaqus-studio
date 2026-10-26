@@ -90,6 +90,7 @@ def create_app(github: Github | None = None) -> FastAPI:
         return {
             "service": "honeycomb-cloud",
             "version": "0.3.0",
+            "revision": os.getenv("VERCEL_GIT_COMMIT_SHA"),
             "test_solver": False,
             "repository": REPOSITORY,
             "storage": "GitHub Releases",

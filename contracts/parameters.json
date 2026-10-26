@@ -120,6 +120,26 @@
     "sweep_allowed": true
   },
   {
+    "key": "reentrant_geometry",
+    "title": "Cách nhập ô lõm",
+    "unit": "",
+    "source": "Nhập độ lõm hoặc góc δ với phương đứng",
+    "description": "",
+    "default": "indent",
+    "type": "typing.Literal['indent', 'angle']",
+    "sweep_allowed": true
+  },
+  {
+    "key": "reentrant_delta_deg",
+    "title": "δ — góc vách nghiêng với phương đứng",
+    "unit": "deg",
+    "source": "d = h/2 × tan(δ)",
+    "description": "",
+    "default": 26.56505117707799,
+    "type": "<class 'float'>",
+    "sweep_allowed": true
+  },
+  {
     "key": "reentrant_depth_seed",
     "title": "Seed lõi theo chiều sâu Y",
     "unit": "mm",

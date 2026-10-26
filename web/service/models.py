@@ -351,44 +351,48 @@ def set_parameter(data: dict, key: str, value: Any):
     node[parts[-1]] = value
 
 
-def expand(spec: BatchSpec) -> list[dict]:
-    keys = [a.parameter for a in spec.axes]
-    if spec.model.core_topology == "reentrant_0":
-        inactive = "reentrant_indent" if spec.model.reentrant_geometry == "angle" else "reentrant_delta_deg"
+def validate_overrides(model: ModelSpec, keys: list[str]):
+    """Reject inputs that the effective model's modes would silently discard."""
+    if model.core_topology == "reentrant_0":
+        inactive = "reentrant_indent" if model.reentrant_geometry == "angle" else "reentrant_delta_deg"
         if inactive in keys:
             raise ValueError("Chọn đúng cách nhập độ lõm/góc δ trước khi khảo sát " + inactive)
-    if spec.model.core_topology != "hexagonal" and any(k.startswith("hex_") for k in keys):
+    if model.core_topology != "hexagonal" and any(k.startswith("hex_") for k in keys):
         raise ValueError("Tham số b, l, θ chỉ áp dụng cho lõi lục giác")
-    if spec.model.core_topology == "hexagonal":
-        inactive = {"cell_size"} if spec.model.hex_geometry == "parametric" else {"hex_b", "hex_l", "hex_theta_deg"}
+    if model.core_topology == "hexagonal":
+        inactive = {"cell_size"} if model.hex_geometry == "parametric" else {"hex_b", "hex_l", "hex_theta_deg"}
         if inactive.intersection(keys):
             raise ValueError("Chọn đúng cách nhập ô lục giác trước khi khảo sát b, l, θ hoặc kích thước ô")
-    if ("ball_radius" if spec.model.ball_size_mode == "diameter" else "ball_diameter") in keys:
+    if ("ball_radius" if model.ball_size_mode == "diameter" else "ball_diameter") in keys:
         raise ValueError("Chọn đúng cách nhập bán kính/đường kính trước khi khảo sát viên bi")
-    if spec.model.clamp_mode == "perimeter" and "clamp_diameter" in keys:
+    if model.clamp_mode == "perimeter" and "clamp_diameter" in keys:
         raise ValueError("Ngàm bốn cạnh không dùng đường kính lỗ kẹp")
-    if spec.model.core_topology == "hexagonal" and any(k.startswith("reentrant_") or k == "phase_z" for k in keys):
+    if model.core_topology == "hexagonal" and any(k.startswith("reentrant_") or k == "phase_z" for k in keys):
         raise ValueError("Tham số ô lõm chỉ áp dụng khi chọn lõi reentrant_0")
-    if spec.model.core_topology == "reentrant_0" and any(k in ("core_angle", "phase_y", "core_z_divisions") for k in keys):
+    if model.core_topology == "reentrant_0" and any(k in ("core_angle", "phase_y", "core_z_divisions") for k in keys):
         raise ValueError("Lõi tổ ong lõm Re-entrant dùng hướng 0°, dịch pha X/Z và reentrant_depth_seed; trục khảo sát này không áp dụng")
-    if "reentrant_depth_seed" in keys and spec.model.mesh_preset != "custom":
+    if "reentrant_depth_seed" in keys and model.mesh_preset != "custom":
         raise ValueError("Quét lưới cần chọn preset custom")
-    if len(set(keys)) != len(keys):
-        raise ValueError("Một tham số chỉ được khai báo một trục")
     if "energy_J" in keys and "velocity_m_s" in keys:
         raise ValueError("Không quét đồng thời năng lượng và vận tốc")
     for key in keys:
         if (
             key.startswith(("core_", "skin_", "ball_seed")) and "seed" in key or key == "core_z_divisions"
-        ) and spec.model.mesh_preset != "custom":
+        ) and model.mesh_preset != "custom":
             raise ValueError("Quét lưới cần chọn preset custom")
     if (
         "energy_J" in keys
-        and spec.model.loading != "energy"
+        and model.loading != "energy"
         or "velocity_m_s" in keys
-        and spec.model.loading != "velocity"
+        and model.loading != "velocity"
     ):
         raise ValueError("Chọn đúng chế độ energy/velocity trước khi quét")
+
+
+def expand(spec: BatchSpec) -> list[dict]:
+    keys = [a.parameter for a in spec.axes]
+    if len(set(keys)) != len(keys):
+        raise ValueError("Một tham số chỉ được khai báo một trục")
     if spec.sampling == "table":
         overrides = spec.designs
     elif spec.sampling == "lhs":
@@ -418,11 +422,17 @@ def expand(spec: BatchSpec) -> list[dict]:
     if not overrides or len(overrides) > spec.max_runs:
         raise ValueError("Số lượt trống hoặc vượt giới hạn")
     result, seen = [], set()
-    for changes in overrides:
+    for index, changes in enumerate(overrides, 1):
         data = spec.model.model_dump()
-        for key, value in changes.items():
-            set_parameter(data, key, value)
-        requested = ModelSpec.model_validate(data)
+        try:
+            for key, value in changes.items():
+                set_parameter(data, key, value)
+            requested = ModelSpec.model_validate(data)
+            validate_overrides(requested, list(changes))
+        except ValueError as exc:
+            if spec.sampling == "table":
+                raise ValueError(f"Dòng bảng {index}: {exc}") from exc
+            raise
         resolved = requested.resolved()
         h = digest(resolved)
         if h in seen:

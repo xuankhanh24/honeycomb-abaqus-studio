@@ -219,6 +219,26 @@
           "type": "number",
           "unit": "mm"
         },
+        "reentrant_geometry": {
+          "default": "indent",
+          "enum": [
+            "indent",
+            "angle"
+          ],
+          "source": "Nhập độ lõm hoặc góc δ với phương đứng",
+          "title": "Cách nhập ô lõm",
+          "type": "string",
+          "unit": ""
+        },
+        "reentrant_delta_deg": {
+          "default": 26.56505117707799,
+          "exclusiveMaximum": 90,
+          "exclusiveMinimum": 0,
+          "source": "d = h/2 × tan(δ)",
+          "title": "δ — góc vách nghiêng với phương đứng",
+          "type": "number",
+          "unit": "deg"
+        },
         "reentrant_depth_seed": {
           "default": 1.0,
           "exclusiveMinimum": 0,

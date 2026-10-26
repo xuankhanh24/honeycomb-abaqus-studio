@@ -44,4 +44,8 @@ Engine bind 127.0.0.1, cổng ngẫu nhiên. Mọi endpoint trừ `/health` cầ
 
 Long operation trả `{id,kind,status}`; poll operation để lấy result/error. Input không hợp lệ trả 400/422; ID không tồn tại 404. Path mở artifact bị giới hạn trong data root; CAE/ODB chỉ mở qua run API.
 
+Với `sampling=table`, mỗi dòng được kiểm tra theo chế độ nhập sau khi áp dụng toàn bộ override của dòng đó. Ví dụ, dòng đặt `energy_J` phải dùng `loading=energy` (kế thừa từ model hoặc đặt ngay trong dòng). Tham số không hoạt động bị từ chối kèm số dòng, trước khi tạo job; không âm thầm bỏ qua rồi khử trùng lượt.
+
+`QualityReport.physical_validation=environment_smoke_only` dành cho kiểm tra môi trường native ngắn; payload này có `ml_eligible=false`. Schema công khai chấp nhận trạng thái này cùng các trạng thái cũ. Smoke không xác nhận vật lý của mô hình.
+
 Tên batch/job của người dùng không được nội suy thành lệnh shell. Tham số mô phỏng đi qua JSON; tên file kỹ thuật do engine tạo. File session và URL resumable không đưa ra log/backup công khai.

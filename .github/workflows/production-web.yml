@@ -1,0 +1,43 @@
+name: Production web regression acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact main commit deployed to the management web'
+        required: true
+        type: string
+  workflow_run:
+    workflows: ['Cloud web acceptance']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  production:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      EXPECTED_SHA: ${{ inputs.expected_sha || github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Check the three regressions and engine smoke contract on Ubuntu
+        run: uv run --locked pytest -q tests/test_review_regressions.py tests/test_failure_modes.py::test_native_smoke_scope_applies_before_reports_viewer_and_completion_event --junitxml=output/production-web/regressions.xml
+      - name: Install headless Chromium for production browser checks
+        run: uv run --locked --with playwright==1.64.1 python -m playwright install --with-deps chromium
+      - name: Verify the deployed commit and real management web
+        run: uv run --locked --with playwright==1.64.1 python scripts/verify_review_web.py --expected-sha "$EXPECTED_SHA" --output-dir output/production-web
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: production-web-review-${{ github.run_id }}
+          path: output/production-web/
+          retention-days: 14
+          if-no-files-found: warn

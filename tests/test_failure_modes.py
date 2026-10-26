@@ -1,6 +1,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+from honeycomb_studio.contracts import QualityReport
 from honeycomb_studio.engine import Engine, LicenseUnavailable
 from honeycomb_studio.estimates import predict
 from honeycomb_studio.models import BatchSpec, ModelSpec
@@ -101,6 +102,7 @@ def test_backup_failure_cannot_turn_success_into_solver_failure(tmp_path, monkey
         "solver_completed": True,
         "maximum_energy_balance_drift_percent": 0.1,
         "artificial_energy_over_max_internal_percent": 1,
+        "contact_force_check_max_relative_percent": 0.1,
     }
     monkeypatch.setattr("honeycomb_studio.engine.history_summary", lambda *args, **kwargs: (summary, []))
     monkeypatch.setattr(
@@ -162,4 +164,7 @@ def test_native_smoke_scope_applies_before_reports_viewer_and_completion_event(t
     completed = next(e for e in events if e["type"] == "completed")
     assert completed["quality"]["ml_eligible"] is False
     assert completed["quality"]["physical_validation"] == "environment_smoke_only"
+    QualityReport.model_validate(completed["quality"])
+    QualityReport.model_validate(store.get("runs", run["id"])["quality"])
+    QualityReport.model_validate(json.loads((path / "extracted/quality.json").read_text(encoding="utf-8")))
     store.db.close()

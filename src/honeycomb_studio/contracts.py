@@ -53,7 +53,9 @@ class ArtifactManifest(Document):
 class QualityReport(Document):
     solver_completed: bool
     numerical_quality: Literal["passed", "review"]
-    physical_validation: Literal["not_established", "established", "test_solver"] = "not_established"
+    physical_validation: Literal[
+        "not_established", "established", "test_solver", "environment_smoke_only"
+    ] = "not_established"
     findings: list[str] = Field(default_factory=list)
     thresholds: dict[str, float] = Field(default_factory=dict)
     ml_eligible: bool = False

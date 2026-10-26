@@ -30,3 +30,5 @@ Summary gốc có drift năng lượng khoảng 0,081%, ALLAEmax/ALLIEmax khoả
 7. Đối chiếu nhiều mức năng lượng và dữ liệu thí nghiệm độc lập trước khi gắn nhãn physical validation.
 
 Chỉ đánh dấu preset hội tụ khi có kết quả đạt tiêu chí đã công bố. Lưới nhanh không được tự coi tương đương lưới tham chiếu. Những thiết kế ngoài miền nghiên cứu ban đầu phải kiểm tra lại tính phù hợp của mô hình vật liệu và failure mechanisms.
+
+Các phép kiểm tra energy drift, artificial energy và đối chiếu lực phải có giá trị hữu hạn để kết quả đủ điều kiện ML. Thiếu phép kiểm tra (kể cả không xuất field lực để đối chiếu) hoặc giá trị NaN/Infinity chuyển chất lượng số sang `review`, ghi rõ chỉ số còn thiếu và đặt `ml_eligible=false`. Ngưỡng 1% / 5% / 2% giữ nguyên. Với kết quả đã lưu trước thay đổi này, cần hậu xử lý lại để áp dụng kiểm tra mới; bản sửa không tự thay đổi thư viện dữ liệu cũ.

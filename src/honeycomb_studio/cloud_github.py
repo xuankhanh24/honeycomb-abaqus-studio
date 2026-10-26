@@ -119,8 +119,12 @@ class Catalog:
                 if updated == value:
                     return updated
                 self.write(key, updated, sha)
-                if key.startswith("jobs/") and (value or {}).get("status") != updated.get("status"):
+                if key.startswith("jobs/") and any(
+                    (value or {}).get(k) != updated.get(k) for k in ("status", "workflow_run_id")
+                ):
                     row = {k: updated[k] for k in ("id", "name", "status", "profile")}
+                    if updated.get("workflow_run_id"):
+                        row["workflow_run_id"] = updated["workflow_run_id"]
 
                     def index(old):
                         rows = (old or {}).get("jobs", [])

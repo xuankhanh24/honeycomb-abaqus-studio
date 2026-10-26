@@ -26,6 +26,8 @@ command = [
     name,
     "--label",
     "honeycomb.impact=true",
+    "--label",
+    "honeycomb.actions=true",
     "--network",
     "honeycomb-impact",
     "--user",

@@ -249,6 +249,33 @@ def create_app(github: Github | None = None) -> FastAPI:
     def jobs():
         return {"jobs": catalog.jobs()}
 
+    @app.get("/api/activity")
+    def activity():
+        """Read-only observation; a development run never claims a saved draft."""
+        workflows = {
+            ".github/workflows/linux-impact-7j.yml": "Thử nghiệm native 7 J",
+            ".github/workflows/verify-native-parallel.yml": "Thử nghiệm native song song",
+            ".github/workflows/abaqus-linux.yml": "Job cloud",
+        }
+        try:
+            runs = []
+            for state in ("in_progress", "queued"):
+                result = github.repo("GET", f"/actions/runs?status={state}&per_page=30")
+                for run in result.get("workflow_runs", []):
+                    path = run.get("path", "").split("@", 1)[0]
+                    identity = run.get("id")
+                    if path not in workflows or type(identity) is not int or identity <= 0:
+                        continue
+                    runs.append({
+                        "id": identity, "name": run.get("display_title") or run.get("name"),
+                        "scope": workflows[path], "status": run.get("status"),
+                        "started_at": run.get("run_started_at"),
+                        "url": f"https://github.com/{REPOSITORY}/actions/runs/{identity}",
+                    })
+            return {"available": True, "runs": runs}
+        except (httpx.HTTPError, ValueError, KeyError):
+            return {"available": False, "runs": []}
+
     @app.get("/api/jobs/{identity}")
     def job(identity: str):
         if not JOB_ID.fullmatch(identity):

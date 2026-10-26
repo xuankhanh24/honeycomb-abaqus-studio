@@ -13,6 +13,7 @@ from pathlib import Path
 
 from publication import prepare
 
+from honeycomb_studio.actions_log import get_actions_log
 from honeycomb_studio.cloud_archive import ALLOWED, ReleaseArchive
 from honeycomb_studio.cloud_github import Github
 from honeycomb_studio.data import manifest
@@ -160,17 +161,22 @@ def main(parallel_smoke=False):
             current = all_runs[0]
             phase = current["status"]
             progress = current.get("progress", {})
-            print(
-                json.dumps(
-                    {
-                        "phase": phase,
-                        "elapsed_minutes": round((time.monotonic() - started) / 60, 2),
-                        "progress": progress,
-                    },
-                    default=str,
-                ),
-                flush=True,
-            )
+            logger = get_actions_log()
+            if logger:
+                logger.runs(all_runs, scope="trình gọi Docker (không phải RAM solver)")
+                logger.resources(output, containers=True)
+            else:
+                print(
+                    json.dumps(
+                        {
+                            "phase": phase,
+                            "elapsed_minutes": round((time.monotonic() - started) / 60, 2),
+                            "progress": progress,
+                        },
+                        default=str,
+                    ),
+                    flush=True,
+                )
             if all(r["status"] in ("completed", "review", "failed", "interrupted") for r in all_runs):
                 receipt.update(
                     status=phase,
@@ -203,6 +209,9 @@ def main(parallel_smoke=False):
             time.sleep(10 if parallel_smoke else 45)
     except Exception as exc:
         receipt["error"] = str(exc).replace(endpoint, "<private-endpoint>").replace(host, "<private-host>")
+        logger = get_actions_log()
+        if logger:
+            logger.failure(exc, "Native acceptance", "artifact: logs/checking.log, logs/solving.log")
         raise
     finally:
         if engine is not None:
@@ -241,6 +250,9 @@ def main(parallel_smoke=False):
         shutil.copyfile(output / "impact-receipt.json", "output/impact-receipt.json")
 
     if receipt.get("status") not in ("completed", "review"):
+        logger = get_actions_log()
+        if logger:
+            logger.failure(receipt.get("error") or "Solver không hoàn tất", receipt.get("status"), "artifact: impact-receipt.json và logs của attempt")
         raise RuntimeError("Impact acceptance did not finish; real diagnostics retained")
 
 

@@ -1,0 +1,41 @@
+name: Actions log acceptance and preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - src/honeycomb_studio/actions_log.py
+      - scripts/actions_step.py
+      - scripts/preview_actions_log.py
+      - tests/test_actions_log.py
+      - tests/test_actions_activity.py
+      - .github/workflows/log-preview.yml
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - name: '01 - Environment setup with elapsed time and process heartbeat'
+        env:
+          HONEYCOMB_ACTIONS_LOG: '1'
+        run: python3 scripts/actions_step.py --title "Prepare Python environment" --details output/actions-logs/environment.log -- uv sync --locked --extra cloud
+      - name: '02 - Redaction, percentages, failure handling and web link tests'
+        run: uv run --locked pytest tests/test_actions_log.py tests/test_actions_activity.py -q
+      - name: '03 - Real HTTP loopback transfer and labelled progress preview'
+        env:
+          HONEYCOMB_ACTIONS_LOG: '1'
+        run: uv run --locked python scripts/preview_actions_log.py
+      - name: '04 - Preserve redacted detail logs and structured events'
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: actions-log-preview-${{ github.run_id }}
+          path: output/actions-logs/**
+          if-no-files-found: error
+          retention-days: 14

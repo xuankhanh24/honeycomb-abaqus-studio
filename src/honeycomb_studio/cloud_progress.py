@@ -3,6 +3,8 @@
 import threading
 import time
 
+from .actions_log import get_actions_log, runs_markdown
+
 
 def execution_deadline(workflow_started_epoch, *, wall_time=None, monotonic_time=None):
     """Reserve 45 minutes for archival within the entire 330-minute job."""
@@ -52,6 +54,10 @@ class Progress:
                 if (job or {}).get("cancel_requested"):
                     self.stop_solver()
                 runs = self.store.list("runs", self.batch_id)
+                logger = get_actions_log()
+                if logger:
+                    logger.runs(runs)
+                    logger.resources()
                 active = [r for r in runs if r["status"] not in ("completed", "review", "failed", "queued")]
                 phase = ", ".join(sorted({r["status"] for r in active})) if active else "waiting"
                 if phase != previous:
@@ -64,7 +70,7 @@ class Progress:
                         "output": {
                             "title": "Phase: " + phase,
                             "summary": f"{len(active)} active runs. Progress is observed, not predicted.",
-                            "text": str([{ "id": r["id"], "phase": r["status"], "progress": r.get("progress", {})} for r in active])[:10000],
+                            "text": runs_markdown(runs)[:10000],
                         }
                     },
                 )

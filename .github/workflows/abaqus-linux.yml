@@ -13,6 +13,8 @@ permissions:
 concurrency:
   group: honeycomb-licensed-solver
   cancel-in-progress: false
+env:
+  HONEYCOMB_ACTIONS_LOG: '1'
 jobs:
   prepare:
     if: github.ref == 'refs/heads/main'
@@ -76,7 +78,7 @@ jobs:
       - name: Verify private license network before installing
         run: uv run --locked --extra cloud python scripts/check_license_network.py
       - name: Install checksum-pinned Linux runtime
-        run: uv run --locked --extra cloud python scripts/prepare_cloud_runtime.py
+        run: python3 scripts/actions_step.py --title "Install checksum-pinned runtime" --details output/actions-logs/runtime.log -- uv run --locked --extra cloud python scripts/prepare_cloud_runtime.py
       - name: Run real solver and preserve research outputs
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -91,6 +93,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
           path: |
+            output/actions-logs/**
             output/*.json
             ${{ runner.temp }}/honeycomb-results/**/requested-input.json
             ${{ runner.temp }}/honeycomb-results/**/resolved-input.json

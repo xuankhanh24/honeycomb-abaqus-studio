@@ -7,6 +7,8 @@ permissions:
 concurrency:
   group: honeycomb-licensed-solver
   cancel-in-progress: false
+env:
+  HONEYCOMB_ACTIONS_LOG: '1'
 jobs:
   install:
     runs-on: ubuntu-22.04
@@ -19,30 +21,18 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
-      - run: uv sync --locked --extra cloud
+      - name: Prepare Python environment
+        run: python3 scripts/actions_step.py --title "Cai moi truong Python" --details output/actions-logs/python.log -- uv sync --locked --extra cloud
       - name: Preflight native acceptance input before media preparation
         run: uv run --locked --extra cloud pytest tests/test_native_smoke_spec.py -q
       - name: Prepare archive readers and isolated compatible Linux image
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y unrar p7zip-full
-          docker build --build-arg MODEL_UID=$(id -u) -t honeycomb-install-probe scripts/linux_media
-      - name: Download and inventory candidate
-        run: python3 scripts/inspect_linux_media.py
-      - name: Verify pinned ISO and run unmodified installer without network or license
-        run: |
-          media="$RUNNER_TEMP/abaqus-media-inspection/iso/DS.SIMULIA.Suite.2020.Linux64_Softgozar.com.iso"
-          echo "d0b227290b5f62ea826b08c18bde222417817fc0d04b91abb0072cb52ebe43ad  $media" | sha256sum -c -
-          mkdir -p "$RUNNER_TEMP/abaqus-mount" output/install-probe
-          sudo chown 1000:1000 output/install-probe
-          sudo mount -o loop,ro "$media" "$RUNNER_TEMP/abaqus-mount"
-          docker volume create honeycomb-install
-          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
-            --pids-limit 512 --memory 8g \
-            --mount "type=bind,source=$RUNNER_TEMP/abaqus-mount,target=/media,readonly" \
-            --mount "type=bind,source=$PWD/output/install-probe,target=/results" \
-            --mount type=volume,source=honeycomb-install,target=/opt \
-            honeycomb-install-probe
+          python3 scripts/actions_step.py --title "Cai cong cu doc media" --details output/actions-logs/packages.log -- bash -c 'sudo apt-get update -qq && sudo apt-get install -y unrar p7zip-full'
+          python3 scripts/actions_step.py --title "Dung moi truong Linux" --details output/actions-logs/image.log -- docker build --build-arg MODEL_UID=$(id -u) -t honeycomb-install-probe scripts/linux_media
+      - name: '02 - Download media: bytes, speed, ETA'
+        run: python3 scripts/actions_step.py --title "Download va kiem ke media" --details output/actions-logs/download.log -- python3 scripts/inspect_linux_media.py
+      - name: '03 - Verify ISO and install isolated Abaqus'
+        run: python3 scripts/actions_step.py --title "Xac minh ISO va cai Abaqus" --details output/actions-logs/install.log -- bash scripts/linux_media/install_runtime.sh
       - uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
@@ -63,6 +53,7 @@ jobs:
         with:
           name: linux-parallel-angle-smoke-${{ github.run_id }}
           path: |
+            output/actions-logs/**
             output/media-inspection/inspection.json
             output/install-probe/*.json
             output/install-probe/*.log

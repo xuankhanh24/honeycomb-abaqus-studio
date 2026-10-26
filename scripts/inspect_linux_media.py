@@ -11,9 +11,13 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 import urllib.request
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from honeycomb_studio.actions_log import get_actions_log
 
 BASE = "https://dl1.softgozar.com/Files/Software/DS_SIMULIA_Suite_2020_Linux64_Softgozar.com.part"
 SIZES = [2147483648] * 4 + [1211173011]
@@ -26,6 +30,8 @@ def download(index, directory):
     digest = hashlib.sha256()
     count = 0
     started = last = time.monotonic()
+    logger = get_actions_log()
+    transfer = logger.transfer(f"Download media {index + 1}/5", SIZES[index]) if logger else None
     with urllib.request.urlopen(url, timeout=90) as response, path.open("xb") as stream:
         if response.status != 200:
             raise ValueError("Expected a complete archive volume")
@@ -35,11 +41,15 @@ def download(index, directory):
                 raise ValueError("Archive volume exceeds its observed Content-Length")
             stream.write(block)
             digest.update(block)
-            if time.monotonic() - last > 30:
+            if transfer:
+                transfer.advance(len(block))
+            elif time.monotonic() - last > 30:
                 print(f"part {index + 1}: {count}/{SIZES[index]} bytes", flush=True)
                 last = time.monotonic()
     if count != SIZES[index]:
         raise ValueError("Truncated archive volume")
+    if transfer:
+        transfer.report("Kích thước đủ · đã tính SHA-256; chờ đối chiếu ISO đã ghim", force=True)
     print(f"part {index + 1}: downloaded and hashed", flush=True)
     return {"url": url, "bytes": count, "sha256": digest.hexdigest(), "seconds": time.monotonic() - started}
 
@@ -63,6 +73,7 @@ def main():
         "github_run_id": os.environ["GITHUB_RUN_ID"],
     }
     try:
+        get_actions_log()  # Initialize before parallel downloads.
         before = shutil.disk_usage(root)
         report["disk_before"] = {"total": before.total, "free": before.free}
         if before.free < sum(SIZES) + ISO_LIMIT + 4 * 1024**3:

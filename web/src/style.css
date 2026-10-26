@@ -206,6 +206,17 @@ main {
     align-items: center;
     margin-bottom: 25px;
 }
+.actions-activity {
+    padding: 16px 0 20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #dbe1e8;
+}
+.actions-activity h3 { margin: 0 0 12px; }
+.activity-run { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 12px 0; }
+.activity-run p { margin: 4px 0 0; color: #566678; overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+    .activity-run { align-items: flex-start; flex-direction: column; }
+}
 h1 {
     font-size: 28px;
     letter-spacing: -0.025em;

@@ -98,6 +98,9 @@ def restore(manifest: dict, root: Path, *, client=None, allow_incomplete=False):
         with httpx.Client(timeout=120, follow_redirects=True) as transport:
             return restore(manifest, root, client=transport, allow_incomplete=allow_incomplete)
     validate_manifest(manifest, allow_incomplete=allow_incomplete)
+    from .actions_log import get_actions_log
+
+    logger = get_actions_log()
     root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     # Validate all destinations before the first transfer.
@@ -134,6 +137,7 @@ def restore(manifest: dict, root: Path, *, client=None, allow_incomplete=False):
                 stream.seek(part["offset"])
                 stream.truncate()
                 digest, count = hashlib.sha256(), 0
+                transfer = logger.transfer("Download " + file["path"] + f" part {part['index']}", part["bytes"]) if logger else None
                 with client.stream("GET", part["url"]) as response:
                     response.raise_for_status()
                     for block in response.iter_bytes(65536):
@@ -142,9 +146,13 @@ def restore(manifest: dict, root: Path, *, client=None, allow_incomplete=False):
                             raise ValueError("Downloaded part exceeds its declared size")
                         stream.write(block)
                         digest.update(block)
+                        if transfer:
+                            transfer.advance(len(block))
                 stream.flush()
                 if count != part["bytes"] or digest.hexdigest() != part["sha256"]:
                     raise ValueError("Downloaded part failed SHA-256/size verification")
+                if transfer:
+                    transfer.verified()
             stream.truncate(file["bytes"])
             stream.seek(0)
             if hashlib.file_digest(stream, "sha256").hexdigest() != file["sha256"]:

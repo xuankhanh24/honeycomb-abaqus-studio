@@ -5,9 +5,13 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tarfile
 import urllib.request
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from honeycomb_studio.actions_log import get_actions_log
 
 
 def main():
@@ -37,15 +41,22 @@ def main():
     media = work / "media.tar.gz"
     total = 0
     digest = hashlib.sha256()
+    logger = get_actions_log()
     with urllib.request.urlopen(url, timeout=60) as source, media.open("wb") as dest:
+        declared = source.headers.get("Content-Length")
+        transfer = logger.transfer("Download runtime", int(declared) if declared else None) if logger else None
         while chunk := source.read(4 * 1024**2):
             total += len(chunk)
             if total > budgets["download"]:
                 raise SystemExit("Installer download exceeded the declared budget")
             dest.write(chunk)
             digest.update(chunk)
+            if transfer:
+                transfer.advance(len(chunk))
     if digest.hexdigest() != os.environ["ABAQUS_LINUX_BUNDLE_SHA256"].lower():
         raise SystemExit("Installer SHA-256 mismatch; no installer was executed")
+    if transfer:
+        transfer.verified()
     target = work / "media"
     with tarfile.open(media) as archive:
         members = archive.getmembers()

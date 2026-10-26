@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import { decodeHistory } from "./history-data";
 import BatchSweep from "./BatchSweep";
 import { updateAngleInput } from "./angle-input";
+import { actionRunUrl } from "./action-links";
 import {
     Box,
     SlidersHorizontal,
@@ -154,6 +155,7 @@ export default function App() {
         [busy, setBusy] = useState(false),
         [preview, setPreview] = useState<Doc | null>(null),
         [jobs, setJobs] = useState<Doc[]>([]),
+        [activity, setActivity] = useState<Doc>({ runs: [], available: null }),
         [selected, setSelected] = useState<Doc | null>(null),
         [profile, setProfile] = useState("research"),
         [json, setJson] = useState(""),
@@ -166,6 +168,7 @@ export default function App() {
         selectedId.current = selected?.id ?? null;
     }, [selected]);
     async function refresh() {
+        void api("/api/activity").then(setActivity).catch(() => setActivity({ runs: [], available: false }));
         try {
             const [s, u, j] = await Promise.all([
                 api("/api/status"),
@@ -199,12 +202,12 @@ export default function App() {
             .catch(() => {});
     }, []);
     useEffect(() => {
-        const active = jobs.some((j) =>
+        const active = activity.runs.length > 0 || jobs.some((j) =>
             ["running", "dispatching", "preflight"].includes(j.status),
         );
         const timer = setInterval(() => void refresh(), active ? 15000 : 60000);
         return () => clearInterval(timer);
-    }, [jobs]);
+    }, [jobs, activity.runs.length]);
     useEffect(() => {
         if (!spec) return;
         const abort = new AbortController();
@@ -868,6 +871,25 @@ export default function App() {
                                 <h2>Danh sách bài</h2>
                                 <span>{jobs.length} bài đã lưu</span>
                             </div>
+                            <section className="actions-activity" aria-label="Theo dõi GitHub Actions">
+                                <h3>Actions đang chạy</h3>
+                                {activity.runs.map((run: Doc) => (
+                                    <div className="activity-run" key={run.id}>
+                                        <div>
+                                            <strong>{run.scope}</strong>
+                                            <p>{run.name} · #{run.id} · {run.status === "queued" ? "Đang chờ runner" : "Đang chạy"}</p>
+                                        </div>
+                                        <a className="button" href={actionRunUrl(run.id) ?? undefined} target="_blank" rel="noopener noreferrer">
+                                            Theo dõi trên GitHub Actions <ExternalLink size={14} />
+                                        </a>
+                                    </div>
+                                ))}
+                                {!activity.runs.length && <p>{activity.available === false
+                                    ? "Chưa lấy được trạng thái Actions. Mở GitHub để kiểm tra lượt chạy mới nhất."
+                                    : activity.available === null ? "Đang lấy trạng thái Actions…" : "Hiện không có lượt mô phỏng đang chạy."}</p>}
+                                <p className="hint">Lượt thử nghiệm native được theo dõi riêng; trạng thái bài đã lưu vẫn giữ nguyên.</p>
+                                <a href={`${repo}/actions`} target="_blank" rel="noopener noreferrer">Xem tất cả lượt chạy <ExternalLink size={14} /></a>
+                            </section>
                             {jobs.length ? (
                                 <div className="table-scroll">
                                     <table>
@@ -876,6 +898,7 @@ export default function App() {
                                                 <th>Tên bài</th>
                                                 <th>Profile</th>
                                                 <th>Trạng thái</th>
+                                                <th>GitHub Actions</th>
                                                 <th>Chi tiết</th>
                                             </tr>
                                         </thead>
@@ -885,6 +908,7 @@ export default function App() {
                                                     <td>{j.name}</td>
                                                     <td>{j.profile}</td>
                                                     <td>{j.status}</td>
+                                                    <td>{actionRunUrl(j.workflow_run_id) ? <a href={actionRunUrl(j.workflow_run_id)!} target="_blank" rel="noopener noreferrer">Theo dõi #{j.workflow_run_id} <ExternalLink size={14} /></a> : "Chưa có lượt chạy"}</td>
                                                     <td>
                                                         <button
                                                             onClick={() =>
@@ -928,6 +952,7 @@ export default function App() {
                                         {selected.profile}
                                     </p>
                                     <div className="actions">
+                                        {actionRunUrl(selected.workflow_run_id) && <a className="button" href={actionRunUrl(selected.workflow_run_id)!} target="_blank" rel="noopener noreferrer">Theo dõi trên GitHub Actions <ExternalLink size={14} /></a>}
                                         <button
                                             className="primary"
                                             disabled={

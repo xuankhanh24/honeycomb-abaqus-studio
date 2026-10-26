@@ -57,6 +57,14 @@ def main():
             jobs = response.json()["jobs"]
             assert isinstance(jobs, list)
             passed("Real management catalog is readable", jobs=len(jobs))
+            response = client.get("/api/activity")
+            response.raise_for_status()
+            activity = response.json()
+            assert activity["available"] is True
+            for run in activity["runs"]:
+                assert run["url"] == f"https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/{run['id']}"
+                assert run["status"] in ("queued", "in_progress")
+            passed("Live Actions API exposes owned run links without claiming drafts", run_ids=[r["id"] for r in activity["runs"]])
             response = client.get("/api/template")
             response.raise_for_status()
             template = response.json()["spec"]
@@ -166,12 +174,27 @@ def main():
                 page.get_by_role("button", name="Công việc", exact=True).click()
                 expect(page.get_by_role("heading", name="Danh sách bài", exact=True)).to_be_visible()
                 expect(page.locator("main tbody tr")).to_have_count(len(jobs))
+                expect(page.get_by_role("heading", name="Actions đang chạy", exact=True)).to_be_visible()
+                page.wait_for_load_state("networkidle")
+                links = page.locator(".activity-run a")
+                observed_links = []
+                for link in links.all():
+                    href = link.get_attribute("href")
+                    assert re.fullmatch(r"https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/[1-9][0-9]*", href or "")
+                    assert link.get_attribute("target") == "_blank"
+                    observed_links.append(href)
+                passed("Management web renders direct live Actions links", urls=observed_links)
                 if jobs:
                     with page.expect_response(lambda r: "/api/jobs/" in r.url) as detail:
                         page.get_by_role("button", name="Mở bài", exact=True).first.click()
                     assert detail.value.status == 200
                     expect(page.locator(".job-detail")).to_be_visible()
                 page.screenshot(path=str(out / "management-catalog.png"), full_page=True)
+                page.set_viewport_size({"width": 390, "height": 844})
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+                page.screenshot(path=str(out / "management-actions-mobile.png"), full_page=True)
+                passed("Management Actions links fit the mobile viewport")
+                page.set_viewport_size({"width": 1440, "height": 1000})
                 passed("Real management job list and existing job detail", jobs=len(jobs))
                 page.get_by_role("button", name="Dữ liệu", exact=True).click()
                 expect(page.get_by_role("heading", name="Kết quả mô phỏng", exact=True)).to_be_visible()

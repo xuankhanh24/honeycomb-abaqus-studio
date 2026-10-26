@@ -92,6 +92,9 @@ class ReleaseArchive:
                 time.sleep(2 ** retry)
 
     def _upload(self, path: Path, name: str):
+        from .actions_log import get_actions_log
+
+        logger = get_actions_log()
         assets = self.github.repo("GET", f"/releases/{self.release_id}/assets?per_page=100")
         page = 2
         while len(assets) == (page - 1) * 100:
@@ -106,6 +109,8 @@ class ReleaseArchive:
             if asset["name"] == name:
                 if asset.get("digest") != expected or asset["size"] != path.stat().st_size:
                     raise ValueError("An existing release asset failed digest verification")
+                if logger and asset["size"] >= 1024**2:
+                    logger.emit("CACHE", f"{name} | Đã có trên GitHub, SHA-256/kích thước khớp; không upload lại")
                 return {
                     "url": asset["browser_download_url"],
                     "digest": expected,
@@ -124,18 +129,32 @@ class ReleaseArchive:
         }
         from .cloud_github import REPOSITORY
 
-        with path.open("rb") as stream:
-            response = self.github.client.post(
-                f"https://uploads.github.com/repos/{REPOSITORY}/releases/{self.release_id}/assets",
-                params={"name": name},
-                headers=headers,
-                content=stream,
-                timeout=300,
-            )
-        response.raise_for_status()
-        asset = response.json()
-        if asset.get("digest") != expected or asset["size"] != path.stat().st_size:
-            raise ValueError("GitHub did not confirm the uploaded asset SHA-256 and size")
+        transfer = logger.transfer("Upload " + getattr(self, "_upload_label", name), path.stat().st_size) if logger else None
+        def chunks(stream):
+            for block in iter(lambda: stream.read(4 * 1024**2), b""):
+                if transfer:
+                    transfer.advance(len(block))
+                yield block
+
+        try:
+            with path.open("rb") as stream:
+                response = self.github.client.post(
+                    f"https://uploads.github.com/repos/{REPOSITORY}/releases/{self.release_id}/assets",
+                    params={"name": name},
+                    headers=headers,
+                    content=chunks(stream) if transfer else stream,
+                    timeout=300,
+                )
+            response.raise_for_status()
+            asset = response.json()
+            if asset.get("digest") != expected or asset["size"] != path.stat().st_size:
+                raise ValueError("GitHub did not confirm the uploaded asset SHA-256 and size")
+            if transfer:
+                transfer.verified()
+        except Exception as exc:
+            if transfer:
+                transfer.failed(exc)
+            raise
         return {
             "url": asset["browser_download_url"],
             "digest": expected,
@@ -175,6 +194,7 @@ class ReleaseArchive:
                     "sha256": hashlib.sha256(b"").hexdigest(),
                 }
                 for part in parts(path, Path(temp), self.limit):
+                    self._upload_label = f"{relative.as_posix()} · part {part['index'] + 1}"
                     uploaded = self.upload(part["path"], f"{attempt}-{part['sha256']}.part")
                     record["parts"].append(
                         {k: part[k] for k in ("index", "offset", "bytes", "sha256")} | uploaded
@@ -207,5 +227,11 @@ class ReleaseArchive:
             path = Path(temp) / "artifact-manifest.json"
             path.write_text(json.dumps(manifest, indent=2, ensure_ascii=True), encoding="utf-8")
             suffix = f"checkpoint-{checkpoint}-" if checkpoint else ""
+            self._upload_label = "artifact-manifest.json"
             self.upload(path, f"{attempt}-{suffix}artifact-manifest.json")
+            from .actions_log import get_actions_log
+
+            logger = get_actions_log()
+            if logger:
+                logger.emit("ARCHIVE", f"Manifest đã xuất | {len(files)} tệp logic | complete={complete} | checksum từng part đã xác minh")
         return manifest

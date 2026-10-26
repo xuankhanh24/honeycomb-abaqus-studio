@@ -14,6 +14,7 @@ for name in (
     "cloud_github.py",
     "cloud_api.py",
     "cloud_runtime.py",
+    "runtime-evidence.json",
     "adapters/reentrant.py",
     "adapters/hexagonal.py",
 ):

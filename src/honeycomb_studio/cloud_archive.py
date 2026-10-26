@@ -5,7 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
+import time
 from pathlib import Path
+
+import httpx
 
 from .cloud_github import Github
 
@@ -26,6 +29,7 @@ ALLOWED = {
     ".msg",
     ".log",
     ".txt",
+    ".tar",
 }
 
 
@@ -73,6 +77,20 @@ class ReleaseArchive:
         self.limit = limit
 
     def upload(self, path: Path, name: str):
+        # A lost upload response may have left a complete asset on GitHub. Each
+        # retry inventories and verifies it before attempting another upload.
+        for retry in range(3):
+            try:
+                return self._upload(path, name)
+            except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+                transient = not isinstance(exc, httpx.HTTPStatusError) or (
+                    exc.response.status_code == 429 or exc.response.status_code >= 500
+                )
+                if not transient or retry == 2:
+                    raise
+                time.sleep(2 ** retry)
+
+    def _upload(self, path: Path, name: str):
         assets = self.github.repo("GET", f"/releases/{self.release_id}/assets?per_page=100")
         page = 2
         while len(assets) == (page - 1) * 100:
@@ -111,6 +129,7 @@ class ReleaseArchive:
                 params={"name": name},
                 headers=headers,
                 content=stream,
+                timeout=300,
             )
         response.raise_for_status()
         asset = response.json()
@@ -124,6 +143,16 @@ class ReleaseArchive:
         }
 
     def publish(self, root: Path, *, attempt: str, complete: bool, checkpoint: str | None = None):
+        from .cloud_publication import prepare
+
+        # Same filesystem: large solver binaries are hard-linked, never copied.
+        # Thousands of tiny reduction records become one lossless tar volume.
+        with tempfile.TemporaryDirectory(prefix="honeycomb-publication-", dir=root.resolve().parent) as temp:
+            prepared = Path(temp)
+            prepare(root.resolve(), prepared)
+            return self._publish(prepared, attempt=attempt, complete=complete, checkpoint=checkpoint)
+
+    def _publish(self, root: Path, *, attempt: str, complete: bool, checkpoint: str | None = None):
         files = []
         root = root.resolve()
         with tempfile.TemporaryDirectory(prefix="honeycomb-upload-") as temp:

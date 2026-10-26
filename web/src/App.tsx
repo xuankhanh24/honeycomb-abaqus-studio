@@ -233,7 +233,12 @@ export default function App() {
                     );
                 return r.text();
             })
-            .then((text) => {
+            .then(async (text) => {
+                const bytes = new TextEncoder().encode(text);
+                const hash = await crypto.subtle.digest("SHA-256", bytes);
+                const checksum = Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("");
+                if (checksum !== references[reference].sha256)
+                    throw new Error("Checksum history không khớp; chưa hiển thị dữ liệu.");
                 if (abort.signal.aborted) return;
                 const lines = text.trim().split(/\r?\n/),
                     keys = lines.shift()!.split(",");
@@ -1006,20 +1011,20 @@ export default function App() {
                     {tab === "data" && (
                         <section className="sheet">
                             <div className="sheet-title">
-                                <h2>Kết quả tham chiếu</h2>
+                                <h2>Kết quả mô phỏng</h2>
                                 <span className="tag">
-                                    Dữ liệu thật · Windows
+                                    Dữ liệu thật · Linux và Windows
                                 </span>
                             </div>
                             <p className="measure">
-                                Các bài 7 J dưới đây dùng ngàm ngoài lỗ tròn.
-                                Chúng là tham chiếu cũ, chưa chứng minh kết quả
-                                của ngàm bốn cạnh hoặc Ubuntu.
+                                Bài Linux dùng ngàm bốn cạnh. Các bài Windows cũ dùng
+                                ngàm ngoài lỗ tròn; chưa thể dùng chúng để kết luận
+                                ảnh hưởng riêng của hệ điều hành hay phiên bản solver.
                             </p>
                             {references.length ? (
                                 <>
                                     <label className="field">
-                                        <span>Bài tham chiếu</span>
+                                        <span>Bộ kết quả</span>
                                         <select
                                             value={reference}
                                             onChange={(e) => {
@@ -1036,6 +1041,12 @@ export default function App() {
                                             ))}
                                         </select>
                                     </label>
+                                    <p className="measure">
+                                        {references[reference]?.platform} · Ngàm{" "}
+                                        {references[reference]?.clamp_mode === "perimeter" ? "bốn cạnh" : "ngoài lỗ tròn"}
+                                        {references[reference]?.status === "review" &&
+                                            " · Cần xem xét: cuối 6 ms vẫn còn tiếp xúc 311 N; chưa đủ điều kiện huấn luyện."}
+                                    </p>
                                     <div className="chart">
                                         {!curve.length && (
                                             <p role="status">
@@ -1100,6 +1111,16 @@ export default function App() {
                                         nghiệm thu tương đương thực nghiệm.
                                     </p>
                                     <div className="actions">
+                                        {references[reference]?.report && (
+                                            <a className="button" href={references[reference].report.url} target="_blank" rel="noreferrer">
+                                                Báo cáo PDF
+                                            </a>
+                                        )}
+                                        {references[reference]?.release_url && (
+                                            <a className="button" href={references[reference].release_url} target="_blank" rel="noreferrer">
+                                                CAE / INP / ODB và dữ liệu gốc
+                                            </a>
+                                        )}
                                         <a
                                             className="button"
                                             href={references[reference].history}
@@ -1173,6 +1194,14 @@ export default function App() {
                     {tab === "setup" && (
                         <section className="sheet">
                             <h2>Trạng thái nghiệm thu</h2>
+                            {status.technical_evidence?.solver_success && (
+                                <p className="measure">
+                                    Đã chạy smoke và bài va chạm 7 J / 6 ms trên Linux,
+                                    checkout CAE/Explicit và mở ODB thành công. Bài va chạm
+                                    cần xem xét do cuối step vẫn còn tiếp xúc.{" "}
+                                    <a href={status.technical_evidence.impact_url}>Xem lượt chạy thật</a>
+                                </p>
+                            )}
                             {status.gates.map((g: Doc) => (
                                 <div className="setup-row" key={g.status}>
                                     <code>{g.status}</code>

@@ -1,0 +1,30 @@
+name: Verify real impact readable Drive backup
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backup:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - name: Read durable result inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download linux-impact-7j-40206764997 -p impact-artifact-manifest.json -D output
+      - name: Restore and back up measured tables and reports
+        env:
+          HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
+        run: uv run --locked --extra cloud python scripts/backup_impact_release.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: impact-drive-verification-${{ github.run_id }}
+          path: output/impact-drive-verification.json
+          retention-days: 30

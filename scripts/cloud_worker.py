@@ -183,11 +183,6 @@ def run(args):
                     complete=result_status in ("completed", "review"),
                 )
                 catalog.update(key, lambda old: {**old, "status": result_status, "archive_verified": True})
-                if store:
-                    backup = backup_readable(
-                        store, batch["id"], Path(os.environ["RUNNER_TEMP"]) / "private-drive"
-                    )
-                    catalog.update(key, lambda old: {**old, "drive_backup": backup})
             except Exception:
                 catalog.update(
                     key,
@@ -199,7 +194,16 @@ def run(args):
                     },
                 )
                 raise
-
+            # Secondary backup and status-update failure cannot invalidate the
+            # already verified primary archive.
+            if store:
+                backup = backup_readable(
+                    store, batch["id"], Path(os.environ["RUNNER_TEMP"]) / "private-drive"
+                )
+                try:
+                    catalog.update(key, lambda old: {**old, "drive_backup": backup})
+                except Exception:
+                    write_json(args.root / "drive-backup-status.json", backup)
         if store:
             store.db.close()
 

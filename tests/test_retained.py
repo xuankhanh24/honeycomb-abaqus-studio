@@ -55,6 +55,23 @@ def test_backup_without_eligible_samples_keeps_reports_and_explains_empty_traini
     assert (root / "reports/batch-report.pdf").exists()
 
 
+def test_review_histories_and_settings_survive_without_becoming_training_samples(tmp_path):
+    store = Store(tmp_path / "data")
+    batch = store.create(BatchSpec())
+    run = store.list("runs", batch["id"])[0]
+    attempt = Path(run["path"]) / "attempts/001"
+    history = b"time_s,ALLPD_J\n0.006,5.98\n"
+    (attempt / "extracted").mkdir(parents=True)
+    (attempt / "extracted/impact_history.csv").write_bytes(history)
+    run.update(status="review", quality={"ml_eligible": False},
+               attempts=[{"number": 1, "path": str(attempt)}])
+    store.save("runs", run)
+    root = prepare_readable(store, batch["id"], "bk0000000000000009")
+    assert (root / "run-data" / run["id"] / "attempt-001/extracted/impact_history.csv").read_bytes() == history
+    assert (root / "run-data" / run["id"] / "requested-input.json").exists()
+    assert json.loads((root / "training/dataset.json").read_text(encoding="utf-8"))["samples"] == 0
+
+
 def test_partial_readable_failure_is_not_verified_and_resume_never_reuploads_archive(tmp_path, monkeypatch):
     store, batch, _ = study(tmp_path)
     identity = "bk0000000000000003"

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "release": "Abaqus 2020",
+  "host": "Ubuntu 22.04",
+  "userspace": "CentOS 7",
+  "python": "2.7.15",
+  "smoke_url": "https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40203978647",
+  "impact_url": "https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40206764997",
+  "release_url": "https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/linux-impact-7j-40206764997",
+  "solver_success": true,
+  "odb_reopened": true,
+  "cae_checkout": true,
+  "explicit_checkout": true,
+  "impact_energy_J": 7,
+  "duration_ms": 6,
+  "quality_status": "review",
+  "end_contact_force_N": 311.04495078125,
+  "production_runtime_qualified": false,
+  "media_publisher_authenticity_verified": false,
+  "license_entitlement_verified": false,
+  "full_workload_platform_policy_verified": false
+}

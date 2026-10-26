@@ -83,6 +83,26 @@ def prepare_readable(store, bid, identity, run_id=None):
     batch_report(portable, runs)
     batch_report(portable, runs, format="docx")
     for run in runs:
+        # Review/failed runs still retain measured histories and settings; only
+        # the separate training selection excludes unaccepted samples.
+        provenance = root / "run-data" / run["id"]
+        for name in ("requested-input.json", "resolved-input.json", "requested-input.csv", "resolved-input.csv"):
+            source = Path(run["path"]) / name
+            if source.is_file():
+                provenance.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, provenance / name)
+        for attempt in run.get("attempts", []):
+            source = Path(attempt["path"])
+            for relative in (
+                "raw/model_manifest.json", "actual-input.csv", "extracted/summary.json",
+                "extracted/quality.json", "extracted/impact_history.csv",
+                "extracted/impact_history.parquet", "solver-complete.json",
+            ):
+                file = source / relative
+                if file.is_file():
+                    dest = provenance / f"attempt-{attempt['number']:03d}" / relative
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(file, dest)
         directories = [("status", Path(run["path"]) / "reports")]
         directories += [
             (f"attempt-{a['number']:03d}", Path(a["path"]) / "reports") for a in run.get("attempts", [])

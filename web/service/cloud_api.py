@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from .cloud_github import JOB_ID, REPOSITORY, Catalog, Github
-from .cloud_runtime import qualification
+from .cloud_runtime import qualification, technical_evidence
 from .models import BatchSpec, ModelSpec, catalogue, digest, expand
 
 OWNER_ID = 273490538
@@ -111,6 +111,7 @@ def create_app(github: Github | None = None) -> FastAPI:
     def status():
         return {
             "gates": gates(),
+            "technical_evidence": technical_evidence(),
             "github_app_connected": github.configured,
             "license_source": "FlexNet trên máy của chủ dự án, qua mạng riêng",
             "max_runs": 10,

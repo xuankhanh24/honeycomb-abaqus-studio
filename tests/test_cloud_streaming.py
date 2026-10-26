@@ -147,13 +147,19 @@ def test_archived_receipts_survive_extraction_retry_directory_rename(tmp_path):
     assert proof["original_parquet_checksums_verified"] == 3
 
 
-def test_unpack_rejects_traversal_and_symlinks_before_writing(tmp_path):
+@pytest.mark.parametrize("kind", ["traversal", "symlink"])
+def test_unpack_rejects_traversal_and_symlinks_before_writing(tmp_path, kind):
     import io
 
     with tarfile.open(tmp_path / "field-reductions.tar", "w") as bundle:
-        member = tarfile.TarInfo("../escape.json")
-        member.size = 2
-        bundle.addfile(member, io.BytesIO(b"{}"))
-    with pytest.raises(ValueError, match="path"):
+        member = tarfile.TarInfo("../escape.json" if kind == "traversal" else "fields/escape.parquet")
+        if kind == "symlink":
+            member.type = tarfile.SYMTYPE
+            member.linkname = "../escape.json"
+            bundle.addfile(member)
+        else:
+            member.size = 2
+            bundle.addfile(member, io.BytesIO(b"{}"))
+    with pytest.raises(ValueError):
         unpack_fields(tmp_path)
     assert not (tmp_path.parent / "escape.json").exists()

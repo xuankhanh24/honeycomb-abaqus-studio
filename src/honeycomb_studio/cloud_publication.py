@@ -36,13 +36,13 @@ def prepare(source: Path, target: Path):
             for path, relative in reductions:
                 bundle.add(path, arcname=relative.as_posix(), recursive=False)
     (target / "RESTORE-README.txt").write_text(
-        "Restore release parts using scripts/restore_cloud_archive.py. Then, if present, "
-        "extract field-reductions.tar into the restored root with Python 3.12+ "
-        "tarfile.extractall(path=restored_root, filter='data'). It preserves the original "
-        "relative paths and bytes of every reduced-field JSON. Original CAE/INP/ODB "
-        "and numerical exports are unchanged. Also unpack streamed-fields/*.tar into "
-        "the same restored root to recover original full Parquet paths; use "
-        "scripts/restore_cloud_archive.py --unpack-fields for exclusive, verified extraction. "
+        "Restore using: uv run python scripts/restore_cloud_archive.py "
+        "artifact-manifest.json restored-results --unpack-fields. The flag safely "
+        "unpacks field-reductions.tar and streamed-fields/*.tar, verifies original "
+        "Parquet checksums and links the immutable payloads back to their original "
+        "field paths, including historical extraction generations. Metadata alone "
+        "does not replace the full-field volumes. Original CAE/INP/ODB and numerical "
+        "exports are unchanged. Existing different files are never overwritten. "
         "Attempt artifact-manifest.json files "
         "refer to the fully restored tree. Research quality remains separate from "
         "transport completeness.\n"

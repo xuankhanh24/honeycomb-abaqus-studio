@@ -15,6 +15,8 @@ def unpack_fields(root):
     volumes = [root / "field-reductions.tar", *sorted((root / "streamed-fields").glob("*.tar"))]
     count = 0
     for volume in volumes:
+        if volume.is_symlink():
+            raise ValueError("Field volume is a symlink")
         if not volume.is_file():
             continue
         with tarfile.open(volume, "r") as bundle:
@@ -22,7 +24,7 @@ def unpack_fields(root):
             names = set()
             for member in members:
                 destination(root, member.name)
-                if (not member.isfile() or member.size > 1024**3 or
+                if (not member.isfile() or not 0 <= member.size <= 1024**3 or
                         member.name.casefold() in names or not member.name.endswith((".json", ".parquet"))):
                     raise ValueError("Unsafe or duplicate field volume member")
                 names.add(member.name.casefold())
@@ -56,8 +58,13 @@ def unpack_fields(root):
     verified = 0
     for receipt in root.glob("**/remote-fields/*.json"):
         item = json.loads(receipt.read_text(encoding="utf-8"))
+        if item.get("kind") != "honeycomb-remote-field" or item.get("verified_upload") is not True:
+            raise ValueError("Unverified remote field receipt")
         payload = destination(root, item["storage_path"])
         target = destination(receipt.parent.parent, item["parquet"]["path"])
+        if (not payload.is_relative_to(root / "streamed-parquet") or
+                not target.is_relative_to(receipt.parent.parent / "fields") or target.suffix != ".parquet"):
+            raise ValueError("Remote field receipt escaped its storage namespace")
         with payload.open("rb") as stream:
             if (payload.stat().st_size != item["parquet"]["bytes"] or
                     hashlib.file_digest(stream, "sha256").hexdigest() != item["parquet"]["sha256"]):

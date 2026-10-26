@@ -23,7 +23,7 @@ accepted for production**. A successful solver checkout does not establish entit
 | Numerical quality thresholds | Passed for measured trial | Drift 0.00287%, artificial energy 0.541%, force cross-check 0.00000534%; thresholds remain 1% / 5% / 2% |
 | Physical acceptance / matched old reference | Review / pending | Contact still 311 N at 6 ms. Old Windows reference uses a different clamp; no matched-condition equivalence claimed. Original physical duration remains unchanged |
 | Native loss-of-license/resource/timeout/cancel matrix | Partial | Software failure-injection tests exist. Full native cloud matrix remains unaccepted |
-| Full-profile rolling export/upload with eviction | Partial | Bounded NPZ-to-Parquet conversion and bounded archive parts exist; Parquet is not evicted incrementally during extraction. Full profile must not be described as fully optimized/accepted |
+| Full-profile rolling export/upload with eviction | Implemented; storage accepted on native sample | [Rolling fields](ROLLING_FIELDS.md): bounded NPZ/Parquet/volume path, upload verified before eviction, exact original-path restore. Real GitHub acceptance used 85,394 existing native rows; complete Linux Full simulation acceptance remains pending |
 | Native restart across runners | Disabled | Optional feature; no unsupported restart or physical-time splitting |
 
 ## Review of this completion pass
@@ -37,7 +37,7 @@ two issues; no additional new scope violation was reported. Review was against
 pre-pass revision `ce025d9`; subsequent fixes include exact-byte history parsing,
 source preservation and the real large-ODB recovery test.
 
-Software checks: 118 Python tests passed on Windows; Ubuntu passes the matching
+Software checks before the rolling extension: 118 Python tests passed on Windows; Ubuntu passed the matching
 suite with the platform-specific skip. Frontend has 5 passing data tests, TypeScript
 and production build. The final CI run links and production observation receipt
 are retained alongside this ledger. These checks do not certify physical or

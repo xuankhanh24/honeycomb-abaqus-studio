@@ -1,0 +1,20 @@
+{
+  "kind": "rolling-native-parquet-acceptance",
+  "workflow_run_id": "40264518098",
+  "solver_executed": false,
+  "new_native_full_profile_run": false,
+  "source": "Windows Abaqus 2017 hexagonal 7 J circular-clamp reference",
+  "complete_source_field_dataset": false,
+  "source_fixture_sha256": "b2ddacb8783678d57bf63d6fb96679368f24b3a19afb9b06f20986c20cdcdd56",
+  "parquet_files_verified": 6,
+  "source_rows_verified": 85394,
+  "volumes": 5,
+  "volume_limit_bytes": 440084,
+  "local_parquet_evicted_after_verified_upload": true,
+  "all_original_parquet_sha256_restored": true,
+  "restore": {
+    "members_restored_or_reused": 12,
+    "original_parquet_checksums_verified": 6
+  },
+  "release_url": "https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/rolling-native-fields-40264518098"
+}

@@ -24,6 +24,7 @@ type Geometry = {
     walls: [number[], number[], boolean][];
 };
 function number(value: unknown, digits = 3) {
+    if (value === null || value === undefined || value === "") return "Chưa có";
     const n = Number(value);
     return Number.isFinite(n) ? n.toFixed(digits) : "Chưa có";
 }
@@ -1165,6 +1166,24 @@ export default function App() {
                                     </button>
                                 </p>
                             )}
+                            <section className="parameter-group">
+                                <h3>So sánh chỉ số đã ghi</h3>
+                                <p className="hint">Các hàng có điều kiện ngàm và phiên bản solver khác nhau.
+                                    Bảng dùng để xem dữ liệu; chưa xác lập ảnh hưởng riêng của hướng lõi.</p>
+                                <div style={{overflowX: "auto"}}>
+                                    <table>
+                                        <thead><tr><th>Bài</th><th>Ngàm</th><th>Lực đỉnh (N)</th>
+                                            <th>ALLPD cuối (J)</th><th>Dịch chuyển bi lớn nhất (mm)</th></tr></thead>
+                                        <tbody>{references.map(row => <tr key={row.id}>
+                                            <td>{row.name}{row.status === "review" ? " · review" : ""}</td>
+                                            <td>{row.clamp_mode === "perimeter" ? "Bốn cạnh" : "Ngoài lỗ tròn"}</td>
+                                            <td>{number(row.summary?.peak_raw_contact_force_N, 1)}</td>
+                                            <td>{number(row.summary?.plastic_dissipation_J ?? row.summary?.final_total_plastic_dissipation_J)}</td>
+                                            <td>{number(row.summary?.max_impactor_displacement_mm)}</td>
+                                        </tr>)}</tbody>
+                                    </table>
+                                </div>
+                            </section>
                             <section className="parameter-group">
                                 <h3>Dữ liệu cloud</h3>
                                 <p>

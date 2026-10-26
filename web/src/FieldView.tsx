@@ -322,8 +322,9 @@ export default function FieldView({
                         {data.sampling.original_shell_elements.toLocaleString(
                             "vi-VN",
                         )}{" "}
-                        phần tử vỏ. Bản giảm mẫu để hiển thị; ODB và Parquet giữ
-                        dữ liệu số đầy đủ.
+                        phần tử vỏ. Bản giảm mẫu để hiển thị; ODB giữ các trường
+                        gốc. Profile Research xuất history và thống kê; chỉ Full
+                        xuất toàn bộ trường đã ghi sang Parquet.
                     </p>
                     <div className="field-controls">
                         <label className="field">

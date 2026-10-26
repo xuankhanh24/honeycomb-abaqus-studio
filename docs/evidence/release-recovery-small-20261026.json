@@ -1,0 +1,13 @@
+{
+  "kind": "cross-runner-release-upload-recovery",
+  "workflow_run_id": "40257574179",
+  "release_id": 423794295,
+  "solver_executed": false,
+  "partial_upload_before_interruption": 1,
+  "existing_asset_id_reused": 676721623,
+  "complete_manifest_after_recovery": true,
+  "all_files_restored_and_verified": 2,
+  "report_sha256": "01c388c3774bc94b9e2f90be4953e9114163a3985d2ab401fcf33da68f95bf53",
+  "test_part_size_bytes": 262144,
+  "large_odb_upload_recovery_qualified": false
+}

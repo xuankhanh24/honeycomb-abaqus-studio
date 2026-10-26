@@ -1,5 +1,16 @@
 # Cloud implementation: measured status
 
+## Current acceptance — 26 October 2026
+
+See [the acceptance ledger](PLAN_ACCEPTANCE.md) for the current requirement-by-requirement
+state; older dated sections below are historical. Real Linux results are available
+on the deployed web with verified history/field assets, PDF and original-data links.
+Cloud Drive readable backup of the actual 7 J run passed. Interrupted publication
+of the original 2.099 GB ODB resumed on a different runner, reused the acknowledged
+1 GiB part and restored the exact original SHA-256. Production runtime entitlement,
+media authenticity, full-workload policy, matched physical validation, native failure
+matrix and full-profile rolling export acceptance remain open.
+
 ## Repository and real Ubuntu evidence
 
 The existing repository `xuankhanh24/honeycomb-abaqus-studio` is public. No separate source or data repository was created.

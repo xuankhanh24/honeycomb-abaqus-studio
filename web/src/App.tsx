@@ -288,6 +288,21 @@ export default function App() {
             setBusy(false);
         }
     }
+    const startDisabled = !session.owner || !!status.gates.length || !selected || selected.status !== "draft" || busy;
+    const startReason = !session.owner
+        ? "Bạn chưa đăng nhập quản trị. Đăng nhập tài khoản chủ dự án để lưu bài và yêu cầu chạy."
+        : status.gates.length
+          ? "Luồng chạy từ web đang bị khóa bởi các điều kiện bên dưới."
+          : !selected
+            ? "Chọn Mở bài trong danh sách bên dưới để chọn mô hình cần chạy."
+            : selected.status !== "draft"
+              ? "Bài này đã được gửi hoặc đã kết thúc. Tạo một bài mới từ Thiết lập để chạy lượt khác."
+              : busy ? "Đang xử lý thao tác trước…" : "Bài đã sẵn sàng để gửi sang GitHub Actions.";
+    async function startSelectedJob() {
+        if (startDisabled || !selected) return;
+        await api(`/api/jobs/${selected.id}/dispatch`, {}, session.csrf);
+        await refresh();
+    }
     const model = spec?.model ?? {};
     const previewKeys = [...new Set([
         ...(spec?.axes ?? []).map((axis: Doc) => axis.parameter),
@@ -664,7 +679,9 @@ export default function App() {
                                             >
                                                 Lưu bài
                                             </button>
+                                            <button onClick={() => setTab("jobs")}>Đến bước chạy</button>
                                         </div>
+                                        <p className="hint">Cách chạy: đăng nhập quản trị → kiểm tra đầu vào → Lưu bài → chọn Chạy mô phỏng trong Công việc.</p>
                                         {!session.owner && (
                                             <p className="hint">
                                                 Mọi người có thể kiểm tra input.
@@ -871,6 +888,23 @@ export default function App() {
                                 <h2>Danh sách bài</h2>
                                 <span>{jobs.length} bài đã lưu</span>
                             </div>
+                            <section className="run-start" aria-labelledby="run-start-title">
+                                <h3 id="run-start-title">Bắt đầu mô phỏng từ web</h3>
+                                <p>Đăng nhập quản trị, lưu bài trong Thiết lập, rồi chọn <strong>Mở bài</strong> bên dưới. Nút chạy sẽ gửi bài đã chọn sang GitHub Actions khi đủ điều kiện.</p>
+                                <p>Bài đang chọn: <strong>{selected?.name ?? "Chưa chọn bài"}</strong></p>
+                                <div className="actions">
+                                    <button className="primary" disabled={startDisabled} aria-describedby="run-start-reason" title={startReason} onClick={() => void act(startSelectedJob)}>Chạy mô phỏng</button>
+                                    {!session.owner && <button onClick={() => session.login_available ? location.assign("/auth/login") : setTab("setup")}>Đăng nhập để chạy</button>}
+                                    <button onClick={() => setTab("model")}>Thiết lập và lưu bài</button>
+                                    <button onClick={() => setTab("setup")}>Xem điều kiện chạy</button>
+                                </div>
+                                <p id="run-start-reason" className="hint">{startReason}</p>
+                                {!!status.gates.length && <details className="run-blockers">
+                                    <summary>Chạy từ web chưa sẵn sàng · {status.gates.length} điều kiện cần hoàn tất</summary>
+                                    <ul>{status.gates.map((gate: Doc) => <li key={gate.status}>{gate.message}</li>)}</ul>
+                                    <p>Đây là điều kiện của backend. Các workflow thử nghiệm được mở riêng trên GitHub; chúng không tự mở quyền chạy production từ web.</p>
+                                </details>}
+                            </section>
                             <section className="actions-activity" aria-label="Theo dõi GitHub Actions">
                                 <h3>Actions đang chạy</h3>
                                 {activity.runs.map((run: Doc) => (
@@ -955,24 +989,12 @@ export default function App() {
                                         {actionRunUrl(selected.workflow_run_id) && <a className="button" href={actionRunUrl(selected.workflow_run_id)!} target="_blank" rel="noopener noreferrer">Theo dõi trên GitHub Actions <ExternalLink size={14} /></a>}
                                         <button
                                             className="primary"
-                                            disabled={
-                                                !session.owner ||
-                                                !!status.gates.length ||
-                                                selected.status !== "draft" ||
-                                                busy
-                                            }
-                                            onClick={() =>
-                                                void act(async () => {
-                                                    await api(
-                                                        `/api/jobs/${selected.id}/dispatch`,
-                                                        {},
-                                                        session.csrf,
-                                                    );
-                                                    await refresh();
-                                                })
-                                            }
+                                            disabled={startDisabled}
+                                            aria-describedby="run-start-reason"
+                                            title={startReason}
+                                            onClick={() => void act(startSelectedJob)}
                                         >
-                                            Chạy trên Ubuntu
+                                            Bắt đầu chạy bài này
                                         </button>
                                         <button
                                             disabled={

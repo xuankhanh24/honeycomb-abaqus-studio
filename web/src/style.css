@@ -211,6 +211,15 @@ main {
     margin-bottom: 20px;
     border-bottom: 1px solid #dbe1e8;
 }
+.run-start {
+    padding: 0 0 20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+}
+.run-start h3 { margin: 0 0 8px; }
+.run-start > p, .run-blockers { max-width: 75ch; }
+.run-blockers summary { color: var(--blue); cursor: pointer; }
+.run-blockers li + li { margin-top: 8px; }
 .actions-activity h3 { margin: 0 0 12px; }
 .activity-run { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 12px 0; }
 .activity-run p { margin: 4px 0 0; color: #566678; overflow-wrap: anywhere; }

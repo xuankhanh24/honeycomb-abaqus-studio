@@ -52,6 +52,9 @@ def main():
             response = client.get("/api/session")
             response.raise_for_status()
             assert response.json()["owner"] is False
+            response = client.get("/api/status")
+            response.raise_for_status()
+            run_gates = response.json()["gates"]
             response = client.get("/api/jobs")
             response.raise_for_status()
             jobs = response.json()["jobs"]
@@ -173,6 +176,17 @@ def main():
                 page.set_viewport_size({"width": 1440, "height": 1000})
                 page.get_by_role("button", name="Công việc", exact=True).click()
                 expect(page.get_by_role("heading", name="Danh sách bài", exact=True)).to_be_visible()
+                expect(page.get_by_role("heading", name="Bắt đầu mô phỏng từ web", exact=True)).to_be_visible()
+                expect(page.get_by_role("button", name="Chạy mô phỏng", exact=True)).to_be_visible()
+                expect(page.get_by_role("button", name="Chạy mô phỏng", exact=True)).to_be_disabled()
+                expect(page.get_by_role("button", name="Đăng nhập để chạy", exact=True)).to_be_visible()
+                expect(page.locator("#run-start-reason")).to_contain_text("Bạn chưa đăng nhập quản trị")
+                if run_gates:
+                    page.locator(".run-blockers summary").click()
+                    expect(page.locator(".run-blockers")).to_contain_text("điều kiện của backend")
+                    for gate in run_gates:
+                        expect(page.locator(".run-blockers")).to_contain_text(gate["message"])
+                passed("Run action is visible with login guidance and actual backend blockers")
                 expect(page.locator("main tbody tr")).to_have_count(len(jobs))
                 expect(page.get_by_role("heading", name="Actions đang chạy", exact=True)).to_be_visible()
                 page.wait_for_load_state("networkidle")

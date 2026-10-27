@@ -3,6 +3,7 @@ import { decodeHistory } from "./history-data";
 import BatchSweep from "./BatchSweep";
 import { updateAngleInput } from "./angle-input";
 import { actionRunUrl } from "./action-links";
+import ResultBoundary from "./ResultBoundary";
 import {
     Box,
     SlidersHorizontal,
@@ -1069,7 +1070,7 @@ export default function App() {
                                             lưu vẫn được giữ.
                                         </p>
                                     )}
-                                    <Suspense
+                                    <ResultBoundary><Suspense
                                         fallback={<p>Đang mở bộ xem trường…</p>}
                                     >
                                         {selected.runs?.map(
@@ -1085,7 +1086,7 @@ export default function App() {
                                                     />
                                                 ),
                                         )}
-                                    </Suspense>
+                                    </Suspense></ResultBoundary>
                                     <details>
                                         <summary>
                                             Input, nguồn gốc và trạng thái đầy
@@ -1145,7 +1146,7 @@ export default function App() {
                                                 chọn…
                                             </p>
                                         )}
-                                        <Suspense
+                                        <ResultBoundary><Suspense
                                             fallback={
                                                 <p role="status">
                                                     Đang nạp biểu đồ…
@@ -1153,7 +1154,7 @@ export default function App() {
                                             }
                                         >
                                             <HistoryChart curve={curve} />
-                                        </Suspense>
+                                        </Suspense></ResultBoundary>
                                     </div>
                                     <dl className="result-facts">
                                         <div>
@@ -1243,7 +1244,7 @@ export default function App() {
                                             )}
                                         </pre>
                                     </details>
-                                    <Suspense
+                                    <ResultBoundary><Suspense
                                         fallback={<p>Đang mở bộ xem trường…</p>}
                                     >
                                         <FieldView
@@ -1257,7 +1258,7 @@ export default function App() {
                                                     ?.sha256
                                             }
                                         />
-                                    </Suspense>
+                                    </Suspense></ResultBoundary>
                                 </>
                             ) : (
                                 <p>

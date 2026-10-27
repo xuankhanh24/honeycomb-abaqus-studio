@@ -16,6 +16,26 @@ def technical_evidence():
         return {}
 
 
+def execution_runtime():
+    """The owner-requested observed native runtime, distinct from certification.
+
+    Installation hashes and network/solver checks still run on every runner.
+    No production qualification or license entitlement is inferred here.
+    """
+    data = technical_evidence()
+    required = ("solver_success", "odb_reopened", "cae_checkout", "explicit_checkout")
+    if not all(data.get(key) is True for key in required):
+        return {}, [{"status": "blocked_environment", "message": "Chưa có lượt thử Linux hoàn tất solver và mở lại ODB."}]
+    return {
+        "mode": "native_container", "release": "2020", "python": data["python"],
+        "installer_sha256": "d0b227290b5f62ea826b08c18bde222417817fc0d04b91abb0072cb52ebe43ad",
+        "production_runtime_qualified": False,
+        "media_publisher_authenticity_verified": data.get("media_publisher_authenticity_verified", False),
+        "license_entitlement_verified": data.get("license_entitlement_verified", False),
+        "evidence_url": data["smoke_url"],
+    }, []
+
+
 def qualification(path=None):
     path = Path(path) if path else Path(__file__).with_name("runtime-lock.json")
     reasons = []

@@ -124,6 +124,11 @@ def test_owner_csrf_idempotency_and_qualification(monkeypatch):
     class Connected:
         configured = True
 
+        def repo(self, method, path, body):
+            assert method == "POST"
+            assert path == "/actions/workflows/abaqus-linux.yml/dispatches"
+            assert body == {"ref": "main", "inputs": {"job_id": "b" * 32}}
+
     monkeypatch.setattr(cloud_api, "Catalog", Memory)
     monkeypatch.setenv("WEB_SESSION_SECRET", "test-secret-only")
     monkeypatch.setenv("WEB_LOCAL_HTTP", "1")
@@ -139,9 +144,26 @@ def test_owner_csrf_idempotency_and_qualification(monkeypatch):
         assert client.post("/api/jobs", json=body, headers=headers).json() == first.json()
         body["spec"]["name"] = "Changed payload"
         assert client.post("/api/jobs", json=body, headers=headers).status_code == 409
+        dispatched = client.post("/api/jobs/" + "b" * 32 + "/dispatch", json={}, headers=headers)
+        assert dispatched.status_code == 200
+        assert dispatched.json()["status"] == "dispatching"
         assert client.post("/api/jobs/" + "b" * 32 + "/dispatch", json={}, headers=headers).status_code == 409
         assert client.post("/api/jobs/" + "b" * 32 + "/cancel", json={}, headers=headers).status_code == 200
         assert client.get("/api/jobs/" + "b" * 32).json()["cancel_requested"] is True
+
+
+def test_native_execution_does_not_fabricate_official_qualification(monkeypatch):
+    from honeycomb_studio import cloud_runtime
+
+    with TestClient(create_app()) as client:
+        status = client.get("/api/status").json()
+        assert status["gates"] == []
+        assert status["execution_runtime"]["mode"] == "native_container"
+        assert status["execution_runtime"]["production_runtime_qualified"] is False
+        assert status["qualified_linux_solver"] is False
+        assert status["qualification_gates"]
+    monkeypatch.setattr(cloud_runtime, "technical_evidence", lambda: {"solver_success": True})
+    assert cloud_runtime.execution_runtime()[1][0]["status"] == "blocked_environment"
 
 
 def test_local_deadline_stops_solver_when_github_is_unreachable(tmp_path):

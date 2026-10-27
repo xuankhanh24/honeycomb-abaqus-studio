@@ -1,4 +1,5 @@
-name: Licensed Linux research run
+name: Mô phỏng bài đã chọn từ web
+run-name: Bài ${{ inputs.job_id }} · mô phỏng Linux từ web
 on:
   workflow_dispatch:
     inputs:
@@ -30,10 +31,17 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v10.3.0
       - run: uv sync --locked --extra cloud
-      - name: Kiểm tra điều kiện nghiệm thu trước khi nhận bài
+      - name: Kiểm tra môi trường dùng chung với lượt thử Linux
         env:
-          PLATFORM_POLICY_EVIDENCE_URL: ${{ vars.PLATFORM_POLICY_EVIDENCE_URL }}
-        run: uv run --locked --extra cloud python -c 'from pathlib import Path; from scripts.cloud_worker import require_qualification; require_qualification(Path.cwd())'
+          MEDIA_ID: ${{ vars.ABAQUS_MEDIA_DRIVE_FILE_ID }}
+          DRIVE: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
+          LICENSE: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
+          VENDOR: ${{ secrets.ABAQUS_VENDOR_PORT }}
+          TAILSCALE_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TAILSCALE_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+        run: |
+          uv run --locked --extra cloud python -c 'import os; missing=[k for k in ("MEDIA_ID", "DRIVE", "LICENSE", "VENDOR", "TAILSCALE_ID", "TAILSCALE_AUDIENCE") if not os.getenv(k)]; assert not missing, "Thiếu cấu hình: " + ", ".join(missing)'
+          uv run --locked --extra cloud python -c 'from pathlib import Path; from scripts.cloud_worker import require_qualification; require_qualification(Path.cwd())'
       - name: Nhận bài và bố trí một mô hình cho mỗi máy chạy
         id: matrix
         env:
@@ -51,12 +59,9 @@ jobs:
     timeout-minutes: 330
     env:
       CLOUD_JOB_ID: ${{ inputs.job_id }}
-      PLATFORM_POLICY_EVIDENCE_URL: ${{ vars.PLATFORM_POLICY_EVIDENCE_URL }}
-      ABAQUS_LINUX_BUNDLE_URL: ${{ secrets.ABAQUS_LINUX_BUNDLE_URL }}
-      ABAQUS_LINUX_BUNDLE_SHA256: ${{ vars.ABAQUS_LINUX_BUNDLE_SHA256 }}
+      ABAQUS_MEDIA_DRIVE_FILE_ID: ${{ vars.ABAQUS_MEDIA_DRIVE_FILE_ID }}
       ABAQUS_LICENSE_ENDPOINT: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
       ABAQUS_VENDOR_PORT: ${{ secrets.ABAQUS_VENDOR_PORT }}
-      ABAQUS_DISK_BUDGET_JSON: ${{ vars.ABAQUS_DISK_BUDGET_JSON }}
     steps:
       - name: Bắt đầu tính ngân sách thời gian toàn bộ công việc
         run: echo "HONEYCOMB_WORKFLOW_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
@@ -67,7 +72,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked --extra cloud
-      - name: Kiểm tra môi trường đã nghiệm thu trước khi cài đặt
+      - name: Kiểm tra môi trường Linux dùng chung trước khi cài đặt
         run: |
           uv run --locked --extra cloud python -c 'from pathlib import Path; from scripts.cloud_worker import require_qualification; require_qualification(Path.cwd())'
       - name: Kết nối riêng tới máy chủ cấp phép Abaqus
@@ -78,14 +83,22 @@ jobs:
           tags: tag:honeycomb-runner
       - name: Kiểm tra kết nối máy chủ cấp phép trước khi cài đặt
         run: uv run --locked --extra cloud python scripts/check_license_network.py
-      - name: Cài môi trường Linux và kiểm tra SHA-256
-        run: python3 scripts/actions_step.py --title "Cài môi trường Abaqus đã ghim SHA-256" --details output/actions-logs/runtime.log -- uv run --locked --extra cloud python scripts/prepare_cloud_runtime.py
+      - name: Cài công cụ và dựng môi trường tương thích Abaqus
+        run: |
+          python3 scripts/actions_step.py --title "Cài công cụ giải nén" --details output/actions-logs/packages.log -- bash -c 'sudo apt-get update -qq && sudo apt-get install -y unrar p7zip-full'
+          python3 scripts/actions_step.py --title "Dựng môi trường Linux" --details output/actions-logs/image.log -- docker build --build-arg MODEL_UID=$(id -u) -t honeycomb-install-probe scripts/linux_media
+      - name: Tải bộ cài từ Drive riêng · dung lượng, tốc độ, tiến độ
+        env:
+          HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
+        run: uv run --locked python scripts/actions_step.py --title "Tải ISO từ kho Drive" --details output/actions-logs/download.log -- uv run --locked python scripts/prepare_linux_media.py
+      - name: Kiểm tra SHA-256 và cài Abaqus trong môi trường cách ly
+        run: python3 scripts/actions_step.py --title "Kiểm tra và cài Abaqus" --details output/actions-logs/install.log -- bash scripts/linux_media/install_runtime.sh
       - name: Chạy mô phỏng thật và giữ dữ liệu nghiên cứu
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
           CLOUD_CHILD_ID: ${{ matrix.child_id }}
-        run: uv run --locked --extra cloud python scripts/cloud_worker.py --parent-id "$CLOUD_JOB_ID" --job-id "$CLOUD_CHILD_ID" --abaqus /opt/SIMULIA/Commands/abaqus --root "$RUNNER_TEMP/honeycomb-results"
+        run: uv run --locked --extra cloud python scripts/native_cloud_worker.py --parent-id "$CLOUD_JOB_ID" --job-id "$CLOUD_CHILD_ID" --root "$RUNNER_TEMP/honeycomb-results"
       - name: Giữ log chẩn đoán khi bị gián đoạn
         if: always()
         uses: actions/upload-artifact@v7.0.2
@@ -96,6 +109,8 @@ jobs:
           path: |
             output/actions-logs/**
             output/*.json
+            output/install-probe/*.json
+            output/install-probe/*.log
             ${{ runner.temp }}/honeycomb-results/**/requested-input.json
             ${{ runner.temp }}/honeycomb-results/**/resolved-input.json
             ${{ runner.temp }}/honeycomb-results/**/logs/*.log

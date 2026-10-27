@@ -5,8 +5,8 @@
   "estimates.py": "91614ae0758dc9ad253b55fd25d12c046d5de8961f17389d7b92b694edf44db1",
   "cloud_github.py": "c951ecfe83e8c01e1661bd443ad77ef2ae6805af45ad76b49b63ee81d3644bba",
   "cloud_matrix.py": "b7db9a84250dcc5eaede85b2c3cdf7ce8200f05f7aaaf7fafa828b353f129b71",
-  "cloud_api.py": "7bb16d39e1b34dea44f66c9641c4593b265ad1774643925023e2aab2adec3a6a",
-  "cloud_runtime.py": "2fe4878c20236726d36fffc81188b7c3f3e8a4a5eeaa9ee8127d67107b356e48",
+  "cloud_api.py": "0913c329b9cb2f4e322245bea5ef6535c051393fa6e14ee13d335aaab800b840",
+  "cloud_runtime.py": "bff7276bb79c22503c803055494dd1d4a7210e0795d16b50a7b103da637a946c",
   "runtime-evidence.json": "52616cd698b6162bd107ed5a7b2d94fe50ef18f92e8c3ae76f5def89ea9e7473",
   "adapters/reentrant.py": "ff008f42cbd0d08de9080d1df3b80a662ccb0af36a5e4de4aae3b76a335c51ae",
   "adapters/hexagonal.py": "d7378e2bdb363b4c245a2dc9f6fbba40c4c86815ba59338c19a8539ba1db7e26"

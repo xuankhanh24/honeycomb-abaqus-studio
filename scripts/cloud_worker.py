@@ -13,7 +13,7 @@ from honeycomb_studio.cloud_drive import backup_readable
 from honeycomb_studio.cloud_github import JOB_ID, Catalog, Github
 from honeycomb_studio.cloud_matrix import ShardCatalog
 from honeycomb_studio.cloud_progress import Progress, execution_deadline
-from honeycomb_studio.cloud_runtime import qualification
+from honeycomb_studio.cloud_runtime import execution_runtime
 from honeycomb_studio.cloud_streaming import RollingFields
 from honeycomb_studio.engine import Engine
 from honeycomb_studio.models import BatchSpec, digest, expand
@@ -21,7 +21,7 @@ from honeycomb_studio.store import Store, write_json
 
 
 def require_qualification(root: Path):
-    data, reasons = qualification(root / "runtime-lock.json")
+    data, reasons = execution_runtime()
     if reasons:
         raise RuntimeError("; ".join(r["status"] + ": " + r["message"] for r in reasons))
     return data
@@ -61,8 +61,10 @@ def run(args):
         runtime = require_qualification(Path.cwd())
         if not args.abaqus.is_file() or os.name == "nt":
             raise RuntimeError("blocked_environment: a Linux Abaqus executable is required")
+        args.root.mkdir(parents=True, exist_ok=True)
         actual_release = subprocess.run(
-            [str(args.abaqus), "information=release"], capture_output=True, text=True, timeout=60
+            [str(args.abaqus), "information=release"], cwd=args.root,
+            capture_output=True, text=True, timeout=60
         )
         if actual_release.returncode or runtime["release"] not in actual_release.stdout:
             raise RuntimeError("blocked_environment: installed Abaqus does not match runtime lock")
@@ -93,7 +95,10 @@ def run(args):
         progress.start(os.environ["GITHUB_SHA"])
         write_json(args.root / "runtime-lock.json", runtime)
         write_json(args.root / "cloud-request.json", job)
-        release = github.repo(
+        release = github.repo("PATCH", f"/releases/{job['reserved_release_id']}", {
+            "draft": False,
+            "body": "Owner-requested native Linux run. Runtime certification remains unverified; inspect actual quality and archive manifests.",
+        }) if job.get("reserved_release_id") else github.repo(
             "POST",
             "/releases",
             {

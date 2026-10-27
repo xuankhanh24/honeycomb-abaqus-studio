@@ -1,3 +1,18 @@
+## Web dispatch synchronized with native Linux trials — 27 October 2026
+
+The owner-requested web run now uses the existing private Drive ISO, pinned SHA-256,
+CentOS 7 container recipe and Tailscale FlexNet connection, through `abaqus-linux.yml`.
+It does not use the previously unconfigured `ABAQUS_LINUX_BUNDLE_URL` installation path.
+Each selected catalog design is claimed as a matrix shard, with a reserved source tag
+and release before installation, and reported back to its parent job. Authentication,
+CSRF, input hashing, duplicate dispatch prevention and graceful cancellation remain enforced.
+
+`/api/status.gates` reports execution blockers; `qualification_gates` separately retains
+formal production requirements. `qualified_linux_solver` remains false. This is the
+owner-requested experimental environment, not a statement of publisher media authenticity,
+license entitlement or scientific validation. Each runner checks the actual two-port
+network, ISO SHA-256 and installed release; an actual failed checkout remains a failure.
+
 # Web and licensed Linux worker
 
 The public web is a React/TypeScript extension of Honeycomb Studio. Vercel hosts static assets and lightweight FastAPI routes. The service imports shared input contracts and geometry, never Engine, SQLite, Abaqus, pyarrow or a background solver. `scripts/sync_web_service.py` generates its deployable service snapshot; tests compare it with LF-normalized canonical source.

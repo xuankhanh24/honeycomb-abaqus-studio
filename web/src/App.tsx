@@ -860,6 +860,7 @@ export default function App() {
                                 </section>
                                 <section className="readiness">
                                     <h2>Điều kiện chạy cloud</h2>
+                                    {!status.gates.length && <p>Môi trường Linux thử nghiệm đã sẵn sàng nhận bài. Máy cấp license cần bật và kết nối Tailscale.</p>}
                                     {status.gates.map((g: Doc) => (
                                         <div className="gate" key={g.status}>
                                             <span className="status-dot" />
@@ -890,6 +891,7 @@ export default function App() {
                             </div>
                             <section className="run-start" aria-labelledby="run-start-title">
                                 <h3 id="run-start-title">Bắt đầu mô phỏng từ web</h3>
+                                {status.execution_runtime?.mode === "native_container" && <p className="hint">Dùng môi trường Linux đã chạy thử thành công, bộ cài trên Drive và license từ máy chủ dự án qua Tailscale. Actions kiểm tra kết nối trước khi chạy. Đây là môi trường thử nghiệm, chưa nghiệm thu chính thức.</p>}
                                 <p>Chọn bài ngay tại đây. Nếu chưa có bài, vào Thiết lập để kiểm tra và lưu đầu vào.</p>
                                 <label className="job-picker" htmlFor="run-job-select">
                                     <span>Chọn bài đã lưu</span>
@@ -1301,6 +1303,7 @@ export default function App() {
                     {tab === "setup" && (
                         <section className="sheet">
                             <h2>Trạng thái nghiệm thu</h2>
+                            {!status.gates.length && <p className="measure">Có thể gửi bài từ web sang GitHub Actions. Dùng chung môi trường với lượt thử Linux; các xác nhận nghiệm thu chính thức bên dưới vẫn đang chờ.</p>}
                             {status.technical_evidence?.solver_success && (
                                 <p className="measure">
                                     Đã chạy smoke và bài va chạm 7 J / 6 ms trên Linux,
@@ -1309,7 +1312,7 @@ export default function App() {
                                     <a href={status.technical_evidence.impact_url}>Xem lượt chạy thật</a>
                                 </p>
                             )}
-                            {status.gates.map((g: Doc) => (
+                            {(status.qualification_gates ?? status.gates).map((g: Doc) => (
                                 <div className="setup-row" key={g.status}>
                                     <code>{g.status}</code>
                                     <p>{g.message}</p>

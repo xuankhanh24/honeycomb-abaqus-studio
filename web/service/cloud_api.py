@@ -17,7 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .cloud_github import JOB_ID, REPOSITORY, Catalog, Github
 from .cloud_matrix import matrix_plan
-from .cloud_runtime import qualification, technical_evidence
+from .cloud_runtime import execution_runtime, qualification, technical_evidence
 from .models import BatchSpec, ModelSpec, catalogue, digest, expand
 
 OWNER_ID = 273490538
@@ -31,7 +31,7 @@ class Submission(BaseModel):
 
 
 def gates():
-    return qualification()[1]
+    return execution_runtime()[1]
 
 
 def create_app(github: Github | None = None) -> FastAPI:
@@ -128,13 +128,15 @@ def create_app(github: Github | None = None) -> FastAPI:
     def status():
         return {
             "gates": gates(),
+            "execution_runtime": execution_runtime()[0],
+            "qualification_gates": qualification()[1],
             "technical_evidence": technical_evidence(),
             "github_app_connected": github.configured,
             "license_source": "FlexNet trên máy của chủ dự án, qua mạng riêng",
             "max_runs": 10,
             "cpus": 4,
             "workflow_minutes": 330,
-            "qualified_linux_solver": not any(g["status"] == "blocked_environment" for g in gates()),
+            "qualified_linux_solver": not any(g["status"] == "blocked_environment" for g in qualification()[1]),
             "evidence_url": f"https://github.com/{REPOSITORY}/actions/runs/40168384430",
             "runner": {
                 "cpu": 4,

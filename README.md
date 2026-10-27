@@ -43,6 +43,42 @@ cd honeycomb-abaqus-studio
 
 Dữ liệu mặc định: `C:/UET/DO_AN/honeycomb-data`; lệnh Abaqus: `C:/SIMULIA/Commands/abaqus.bat`. Đổi trong **Backup và cài đặt** cho lần khởi động engine tiếp theo. File session/token nằm trong `%LOCALAPPDATA%/HoneycombStudio`, không đưa vào repo.
 
+## Bật cấp license cho GitHub Actions bằng CMD
+
+GitHub Actions kết nối qua **Tailscale** tới dịch vụ **SIMULIA FlexNet Server** trên máy chủ dự án để xin license. Máy này phải bật, có Internet và không Sleep/Hibernate trong suốt lượt mô phỏng. Không cần mở Abaqus hoặc upload key mỗi lần chạy.
+
+Trên máy Windows đang giữ license, tìm **CMD** trong Start → chọn **Run as administrator**, rồi chạy:
+
+```cmd
+sc config "SIMULIA FlexNet Server" start= auto
+net start "SIMULIA FlexNet Server"
+net start Tailscale
+"C:\Program Files\Tailscale\tailscale.exe" up
+```
+
+Nếu Tailscale hiện đường dẫn đăng nhập, mở đường dẫn đó và đăng nhập tài khoản đã cấu hình cho dự án. Nếu báo dịch vụ đã chạy rồi thì không cần khởi động lại.
+
+Kiểm tra dịch vụ và kết nối:
+
+```cmd
+sc query "SIMULIA FlexNet Server"
+sc query Tailscale
+"C:\Program Files\Tailscale\tailscale.exe" status
+```
+
+Hai dịch vụ cần hiện **RUNNING**; Tailscale cần kết nối, không báo đang đăng xuất hoặc đã dừng. Đây là kiểm tra dịch vụ/mạng; Actions sẽ kiểm tra kết nối và khả năng lấy license thực tế khi chạy.
+
+Để máy không tự ngủ hoặc tự Hibernate **khi cắm điện**, chạy:
+
+```cmd
+powercfg /change standby-timeout-ac 0
+powercfg /change hibernate-timeout-ac 0
+```
+
+Các lệnh trên thay đổi thiết lập nguồn hiện tại; không thay đổi hành vi khi gập nắp laptop. Giữ máy cắm nguồn và không gập nắp nếu thao tác đó làm máy ngủ. Sau khi mô phỏng kết thúc, có thể đặt lại thời gian trong **Settings → System → Power & battery**.
+
+Sau đó mở [web quản lý](https://honeycomb-abaqus-studio.vercel.app) → đăng nhập **Chủ dự án** → **Công việc** → **Chọn bài đã lưu** → **Chạy mô phỏng**. Bấm **Theo dõi trên GitHub Actions** để xem log. Không đưa file license, key hoặc mật khẩu vào repo hay log công khai.
+
 ## Lưới mặc định
 
 Lõi 0,7 mm tại vùng tâm bán kính 22 mm, ngoài 1,3 mm, 20 lớp theo chiều cao. Mặt 0,75/1,25 mm. Thời gian vật lý 6 ms, 120 khoảng field và 1.200 khoảng history. Tám CPU, double precision, không mass scaling. **20–30 phút là ngân sách dự báo, không phải cam kết cho mọi thiết kế và máy.** Thời gian trích xuất toàn field, PDF và backup được tính riêng.

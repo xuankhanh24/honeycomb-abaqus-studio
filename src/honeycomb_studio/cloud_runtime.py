@@ -1,4 +1,4 @@
-"""Fail closed until a checked-in, independently inspectable Linux qualification exists."""
+"""Observed native execution and formal production qualification are separate states."""
 
 import json
 import os
@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def technical_evidence():
-    """Observed development trials; informational and never a dispatch permission."""
+    """Observed trials used by the experimental lane, never formal certification."""
     path = Path(__file__).with_name("runtime-evidence.json")
     try:
         data = json.loads(path.read_text(encoding="utf-8"))

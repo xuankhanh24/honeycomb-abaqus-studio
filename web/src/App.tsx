@@ -907,7 +907,7 @@ export default function App() {
                                 </label>
                                 <p id="job-selection-help" className="hint" aria-live="polite">
                                     {busy ? "Đang mở chi tiết bài…" : selected
-                                        ? <>Bài đang chọn: <strong className="chosen-job-name">{selected.name}</strong>. Chọn bài chưa gửi yêu cầu chạy.</>
+                                        ? <>Bài đang chọn: <strong className="chosen-job-name">{selected.name}</strong>. {selected.status === "draft" ? "Bấm Chạy mô phỏng để gửi bài sang Actions." : "Bài đã được gửi; xem trạng thái và link Actions bên dưới."}</>
                                         : "Chọn bài trong ô trên; không cần cuộn xuống bảng để bấm Mở bài."}
                                 </p>
                                 <div className="actions">

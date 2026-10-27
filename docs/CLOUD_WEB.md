@@ -19,6 +19,7 @@ Set only encrypted environment values, never public `VITE_` variables:
 | Setting | Purpose |
 |---|---|
 | WEB_SESSION_SECRET | Random signing secret, at least 32 bytes |
+| WEB_PUBLIC_ORIGIN | Optional canonical HTTPS origin. On Vercel defaults to `https://honeycomb-abaqus-studio.vercel.app`; register its `/auth/callback` in the GitHub App. Alias login redirects here before creating OAuth state/cookies. |
 | GITHUB_OAUTH_CLIENT_ID / GITHUB_OAUTH_CLIENT_SECRET | GitHub login, callback `<production-url>/auth/callback` |
 | GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY / GITHUB_APP_INSTALLATION_ID | App installed only on this repository |
 | PLATFORM_POLICY_EVIDENCE_URL | Inspectable confirmation covering intended full workload |

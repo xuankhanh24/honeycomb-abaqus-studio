@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 from typing import Literal
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -20,6 +21,7 @@ from .cloud_runtime import qualification, technical_evidence
 from .models import BatchSpec, ModelSpec, catalogue, digest, expand
 
 OWNER_ID = 273490538
+PRODUCTION_WEB_ORIGIN = "https://honeycomb-abaqus-studio.vercel.app"
 
 
 class Submission(BaseModel):
@@ -36,6 +38,19 @@ def create_app(github: Github | None = None) -> FastAPI:
     app = FastAPI(title="Honeycomb Cloud", version="0.3.0")
     github = github or Github()
     catalog = Catalog(github)
+    public_origin = os.getenv("WEB_PUBLIC_ORIGIN", "").strip().rstrip("/")
+    if not public_origin and any(os.getenv(key) for key in ("VERCEL", "VERCEL_ENV", "VERCEL_GIT_COMMIT_SHA")):
+        public_origin = PRODUCTION_WEB_ORIGIN
+    if public_origin:
+        parts = urlsplit(public_origin)
+        local_http = (os.getenv("WEB_LOCAL_HTTP") == "1" and parts.scheme == "http"
+                      and parts.hostname in ("127.0.0.1", "localhost", "::1"))
+        if ((parts.scheme != "https" and not local_http) or not parts.hostname
+                or parts.username or parts.password or parts.path or parts.query or parts.fragment):
+            raise ValueError("WEB_PUBLIC_ORIGIN phải là origin HTTPS, không chứa đường dẫn hoặc thông tin đăng nhập")
+
+    def oauth_callback_url(request):
+        return (public_origin or str(request.base_url).rstrip("/")) + "/auth/callback"
 
     @app.middleware("http")
     async def bounded_body(request, call_next):
@@ -396,9 +411,13 @@ def create_app(github: Github | None = None) -> FastAPI:
     def login(request: Request):
         if not session_secret or not os.getenv("GITHUB_OAUTH_CLIENT_ID"):
             raise HTTPException(503, "Cần cấu hình GitHub OAuth trước khi đăng nhập.")
+        if public_origin and str(request.base_url).rstrip("/") != public_origin:
+            # State and its signed cookie must originate on the callback domain.
+            # Redirecting only redirect_uri would lose that cookie across aliases.
+            return RedirectResponse(public_origin + "/auth/login", status_code=307)
         nonce = secrets.token_urlsafe(32)
         request.session["oauth_state"] = nonce
-        callback = str(request.url_for("callback"))
+        callback = oauth_callback_url(request)
         query = httpx.QueryParams(
             {
                 "client_id": os.environ["GITHUB_OAUTH_CLIENT_ID"],
@@ -411,6 +430,8 @@ def create_app(github: Github | None = None) -> FastAPI:
 
     @app.get("/auth/callback", name="callback")
     def callback(request: Request, code: str, state: str):
+        if public_origin and str(request.base_url).rstrip("/") != public_origin:
+            raise HTTPException(400, "Bắt đầu lại đăng nhập tại " + public_origin + "/auth/login")
         expected = session(request).pop("oauth_state", None)
         if not expected or not secrets.compare_digest(state, expected):
             raise HTTPException(403, "OAuth state không khớp.")
@@ -422,7 +443,7 @@ def create_app(github: Github | None = None) -> FastAPI:
                     "client_id": os.environ["GITHUB_OAUTH_CLIENT_ID"],
                     "client_secret": os.environ["GITHUB_OAUTH_CLIENT_SECRET"],
                     "code": code,
-                    "redirect_uri": str(request.url_for("callback")),
+                    "redirect_uri": oauth_callback_url(request),
                 },
             )
             result.raise_for_status()

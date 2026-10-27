@@ -8,6 +8,7 @@ import re
 import time
 from copy import deepcopy
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from playwright.sync_api import expect, sync_playwright
@@ -49,6 +50,14 @@ def main():
                 time.sleep(5)
             assert health["worker_started_in_web"] is False and health["test_solver"] is False
             passed("Production health identifies the exact tested commit", revision=observed)
+            alias_login = client.get("https://web-swart-phi-64.vercel.app/auth/login", follow_redirects=False)
+            assert alias_login.status_code in (302, 307)
+            assert alias_login.headers["location"] == BASE + "/auth/login"
+            assert "session=" not in alias_login.headers.get("set-cookie", "")
+            login = client.get("/auth/login", follow_redirects=False)
+            query = parse_qs(urlsplit(login.headers["location"]).query)
+            assert query["redirect_uri"] == [BASE + "/auth/callback"] and query["state"][0]
+            passed("Legacy web alias redirects before OAuth state; registered HTTPS callback is used")
             response = client.get("/api/session")
             response.raise_for_status()
             assert response.json()["owner"] is False

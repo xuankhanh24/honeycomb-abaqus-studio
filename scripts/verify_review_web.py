@@ -207,13 +207,31 @@ def main():
                     assert link.get_attribute("target") == "_blank"
                     observed_links.append(href)
                 passed("Management web renders direct live Actions links", urls=observed_links)
+                picker = page.get_by_role("combobox", name="Chọn bài đã lưu", exact=True)
+                expect(picker).to_be_visible()
+                expect(picker.locator("option")).to_have_count(len(jobs) + 1)
+                selection_dispatches = []
+                page.on("request", lambda request: selection_dispatches.append(request.url)
+                        if request.method == "POST" and request.url.endswith("/dispatch") else None)
                 if jobs:
+                    chosen = jobs[-1]
+                    with page.expect_response(lambda r: r.url.endswith("/api/jobs/" + chosen["id"])) as chosen_detail:
+                        picker.select_option(chosen["id"])
+                    assert chosen_detail.value.status == 200
+                    expect(picker).to_have_value(chosen["id"])
+                    expect(page.locator(".chosen-job-name")).to_have_text(chosen["name"])
+                    expect(page.locator(".job-detail h3")).to_have_text(chosen["name"])
                     with page.expect_response(lambda r: "/api/jobs/" in r.url) as detail:
                         page.get_by_role("button", name="Mở bài", exact=True).first.click()
                     assert detail.value.status == 200
                     expect(page.locator(".job-detail")).to_be_visible()
+                    expect(picker).to_have_value(jobs[0]["id"])
+                assert not selection_dispatches, selection_dispatches
+                passed("Inline job picker loads real details, stays synchronized with table and never auto-dispatches")
+                page.evaluate("window.scrollTo(0, 0)")
                 page.screenshot(path=str(out / "management-catalog.png"), full_page=True)
                 page.set_viewport_size({"width": 390, "height": 844})
+                page.evaluate("window.scrollTo(0, 0)")
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
                 page.screenshot(path=str(out / "management-actions-mobile.png"), full_page=True)
                 passed("Management Actions links fit the mobile viewport")

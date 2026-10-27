@@ -218,6 +218,9 @@ main {
 }
 .run-start h3 { margin: 0 0 8px; }
 .run-start > p, .run-blockers { max-width: 75ch; }
+.job-picker { display: grid; gap: 8px; max-width: 75ch; margin: 16px 0 8px; }
+.job-picker > span { font-weight: 600; }
+.job-picker select { min-width: 0; }
 .run-blockers summary { color: var(--blue); cursor: pointer; }
 .run-blockers li + li { margin-top: 8px; }
 .actions-activity h3 { margin: 0 0 12px; }

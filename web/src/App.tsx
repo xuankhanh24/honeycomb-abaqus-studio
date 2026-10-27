@@ -291,10 +291,10 @@ export default function App() {
     const startDisabled = !session.owner || !!status.gates.length || !selected || selected.status !== "draft" || busy;
     const startReason = !session.owner
         ? "Bạn chưa đăng nhập quản trị. Đăng nhập tài khoản chủ dự án để lưu bài và yêu cầu chạy."
-        : status.gates.length
-          ? "Luồng chạy từ web đang bị khóa bởi các điều kiện bên dưới."
-          : !selected
-            ? "Chọn Mở bài trong danh sách bên dưới để chọn mô hình cần chạy."
+        : !selected
+          ? "Chọn bài đã lưu trong ô phía trên để xem và chuẩn bị chạy."
+          : status.gates.length
+            ? "Luồng chạy từ web đang bị khóa bởi các điều kiện bên dưới."
             : selected.status !== "draft"
               ? "Bài này đã được gửi hoặc đã kết thúc. Tạo một bài mới từ Thiết lập để chạy lượt khác."
               : busy ? "Đang xử lý thao tác trước…" : "Bài đã sẵn sàng để gửi sang GitHub Actions.";
@@ -890,8 +890,24 @@ export default function App() {
                             </div>
                             <section className="run-start" aria-labelledby="run-start-title">
                                 <h3 id="run-start-title">Bắt đầu mô phỏng từ web</h3>
-                                <p>Đăng nhập quản trị, lưu bài trong Thiết lập, rồi chọn <strong>Mở bài</strong> bên dưới. Nút chạy sẽ gửi bài đã chọn sang GitHub Actions khi đủ điều kiện.</p>
-                                <p>Bài đang chọn: <strong>{selected?.name ?? "Chưa chọn bài"}</strong></p>
+                                <p>Chọn bài ngay tại đây. Nếu chưa có bài, vào Thiết lập để kiểm tra và lưu đầu vào.</p>
+                                <label className="job-picker" htmlFor="run-job-select">
+                                    <span>Chọn bài đã lưu</span>
+                                    <select id="run-job-select" value={selected?.id ?? ""} disabled={busy || !jobs.length}
+                                        aria-describedby="job-selection-help"
+                                        onChange={event => {
+                                            const identity = event.currentTarget.value;
+                                            if (identity) void act(() => openJob(identity));
+                                        }}>
+                                        <option value="" disabled>{jobs.length ? "Chọn một bài để xem và chuẩn bị chạy…" : "Chưa có bài đã lưu"}</option>
+                                        {jobs.map(job => <option key={job.id} value={job.id}>{job.name} · {job.profile} · {job.status === "draft" ? "Bản nháp" : job.status}</option>)}
+                                    </select>
+                                </label>
+                                <p id="job-selection-help" className="hint" aria-live="polite">
+                                    {busy ? "Đang mở chi tiết bài…" : selected
+                                        ? <>Bài đang chọn: <strong className="chosen-job-name">{selected.name}</strong>. Chọn bài chưa gửi yêu cầu chạy.</>
+                                        : "Chọn bài trong ô trên; không cần cuộn xuống bảng để bấm Mở bài."}
+                                </p>
                                 <div className="actions">
                                     <button className="primary" disabled={startDisabled} aria-describedby="run-start-reason" title={startReason} onClick={() => void act(startSelectedJob)}>Chạy mô phỏng</button>
                                     {!session.owner && <button onClick={() => session.login_available ? location.assign("/auth/login") : setTab("setup")}>Đăng nhập để chạy</button>}

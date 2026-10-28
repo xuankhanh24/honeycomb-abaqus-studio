@@ -215,3 +215,14 @@ Trong **Công việc → Mở bài**, xem tóm tắt tham số, bốn bước Đ
 - Các lượt mới được đặt tên từ input áp dụng, ví dụ `Lượt 21/21 · δ=45° · E=7 J · t=12 ms · CPU=4`. Tiêu đề workflow từ web ghi khoảng tham số và số lượt. Workflow đã khởi động giữ tiêu đề cũ.
 
 Kiểm thử giao diện fixture (không khởi động solver): phục vụ `web/dist` tại `127.0.0.1:8768`, rồi chạy `uv run --locked --with playwright --extra cloud python scripts/verify_job_management_web.py` với Chrome đã cài.
+
+
+### Tổng hợp nhanh, không nhân bản ODB
+
+Các lần tổng hợp mới công bố CSV/Parquet toàn cục trước rồi cập nhật thư mục job. `download_full.py` lấy trực tiếp các phần solver đã xác minh trên GitHub Releases, thay vì chờ Actions tải xuống, nén và upload lại hàng chục GiB. Input vật lý, lưới, thời gian mô phỏng và tiêu chí chất lượng không đổi.
+
+- Chạy `py download_full.py` trong thư mục tải. Có thể chạy lại sau mất mạng: tệp hoàn tất và từng phần có checksum đúng được dùng lại.
+- Sau khi chạy bù, tải công cụ mới vào cùng thư mục: solver cũ không cần tải lại; lần thử mới có đường dẫn riêng dưới `04_solver_archive/run-XXXX/source-ID`.
+- Bảng X/y, input/output và audit từng phiên bản nằm trong `00_dataset_versions/ID`; giữ các phiên bản trước, không ghi đè dữ liệu khác checksum.
+- Chỉ các tệp nhỏ như bảng/đường cong, ZIP dễ đọc và manifest được tạo/upload lại. Các tệp TAR chứa field vẫn được giữ nguyên như bản lưu solver.
+- Các gói ZIP đầy đủ lịch sử và công cụ cũ vẫn dùng được. Workflow đã khởi động dùng mã nguồn của lần khởi chạy; muốn áp dụng cách tổng hợp mới cho dữ liệu đã lưu, chạy lại workflow **Tổng hợp dữ liệu huấn luyện từ các job** trên `main`.

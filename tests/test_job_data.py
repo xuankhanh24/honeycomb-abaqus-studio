@@ -86,7 +86,8 @@ def test_one_parent_folder_contains_all_parallel_results_and_full_solver_bytes(t
             self.value = transform(self.value)
 
     class Github:
-        client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=payloads[str(r.url)])))
+        # Publishing a full folder must never download original solver bytes.
+        client = httpx.Client(transport=httpx.MockTransport(lambda r: pytest.fail("Solver data re-downloaded")))
 
         def repo(self, method, path, body):
             return {"html_url": "https://github.com/" + REPOSITORY + "/releases/tag/test"}
@@ -95,30 +96,40 @@ def test_one_parent_folder_contains_all_parallel_results_and_full_solver_bytes(t
     catalog = Catalog()
     data = publish_job_data(Github(), catalog, sources, {"id": 1, "tag_name": "test"}, workflow=456, attempt=1, full=True, root=tmp_path)
     assert data["runs"] == 2 and data["samples"] == 0 and data["source_complete"]
-    assert data["full_bundle"]["parts"] == 1
+    assert data["full_bundle"]["parts"] == 3
+    assert data["full_bundle"]["storage_mode"] == "direct-source-parts"
     assert "files" not in data and len(catalog.value["files"]) > 2
     folder = job_folder(identity, sources[0]["job_name"])
     assert folder.startswith("job--khao-sat-loi-lom--")
-    bundle = next(value for name, value in assets.items() if name.startswith(folder) and name.endswith(".zip"))
+    assert not any(name.startswith(folder) for name in assets)
+    bundle = assets["readable-data.zip"]
     with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
-        for i in range(2):
-            name = f"{folder}/04_solver_archive/run-{i + 1:04d}/attempts/001/raw/model.odb"
-            assert archive.read(name) == payloads[list(payloads)[i]]
         assert any("03_simulations/run-0002" in name and name.endswith("input/resolved.json") for name in archive.namelist())
         assert json.loads(archive.read(folder + "/01_training/dataset.json"))["samples"] == 0
     # The shipped helper reconstructs and extracts the same verified folder.
     helper = tmp_path / "download_full.py"
     helper.write_bytes(assets["download_full.py"])
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("urllib.request.urlopen", lambda *a, **kw: io.BytesIO(bundle))
+    downloads = []
+    def fetch(url, **kwargs):
+        downloads.append(url)
+        return io.BytesIO(payloads[url] if url in payloads else bundle)
+
+    monkeypatch.setattr("urllib.request.urlopen", fetch)
     runpy.run_path(str(helper), run_name="__main__")
-    assert list(tmp_path.glob("*--export-456-1/**/model.odb"))
+    for i in range(2):
+        name = f"{folder}/04_solver_archive/run-{i + 1:04d}/source-{i}/attempts/001/raw/model.odb"
+        assert (tmp_path / name).read_bytes() == payloads[list(payloads)[i]]
+    assert list((tmp_path / folder).glob("00_dataset_versions/*/01_training/dataset.json"))
+    downloads.clear()
+    runpy.run_path(str(helper), run_name="__main__")
+    assert not downloads  # Existing verified files are reused.
     assert publish_job_data(Github(), catalog, sources, None, workflow=457, attempt=1, full=True, root=tmp_path) == data
     corrupt = tmp_path / "corrupt-download"
     corrupt.mkdir()
     monkeypatch.chdir(corrupt)
-    monkeypatch.setattr("urllib.request.urlopen", lambda *a, **kw: io.BytesIO(bytes([bundle[0] ^ 1]) + bundle[1:]))
-    with pytest.raises(ValueError, match="checksum"):
+    monkeypatch.setattr("urllib.request.urlopen", lambda url, **kw: io.BytesIO(b"corrupt"))
+    with pytest.raises(ValueError, match="checksum|declared size"):
         runpy.run_path(str(helper), run_name="__main__")
     assert not list(corrupt.glob("**/model.odb"))
     with pytest.raises(ValueError, match="Duplicate"):

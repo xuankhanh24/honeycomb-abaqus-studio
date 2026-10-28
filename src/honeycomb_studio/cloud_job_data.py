@@ -5,19 +5,18 @@ from __future__ import annotations
 import json
 import shutil
 import tempfile
-import zipfile
 from pathlib import Path
 
-from .cloud_archive import MAX_PART, ReleaseArchive, parts
+from .cloud_archive import ReleaseArchive
 from .cloud_github import REPOSITORY
-from .cloud_restore import restore
+from .cloud_restore import validate_manifest
 from .data import checksum, manifest
 from .job_data import full_manifest, job_folder, standalone_downloader
 from .models import digest
 from .store import write_json
 from .training_collection import build_collection
 
-BUILDER_VERSION = "job-folder-v2"
+BUILDER_VERSION = "job-folder-v3-direct"
 
 
 def publish_job_data(github, catalog, sources, release, *, workflow, attempt, full, root):
@@ -27,6 +26,9 @@ def publish_job_data(github, catalog, sources, release, *, workflow, attempt, fu
         {k: s.get(k) for k in ("shard_id", "manifest_sha256", "status", "excluded_reason")}
         for s in sources]})
     cached, _ = catalog.get("training/jobs/" + identity)
+    # Refreshes must not remove an existing full-download capability when the
+    # caller only requests lightweight data for another job.
+    full = full or bool(cached and cached.get("full_bundle"))
     if (cached and cached.get("source_fingerprint") == fingerprint
             and (not full or cached.get("full_bundle"))):
         return {k: v for k, v in cached.items() if k != "files"}
@@ -52,46 +54,28 @@ def publish_job_data(github, catalog, sources, release, *, workflow, attempt, fu
             artifacts[name] = publisher.upload(readable / relative, name)["url"]
         complete_bundle = None
         if full:
-            required = sum(f["bytes"] for f in original["files"])
-            largest_source = max((sum(f["bytes"] for f in s.get("archive", {}).get("files", []))
-                                  for s in sources), default=0)
-            if shutil.disk_usage(temporary).free < required + largest_source + 2 * 1024**3:
-                raise RuntimeError("Insufficient disk to build full job ZIP; original archive remains available")
-            zip_name = f"{folder}--export-{workflow}-{attempt}.zip"
-            zip_path = temporary / zip_name
-            # Restore one runner at a time, append its verified files, then
-            # release temporary disk before handling the next runner.
-            with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as bundle:
-                for source in sources:
-                    if not source.get("archive"):
-                        continue
-                    with tempfile.TemporaryDirectory(prefix="solver-source-", dir=temporary) as restored:
-                        restored_root = Path(restored)
-                        restore(full_manifest([source]), restored_root, client=github.client, allow_incomplete=True)
-                        for path in sorted(restored_root.rglob("*")):
-                            if path.is_file():
-                                bundle.write(path, path.relative_to(restored_root).as_posix())
-                for path in sorted(readable.rglob("*")):
-                    if path.is_file():
-                        bundle.write(path, folder + "/" + path.relative_to(readable).as_posix())
-            inventory = []
-            with tempfile.TemporaryDirectory(prefix="zip-parts-", dir=temporary) as chunks:
-                for part in parts(zip_path, Path(chunks), MAX_PART):
-                    asset_name = zip_name if zip_path.stat().st_size <= MAX_PART else f"{zip_name}.{part['index'] + 1:03d}"
-                    uploaded = publisher.upload(part["path"], asset_name)
-                    inventory.append({k: part[k] for k in ("index", "offset", "bytes", "sha256")} | uploaded)
-            package = {"schema_version": "1", "kind": "honeycomb-release-archive", "complete": True,
-                       "files": [{"path": zip_name, "bytes": zip_path.stat().st_size,
-                                  "sha256": checksum(zip_path), "parts": inventory}]}
+            # Reference immutable, verified source parts instead of downloading,
+            # compressing and uploading every ODB again after a selective retry.
+            readable_bytes = readable_zip.stat().st_size
+            readable_sha = checksum(readable_zip)
+            package = {**original, "storage_mode": "direct-source-parts", "folder": folder,
+                       "readable_prefix": folder + "/00_dataset_versions/" + fingerprint[:16],
+                       "files": original["files"] + [{
+                           "path": folder + "/00_dataset_versions/" + fingerprint[:16] + "/readable-data.zip", "role": "readable",
+                           "bytes": readable_bytes, "sha256": readable_sha,
+                           "parts": [{"index": 0, "offset": 0, "bytes": readable_bytes,
+                                      "sha256": readable_sha, **uploaded}]}]}
+            validate_manifest(package, allow_incomplete=True)
             write_json(temporary / "full-download.json", package)
             script = temporary / "download_full.py"
             script.write_text(standalone_downloader(package), encoding="utf-8")
             complete_bundle = {
                 "manifest_url": publisher.upload(temporary / "full-download.json", "full-download.json")["url"],
                 "helper_url": publisher.upload(script, "download_full.py")["url"],
-                "bytes": zip_path.stat().st_size, "parts": len(inventory),
-                "zip_url": inventory[0]["url"] if len(inventory) == 1 else None,
-                "source_complete": original["complete"], "sha256": package["files"][0]["sha256"],
+                "storage_mode": "direct-source-parts",
+                "bytes": sum(f["bytes"] for f in package["files"]),
+                "parts": sum(len(f["parts"]) for f in package["files"]), "zip_url": None,
+                "source_complete": original["complete"], "manifest_sha256": checksum(temporary / "full-download.json"),
             }
         # The folder browser lists readable files and every original solver file.
         files = [{"path": f["path"], "bytes": f["bytes"], "sha256": f["sha256"], "kind": "solver"}
@@ -104,8 +88,8 @@ def publish_job_data(github, catalog, sources, release, *, workflow, attempt, fu
             "body": f"Một job web, một thư mục {folder}. {summary['runs']} lượt có hồ sơ, "
                     f"{summary['samples']} mẫu đạt huấn luyện. "
                     "readable-data.zip: đầu vào/đầu ra, đường cong, X/y và kiểm tra chất lượng. "
-                    + ("ZIP đầy đủ gồm ODB/CAE/INP, logs, báo cáo và field; "
-                       "nếu nhiều phần, tải download_full.py rồi chạy py download_full.py. " if full else
+                    + ("Tải trực tiếp ODB/CAE/INP, logs, báo cáo và field từ nguồn đã lưu; "
+                       "chạy py download_full.py để gom một thư mục, tái sử dụng phần đã xác minh. " if full else
                        "Bản đầy đủ được tham chiếu bởi full-source-manifest.json. ")
                     + ("Tất cả nguồn hoàn tất." if original["complete"] else
                        "Một số nguồn thiếu/chưa hoàn tất; xem source-jobs.json, không coi là job đầy đủ."),

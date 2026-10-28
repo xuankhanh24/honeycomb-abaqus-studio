@@ -39,6 +39,9 @@ def full_manifest(sources):
         complete = complete and archive["complete"] is True
         prefix = job_folder(source["job_id"], source["job_name"]) + "/04_solver_archive/"
         prefix += f"run-{source.get('index', 0) + 1:04d}/"
+        # A recovered shard is a new immutable attempt. Context files from an
+        # earlier failed attempt must not collide when reusing a local folder.
+        prefix += "source-" + str(source.get("shard_id", "original")) + "/"
         for file in archive["files"]:
             parts = file["path"].split("/")
             if "runs" in parts and len(parts) > parts.index("runs") + 2:
@@ -54,6 +57,12 @@ def full_manifest(sources):
 
 def standalone_downloader(bundle_manifest):
     """A portable stdlib script downloads, verifies and unpacks the whole job folder."""
+    if bundle_manifest.get("storage_mode") == "direct-source-parts":
+        from pathlib import Path
+
+        source = Path(__file__).with_name("standalone_download.py").read_text(encoding="utf-8-sig")
+        return source.replace('MANIFEST = json.loads("{}")  # replaced in generated download_full.py',
+                              "MANIFEST = json.loads(" + repr(json.dumps(bundle_manifest, ensure_ascii=True)) + ")")
     return '''"""Run: py download_full.py. No packages or license required."""
 import hashlib
 import json

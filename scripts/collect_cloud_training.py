@@ -117,14 +117,6 @@ def main():
                 github, tag=f"job-data-{row['id']}-{workflow}-{attempt}", sha=os.environ["GITHUB_SHA"],
                 name="Dữ liệu job · " + row["name"])
     sources = collect(github, catalog, args.root / "restored")
-    jobs = []
-    for identity in dict.fromkeys(s["job_id"] for s in sources):
-        selected = [s for s in sources if s["job_id"] == identity]
-        if identity not in reservations or not any(s.get("archive") for s in selected):
-            continue
-        full = identity == args.full_job_id or (args.full_data and not args.full_job_id)
-        jobs.append(publish_job_data(github, catalog, selected, reservations[identity],
-                                     workflow=workflow, attempt=attempt, full=full, root=args.root))
     directory = args.root / ("honeycomb-training-" + str(workflow) + "-" + str(attempt))
     summary = build_collection(sources, directory)
     archive = Path(shutil.make_archive(str(directory), "zip", directory.parent, directory.name))
@@ -148,18 +140,29 @@ def main():
                 "X = input.*; y xem dataset.json. Smoke/review bị loại. "
                 f"{summary['unavailable_sources']} nguồn chưa có bản lưu hoàn tất; xem source-jobs.json.",
     })
-    record = {**summary, **all_results, "job_collections": jobs, "release_url": published["html_url"],
+    record = {**summary, **all_results, "job_collections": (catalog.get("training/index")[0] or {}).get("jobs", []), "release_url": published["html_url"],
               "workflow_url": f"https://github.com/{REPOSITORY}/actions/runs/{workflow}",
               "csv_url": f"https://github.com/{REPOSITORY}/releases/download/{tag}/samples.csv",
               "parquet_url": f"https://github.com/{REPOSITORY}/releases/download/{tag}/samples.parquet",
               "zip_url": f"https://github.com/{REPOSITORY}/releases/download/{tag}/{archive.name}"}
     catalog.update("training/latest", lambda old: record)
-    catalog.update("training/index", lambda old: {"jobs": jobs})
     text = f"## Dữ liệu huấn luyện tổng hợp\n\n{summary['samples']} mẫu đạt / {summary['runs']} lượt lưu.\n\n[ZIP, CSV và Parquet]({record['release_url']})\n"
     if os.getenv("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
             stream.write(text)
     print(json.dumps(record, ensure_ascii=True))
+    print("CSV/Parquet tổng hợp đã công bố; bắt đầu cập nhật thư mục từng job bằng nguồn sẵn có.", flush=True)
+    jobs = []
+    for identity in dict.fromkeys(s["job_id"] for s in sources):
+        selected = [s for s in sources if s["job_id"] == identity]
+        if identity not in reservations or not any(s.get("archive") for s in selected):
+            continue
+        full = identity == args.full_job_id or (args.full_data and not args.full_job_id)
+        jobs.append(publish_job_data(github, catalog, selected, reservations[identity],
+                                     workflow=workflow, attempt=attempt, full=full, root=args.root))
+    record["job_collections"] = jobs
+    catalog.update("training/latest", lambda old: record)
+    catalog.update("training/index", lambda old: {"jobs": jobs})
     if args.require_training_job:
         source = next(s for s in sources if s["job_id"] == args.require_training_job)
         if source["profile"] != "smoke":

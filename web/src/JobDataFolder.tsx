@@ -68,13 +68,16 @@ export default function JobDataFolder({ identity, session, close }: { identity: 
                 </div>
                 {collection.full_bundle ? <div className="full-download">
                     <h3>Tải toàn bộ thư mục, gồm ODB / CAE / INP</h3>
-                    <p>Gói đầy đủ {size(collection.full_bundle.bytes)} gồm {collection.full_bundle.parts} phần, kèm log, báo cáo và dữ liệu trường đã lưu.</p>
+                    <p>{collection.full_bundle.storage_mode === "direct-source-parts"
+                        ? `Tải trực tiếp ${size(collection.full_bundle.bytes)} từ ${collection.full_bundle.parts} phần nguồn đã lưu. Không cần chờ nén và upload lại toàn bộ ODB.`
+                        : `Gói đầy đủ ${size(collection.full_bundle.bytes)} gồm ${collection.full_bundle.parts} phần, kèm log, báo cáo và dữ liệu trường đã lưu.`}</p>
                     <div className="actions">
                         {collection.full_bundle.zip_url && <a className="button" href={collection.full_bundle.zip_url}>Tải ZIP đầy đủ <Download size={14} /></a>}
                         <a className="button" href={collection.full_bundle.helper_url}>Tải công cụ lấy toàn bộ thư mục</a>
                         <a href={collection.full_bundle.manifest_url}>Danh sách phần tải và checksum</a>
                     </div>
-                    <p>Tải <code>download_full.py</code> vào thư mục trống, mở CMD tại đó rồi chạy <code>py download_full.py</code>. Công cụ tải các phần, kiểm tra SHA-256 và giải nén thành thư mục; không cần Abaqus hoặc license.</p>
+                    <p>Tải <code>download_full.py</code>, mở CMD tại thư mục chứa tệp rồi chạy <code>py download_full.py</code>. Công cụ gom dữ liệu vào một thư mục, kiểm tra SHA-256; không cần Abaqus hoặc license.
+                        {collection.full_bundle.storage_mode === "direct-source-parts" && " Nếu bị ngắt, chạy lại để dùng tiếp các tệp và phần đã xác minh. Khi job có lượt chạy bù, tải công cụ mới vào cùng thư mục để bổ sung dữ liệu. Bảng X/y và báo cáo theo phiên bản nằm trong 00_dataset_versions; solver trong 04_solver_archive. Tệp đã có khác checksum sẽ được báo lỗi, không ghi đè."}</p>
                 </div> : <p>Danh sách dưới đây đã tham chiếu toàn bộ tệp gốc. Dùng nút đóng gói để tạo thêm ZIP đầy đủ; <a href={collection.full_manifest_url}>manifest nguồn đầy đủ</a> luôn được giữ.</p>}
                 <label className="field"><span>Tìm tệp hoặc thư mục</span><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Ví dụ: input, output, .odb, quality, samples.csv" /></label>
                 <p className="folder-path"><FolderOpen size={16} aria-hidden="true" />{collection.folder}</p>

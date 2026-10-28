@@ -35,6 +35,11 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v10.3.0
       - run: uv sync --locked --extra cloud
+      - name: Kiểm tra đăng nhập Drive và bộ cài trước khi khởi động các runner
+        env:
+          ABAQUS_MEDIA_DRIVE_FILE_ID: ${{ vars.ABAQUS_MEDIA_DRIVE_FILE_ID }}
+          HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
+        run: uv run --locked --extra cloud python scripts/prepare_linux_media.py --preflight
       - name: Kiểm tra môi trường dùng chung với lượt thử Linux
         env:
           MEDIA_ID: ${{ vars.ABAQUS_MEDIA_DRIVE_FILE_ID }}

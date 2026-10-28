@@ -11,6 +11,32 @@ ISO_SHA256 = "d0b227290b5f62ea826b08c18bde222417817fc0d04b91abb0072cb52ebe43ad"
 MEDIA_KEY = "abaqus2020-linux-" + ISO_SHA256[:16]
 
 
+def preflight_drive_iso(session, file_id):
+    """Refresh authentication and verify private source metadata before fan-out."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{10,128}", file_id):
+        raise ValueError("Mã file Google Drive không hợp lệ")
+    response = session.get("https://www.googleapis.com/drive/v3/files/" + file_id,
+                           params={"fields": "size,sha256Checksum,trashed,capabilities(canDownload)"}, timeout=30)
+    if response.status_code != 200:
+        raise RuntimeError(f"Kiểm tra kho bộ cài Drive thất bại (HTTP {response.status_code})")
+    info = response.json()
+    if info.get("trashed") or info.get("capabilities", {}).get("canDownload") is not True:
+        raise ValueError("Bộ cài Drive đã bị xóa hoặc tài khoản không có quyền tải")
+    if int(info.get("size", -1)) != ISO_BYTES or info.get("sha256Checksum") != ISO_SHA256:
+        raise ValueError("Metadata bộ cài Drive không khớp kích thước/SHA-256 đã ghim")
+    return {"bytes": ISO_BYTES, "sha256": ISO_SHA256, "download_allowed": True}
+
+
+def drive_failure_hint(exc):
+    """Only allowlisted OAuth codes reach public logs, never provider payloads."""
+    if type(exc).__name__ == "RefreshError":
+        code = next((a.get("error") for a in exc.args if isinstance(a, dict)), None)
+        if code in ("invalid_grant", "invalid_client", "access_denied"):
+            return f"Drive OAuth {code}: đăng nhập lại Drive và cập nhật secret HONEYCOMB_DRIVE_CREDENTIALS_JSON trên GitHub"
+        return "Không làm mới được phiên Drive; kiểm tra đăng nhập OAuth và kết nối Google"
+    return "Kiểm tra quyền tải bộ cài Drive, dung lượng và checksum đã ghim"
+
+
 def verify_iso(path, *, expected_bytes=ISO_BYTES, expected_sha256=ISO_SHA256):
     if path.stat().st_size != expected_bytes:
         raise ValueError("Kích thước ISO không khớp bản đã thử nghiệm")

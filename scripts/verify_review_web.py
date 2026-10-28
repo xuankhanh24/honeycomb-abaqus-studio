@@ -220,7 +220,12 @@ def main():
                     assert chosen_detail.value.status == 200
                     expect(picker).to_have_value(chosen["id"])
                     expect(page.locator(".chosen-job-name")).to_have_text(chosen["name"])
-                    expect(page.locator(".job-detail h3")).to_have_text(chosen["name"])
+                    payload = chosen_detail.value.json()
+                    expect(page.locator(".execution-heading h3")).to_have_text(payload["parameter_title"])
+                    expect(page.locator(".execution-heading p")).to_contain_text(chosen["name"])
+                    expect(page.get_by_role("region", name="Tiến trình và thao tác job")).to_be_visible()
+                    if payload.get("shards"):
+                        expect(page.locator(".execution-run")).to_have_count(len(payload["shards"]))
                     with page.expect_response(lambda r: "/api/jobs/" in r.url) as detail:
                         page.get_by_role("button", name="Mở bài", exact=True).first.click()
                     assert detail.value.status == 200

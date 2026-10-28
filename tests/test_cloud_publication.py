@@ -62,6 +62,9 @@ def test_upload_retries_after_lost_response_and_reuses_verified_asset(tmp_path, 
     uploaded = ReleaseArchive(Remote(), 1).upload(path, "test.part")
     assert calls == ["post"]
     assert uploaded["asset_id"] == 1
+    tagged = ReleaseArchive(Remote(), 1, tag="job-data-stable").upload(path, "test.part")
+    assert tagged["url"] == "https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/download/job-data-stable/test.part"
+    assert tagged["digest"] == uploaded["digest"]
     asset["digest"] = "sha256:" + "0" * 64
     with pytest.raises(ValueError, match="digest"):
         ReleaseArchive(Remote(), 1).upload(path, "test.part")

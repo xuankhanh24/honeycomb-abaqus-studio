@@ -67,7 +67,7 @@ def test_one_parent_folder_contains_all_parallel_results_and_full_solver_bytes(t
     assets = {}
 
     class Publisher:
-        def __init__(self, *args):
+        def __init__(self, *args, **kwargs):
             pass
 
         def upload(self, path, name):
@@ -93,7 +93,7 @@ def test_one_parent_folder_contains_all_parallel_results_and_full_solver_bytes(t
 
     monkeypatch.setattr("honeycomb_studio.cloud_job_data.ReleaseArchive", Publisher)
     catalog = Catalog()
-    data = publish_job_data(Github(), catalog, sources, {"id": 1}, workflow=456, attempt=1, full=True, root=tmp_path)
+    data = publish_job_data(Github(), catalog, sources, {"id": 1, "tag_name": "test"}, workflow=456, attempt=1, full=True, root=tmp_path)
     assert data["runs"] == 2 and data["samples"] == 0 and data["source_complete"]
     assert data["full_bundle"]["parts"] == 1
     assert "files" not in data and len(catalog.value["files"]) > 2

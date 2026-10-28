@@ -8,6 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -72,17 +73,25 @@ def parts(path: Path, temporary: Path, limit=MAX_PART):
 
 
 class ReleaseArchive:
-    def __init__(self, github: Github, release_id: int, limit=MAX_PART):
+    def __init__(self, github: Github, release_id: int, limit=MAX_PART, *, tag: str | None = None):
         self.github = github
         self.release_id = release_id
         self.limit = limit
+        self.tag = tag
 
     def upload(self, path: Path, name: str):
         # A lost upload response may have left a complete asset on GitHub. Each
         # retry inventories and verifies it before attempting another upload.
         for retry in range(3):
             try:
-                return self._upload(path, name)
+                uploaded = self._upload(path, name)
+                if self.tag:
+                    from .cloud_github import REPOSITORY
+
+                    # Draft releases return temporary untagged URLs which stop
+                    # working after publication. Persist the reserved tag URL.
+                    uploaded["url"] = f"https://github.com/{REPOSITORY}/releases/download/{quote(self.tag, safe='')}/{quote(name, safe='')}"
+                return uploaded
             except (httpx.TransportError, httpx.HTTPStatusError) as exc:
                 transient = not isinstance(exc, httpx.HTTPStatusError) or (
                     exc.response.status_code == 429 or exc.response.status_code >= 500

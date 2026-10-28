@@ -64,6 +64,7 @@ honeycomb-training-<workflow-id>-<attempt>/
 │   ├── samples.csv                   # FILE HUẤN LUYỆN CHUNG: mỗi dòng một mẫu đạt
 │   ├── samples.parquet               # Cùng bảng, định dạng có kiểu cho Python
 │   ├── dataset.json                  # Danh sách X/y, số mẫu và chia tập
+│   ├── readiness.json                # Thiếu đầu vào/đầu ra, số mẫu và độ phủ chia tập
 │   ├── data-dictionary.csv/json      # Tên cột, tiếng Việt, đơn vị, vai trò
 │   ├── FIELD_DESCRIPTIONS.md
 │   ├── curves/<run-id>/              # Đường cong của mẫu được chọn, nếu có
@@ -73,18 +74,20 @@ honeycomb-training-<workflow-id>-<attempt>/
 │   ├── run-selection.csv             # Nhận/loại từng lượt và lý do
 │   └── input-output-contract.json    # X, y ứng viên và cột chỉ để truy vết
 ├── 03_simulations/
-│   └── job-0001_<job-id>/<run-id>/
+│   └── job--<ten-bai-khong-dau>--<id12>/run-0001--delta-20deg--energy-7J--<run-id>/
 │       ├── input/requested.json      # Đầu vào người dùng yêu cầu
 │       ├── input/resolved.json       # Đầu vào thực tế sau xử lý
 │       └── output/
 │           ├── summary.json          # Chỉ số kết quả
 │           ├── quality.json          # Kiểm tra chất lượng
 │           └── attempt-001/          # Đường cong theo thời gian, nếu có
+├── 05_all_results/
+│   └── simulation-results.csv/parquet # Mọi lượt, kể cả review/smoke, có lý do nhận/loại
 └── artifact-manifest.json            # Danh sách tệp và SHA-256
 ```
 
-Thứ tự `job-0001` chỉ dùng sắp xếp trong bản xuất; tên bài gốc nằm trong `source-jobs.json`, ID giữ nguyên để đối chiếu.
-Không đổi tên thư mục đang chạy của solver. ODB/CAE/INP dung lượng lớn nằm ở release gốc được dẫn trong bảng nguồn.
+Tên thư mục chứa tên bài không dấu và ID; từng lượt có số thứ tự, góc và năng lượng để đối chiếu. Tên bài gốc nằm trong `source-jobs.json`.
+Mỗi job còn có gói dữ liệu đầy đủ riêng: `04_solver_archive` giữ ODB/CAE/INP, log và báo cáo gốc. Trên web mở **Thư mục dữ liệu job** để tải ZIP đầy đủ hoặc `download_full.py` khi gói được chia nhiều phần; checksum được kiểm tra khi tải. Thư mục solver đang chạy giữ nguyên.
 Chỉ nhận lượt `completed`, `ml_eligible=true`, không phải `test_only`. Smoke/review/failed giữ hồ sơ nhưng không vào bảng huấn luyện.
 Khử trùng `input_hash` trên toàn bộ job, chia train/validation/test theo `design_id` toàn cục; dùng cột `split` có sẵn để tránh rò rỉ dữ liệu.
 Nếu chưa có mẫu đạt, `samples=0`, CSV chỉ có tiêu đề; không coi đó là bộ dữ liệu đã sẵn sàng huấn luyện.

@@ -16,7 +16,7 @@ from .models import digest
 from .store import write_json
 from .training_collection import build_collection
 
-BUILDER_VERSION = "job-folder-v1"
+BUILDER_VERSION = "job-folder-v2"
 
 
 def publish_job_data(github, catalog, sources, release, *, workflow, attempt, full, root):
@@ -32,7 +32,7 @@ def publish_job_data(github, catalog, sources, release, *, workflow, attempt, fu
     if release is None:
         raise ValueError("Source changed after reservation; retry collection on current main")
     folder = job_folder(identity, job["name"])
-    publisher = ReleaseArchive(github, release["id"])
+    publisher = ReleaseArchive(github, release["id"], tag=release["tag_name"])
     with tempfile.TemporaryDirectory(prefix="job-data-", dir=root) as temp:
         temporary = Path(temp)
         readable = temporary / "readable" / folder

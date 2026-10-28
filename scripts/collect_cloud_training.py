@@ -128,7 +128,7 @@ def main():
     directory = args.root / ("honeycomb-training-" + str(workflow) + "-" + str(attempt))
     summary = build_collection(sources, directory)
     archive = Path(shutil.make_archive(str(directory), "zip", directory.parent, directory.name))
-    publisher = ReleaseArchive(github, release["id"])
+    publisher = ReleaseArchive(github, release["id"], tag=tag)
     publisher.upload(archive, archive.name)
     for path, name in ((directory / "01_training/samples.csv", "samples.csv"),
                        (directory / "01_training/samples.parquet", "samples.parquet"),

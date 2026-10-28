@@ -20,8 +20,8 @@ Nút **Dữ liệu ML gọn** xuất `samples.csv/Parquet` (mỗi lượt một 
 
 **Mỗi lần bấm chạy tạo một job cha, một workflow và một thư mục dữ liệu chung**, chứa các lượt đồng thời. Trên web có nút **Mở thư mục dữ liệu job**, theo dõi Actions, tải ZIP nhỏ và gói đầy đủ ODB/CAE/INP. Có bảng **mọi kết quả đã mô phỏng** và bảng huấn luyện chỉ gồm mẫu đạt chất lượng. Xem [hướng dẫn thư mục, X/y và sửa mẫu chưa đạt](docs/ML_DATA_WORKFLOW.md).
 
-Web cho phép **20 lượt mỗi batch, tối đa 20 runner đồng thời**, mỗi runner giải một lượt.
-Giới hạn 8 trước đây do ứng dụng tự đặt; giới hạn batch 10 cũng đã được nâng lên 20.
+Web cho phép **100 lượt mỗi batch, tối đa 20 runner đồng thời**, mỗi runner giải một lượt.
+Giới hạn 8 trước đây do ứng dụng tự đặt; giới hạn batch 10 cũng đã được nâng lên 100.
 [GitHub Free cho phép 20 job đồng thời trên runner tiêu chuẩn](https://docs.github.com/en/actions/reference/limits#job-concurrency-limits-for-github-hosted-runners).
 Quota này dùng chung với các workflow khác của tài khoản. License Abaqus, CPU/RAM/đĩa và thời gian cài đặt vẫn quyết định khả năng chạy thực tế.
 Chọn **Đồng thời** và nhập số runner mong muốn ở web. Các batch mô phỏng được xếp theo nhóm workflow dùng chung; 20 là mức tối đa bên trong một batch, không phải 20 batch chạy cùng lúc.

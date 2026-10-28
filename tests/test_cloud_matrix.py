@@ -15,7 +15,7 @@ def batch(mode="parallel"):
             "spec": spec, "input_hash": digest(spec)}
 
 
-def test_twenty_jobs_are_admitted_and_twenty_one_rejected():
+def test_twenty_one_runs_stay_in_one_job_with_twenty_parallel_slots():
     original = batch()
     original["spec"].update(max_parallel_runs=20,
                             axes=[{"parameter": "energy_J", "values": list(range(1, 21))}])
@@ -24,6 +24,11 @@ def test_twenty_jobs_are_admitted_and_twenty_one_rejected():
     assert len(parent["shards"]) == 20
     assert parent["execution"]["effective_parallel_runs"] == 20
     original["spec"]["axes"][0]["values"].append(21)
+    original["input_hash"] = digest(original["spec"])
+    parent = prepare(original, 124)
+    assert len(parent["shards"]) == 21
+    assert parent["execution"]["effective_parallel_runs"] == 20
+    original["spec"]["axes"][0]["values"] = list(range(1, 102))
     with pytest.raises(ValueError):
         matrix_plan(original["spec"])
 

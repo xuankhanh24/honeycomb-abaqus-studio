@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import tempfile
+import zipfile
 from pathlib import Path
 
 from .cloud_archive import MAX_PART, ReleaseArchive, parts
@@ -52,13 +53,27 @@ def publish_job_data(github, catalog, sources, release, *, workflow, attempt, fu
         complete_bundle = None
         if full:
             required = sum(f["bytes"] for f in original["files"])
-            if shutil.disk_usage(temporary).free < required * 2 + 2 * 1024**3:
+            largest_source = max((sum(f["bytes"] for f in s.get("archive", {}).get("files", []))
+                                  for s in sources), default=0)
+            if shutil.disk_usage(temporary).free < required + largest_source + 2 * 1024**3:
                 raise RuntimeError("Insufficient disk to build full job ZIP; original archive remains available")
-            full_root = temporary / "full"
-            restore(original, full_root, client=github.client, allow_incomplete=True)
-            shutil.copytree(readable, full_root / folder, dirs_exist_ok=True)
             zip_name = f"{folder}--export-{workflow}-{attempt}.zip"
-            zip_path = Path(shutil.make_archive(str(temporary / zip_name.removesuffix('.zip')), "zip", full_root))
+            zip_path = temporary / zip_name
+            # Restore one runner at a time, append its verified files, then
+            # release temporary disk before handling the next runner.
+            with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as bundle:
+                for source in sources:
+                    if not source.get("archive"):
+                        continue
+                    with tempfile.TemporaryDirectory(prefix="solver-source-", dir=temporary) as restored:
+                        restored_root = Path(restored)
+                        restore(full_manifest([source]), restored_root, client=github.client, allow_incomplete=True)
+                        for path in sorted(restored_root.rglob("*")):
+                            if path.is_file():
+                                bundle.write(path, path.relative_to(restored_root).as_posix())
+                for path in sorted(readable.rglob("*")):
+                    if path.is_file():
+                        bundle.write(path, folder + "/" + path.relative_to(readable).as_posix())
             inventory = []
             with tempfile.TemporaryDirectory(prefix="zip-parts-", dir=temporary) as chunks:
                 for part in parts(zip_path, Path(chunks), MAX_PART):

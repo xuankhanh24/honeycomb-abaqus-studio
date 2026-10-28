@@ -591,7 +591,7 @@ export default function App() {
                                             </summary>
                                             <p className="hint">
                                                 Hợp đồng JSON dùng chung với
-                                                worker; tối đa 20 lượt mỗi
+                                                worker; tối đa 100 lượt mỗi
                                                 batch. Thay đổi nâng cao được áp
                                                 dụng khi bạn bấm nút bên dưới.
                                             </p>
@@ -1437,7 +1437,7 @@ export default function App() {
                                 <div>
                                     <dt>Giới hạn</dt>
                                     <dd>
-                                        20 lượt / batch · tối đa 20 runner đồng thời · 330 phút mỗi runner
+                                        100 lượt / batch · tối đa 20 runner đồng thời · 330 phút mỗi runner
                                     </dd>
                                 </div>
                             </dl>

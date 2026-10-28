@@ -15,7 +15,7 @@ def longer_research_spec(parent):
     if not findings or any(not f.startswith("Cuối step còn tiếp xúc >10 N") for f in findings):
         raise ValueError("Không chỉ có lỗi thời gian tiếp xúc. Xem quality.json để sửa đúng nguyên nhân trước khi chạy lại.")
     spec = deepcopy(parent["spec"])
-    expanded = expand(BatchSpec.model_validate(spec).model_copy(update={"max_runs": 20}))
+    expanded = expand(BatchSpec.model_validate(spec).model_copy(update={"max_runs": 100}))
     if any(r["resolved"]["duration"] * 2 > .024 + 1e-12 for r in expanded):
         raise ValueError("Đề xuất tự động dừng ở 24 ms. Cần xem đường cong và ngân sách trước khi tăng tiếp.")
     spec["name"] = parent["name"][:120] + " · research · thời gian ×2"
@@ -33,7 +33,7 @@ def longer_research_spec(parent):
             design["duration"] *= 2
         if "history_intervals" in design:
             design["history_intervals"] = min(1000000, design["history_intervals"] * 2)
-    spec.update(data_profile="research", max_runs=20, runtime_budget_minutes=270)
+    spec.update(data_profile="research", max_runs=100, runtime_budget_minutes=270)
     result = BatchSpec.model_validate(spec)
     expand(result)
     return result

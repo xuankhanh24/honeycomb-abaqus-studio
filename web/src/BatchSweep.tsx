@@ -56,7 +56,7 @@ export default function BatchSweep({spec, parameters, update}: {
             </fieldset>)}
             <button type="button" onClick={addAxis} disabled={axes.length >= parameters.length}>Thêm tham số khảo sát</button>
             <p className="measure" role="status">{axes.length ? `${axes.length} tham số · ${count === null ? "Khoảng chưa hợp lệ" : `${count.toLocaleString("vi-VN")} tổ hợp dự kiến`}` : "Một lượt với thông số hiện tại."}
-                {count !== null && count > 20 && " Vượt giới hạn cloud 20 lượt/batch. Giảm khoảng, tăng bước hoặc tải input để chạy trên máy đủ tài nguyên."}</p>
+                {count !== null && count > 100 && " Vượt giới hạn cloud 100 lượt/batch. Giảm khoảng, tăng bước hoặc tải input để chạy trên máy đủ tài nguyên."}</p>
         </>}
         <div className="fields">
             <label className="field"><span>Cách thực thi</span><select value={spec.execution_mode ?? "sequential"}

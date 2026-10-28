@@ -138,7 +138,7 @@ def create_app(github: Github | None = None) -> FastAPI:
             "technical_evidence": technical_evidence(),
             "github_app_connected": github.configured,
             "license_source": "FlexNet trên máy của chủ dự án, qua mạng riêng",
-            "max_runs": 20,
+            "max_runs": 100,
             "cpus": 4,
             "workflow_minutes": 330,
             "qualified_linux_solver": not any(g["status"] == "blocked_environment" for g in qualification()[1]),
@@ -157,7 +157,7 @@ def create_app(github: Github | None = None) -> FastAPI:
         model = ModelSpec(core_topology="reentrant_0", reentrant_geometry="angle", clamp_mode="perimeter",
                           cpus=4, duration=.012, history_intervals=2400)
         return {
-            "spec": BatchSpec(model=model, max_runs=20).model_dump(),
+            "spec": BatchSpec(model=model, max_runs=100).model_dump(),
             "parameters": catalogue(),
             "schema": BatchSpec.model_json_schema(),
         }
@@ -197,12 +197,12 @@ def create_app(github: Github | None = None) -> FastAPI:
 
     @app.post("/api/preview")
     def preview(spec: BatchSpec):
-        if spec.sampling == "lhs" and spec.samples > 20:
-            raise HTTPException(422, "Cloud cho phép tối đa 20 mẫu LHS.")
-        spec = spec.model_copy(update={"max_runs": 20})
+        if spec.sampling == "lhs" and spec.samples > 100:
+            raise HTTPException(422, "Cloud cho phép tối đa 100 mẫu LHS.")
+        spec = spec.model_copy(update={"max_runs": 100})
         runs = expand(spec)
-        if len(runs) > 20:
-            raise HTTPException(422, "Cloud cho phép tối đa 20 lượt mỗi batch.")
+        if len(runs) > 100:
+            raise HTTPException(422, "Cloud cho phép tối đa 100 lượt mỗi batch.")
         return {
             "count": len(runs),
             "execution": matrix_plan(spec.model_dump()),

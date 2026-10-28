@@ -43,6 +43,28 @@ def prepare(old, workflow_id):
             "execution": plan, "shards": shards, "runs": []}
 
 
+def recover(old, workflow_id):
+    """Retry only interrupted/failed shards, retaining results and attempt history."""
+    if old.get("cancel_requested") or old["status"] not in TERMINAL or not old.get("shards"):
+        raise ValueError("Recovery requires a terminal matrix job without cancellation")
+    if digest(old["spec"]) != old["input_hash"]:
+        raise ValueError("Requested input digest does not match the catalog")
+    shards = []
+    for source in old["shards"]:
+        shard = deepcopy(source)
+        if shard["status"] not in ("completed", "review") or not shard.get("archive_verified"):
+            history = shard.pop("previous_attempts", [])
+            history.append(deepcopy(shard))
+            shard = {k: shard[k] for k in ("id", "name", "profile", "parent_job_id",
+                                           "parent_input_hash", "index", "spec", "input_hash")}
+            shard.update(status="draft", previous_attempts=history)
+        shards.append(shard)
+    if not any(s["status"] == "draft" for s in shards):
+        raise ValueError("No failed shards to recover; collect existing data instead")
+    return aggregate({**old, "shards": shards, "workflow_run_id": workflow_id,
+                      "previous_workflow_run_id": old["workflow_run_id"]})
+
+
 def aggregate(parent):
     shards = parent["shards"]
     runs = [{**r, "matrix_index": s["index"], "release_url": s.get("release_url")}

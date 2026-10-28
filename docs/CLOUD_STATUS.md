@@ -1,5 +1,9 @@
 # Cloud implementation: measured status
 
+## Delta 25–45 recovery — 28 October 2026
+
+Workflow 40670634908 retained 20 completed, numerically eligible runs. Shard 21 stopped before solver execution after GitHub Contents API returned HTTP 500. Final packaging hit its 90-minute timeout while uploading the last of 30 ZIP volumes; source releases remain available. The fix adds bounded transient retries with catalog SHA re-read and lost-response reconciliation, selective recovery preserving successful shards and per-shard workflow provenance, and a 330-minute packaging budget. Local targeted verification: 37 tests passed; Ruff and type checks passed. A recovery run must still finish before claiming 21/21 acceptance.
+
 ## Dataset acceptance — 28 October 2026
 
 The [real two-run research job](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40630762284) and [complete job packaging](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40645400771) succeeded. Both 12 ms runs pass the existing numerical quality thresholds; final contact force is 0 N. The consolidated collection contains 19 retained simulation records and two accepted training rows, with 69 non-null columns. Each parent job has its own downloadable folder, including concurrent runs and original solver files. See [the current data acceptance and limitations](ML_DATA_WORKFLOW.md). Two samples do not establish model generalization, mesh convergence, experimental validity, publisher entitlement, or platform-policy eligibility. Earlier dated sections below describe historical observations.

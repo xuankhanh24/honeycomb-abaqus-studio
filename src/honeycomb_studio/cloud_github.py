@@ -62,7 +62,15 @@ class Github:
         token = self.access_token()
         if token:
             headers["Authorization"] = "Bearer " + token
-        response = self.client.request(method, "https://api.github.com" + path, headers=headers, json=body)
+        for attempt in range(4):
+            try:
+                response = self.client.request(method, "https://api.github.com" + path, headers=headers, json=body)
+                if method != "GET" or response.status_code < 500 or attempt == 3:
+                    break
+            except httpx.TransportError:
+                if method != "GET" or attempt == 3:
+                    raise
+            time.sleep(2 ** attempt)
         if allow_missing and response.status_code == 404:
             return None
         response.raise_for_status()
@@ -112,8 +120,13 @@ class Catalog:
         return self.github.repo("PUT", f"/contents/catalog/{key}.json", body)
 
     def update(self, key: str, transform):
-        for _ in range(5):
+        uncertain = None
+        for attempt in range(10):
             value, sha = self.get(key)
+            # A write can commit even when its response is lost. Confirm before
+            # invoking a non-idempotent transform (for example a job claim) again.
+            if uncertain is not None and value == uncertain:
+                return value
             try:
                 updated = transform(value)
                 if updated == value:
@@ -137,8 +150,14 @@ class Catalog:
                         pass
                 return updated
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code not in (409, 422):
+                if exc.response.status_code not in (409, 422, 429) and exc.response.status_code < 500:
                     raise
+                uncertain = updated if exc.response.status_code >= 500 else None
+            except httpx.TransportError:
+                uncertain = updated
+            # Re-read the current SHA and merge sibling updates; never replay a
+            # stale PUT after a conflict or an uncertain server response.
+            time.sleep(min(0.25 * 2 ** attempt, 4))
         raise RuntimeError("Catalog is busy; retry without changing the request ID")
 
     def jobs(self):

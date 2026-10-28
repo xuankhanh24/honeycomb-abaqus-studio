@@ -11,6 +11,11 @@ on:
         description: 'Tên bài hiển thị trong lịch sử chạy'
         required: false
         type: string
+      recover:
+        description: 'Chỉ chạy bù lượt lỗi, giữ nguyên các lượt đã hoàn tất và thư mục dữ liệu'
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: write
   checks: write
@@ -56,7 +61,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CLOUD_JOB_ID: ${{ inputs.job_id }}
-        run: uv run --locked --extra cloud python scripts/cloud_matrix.py prepare --job-id "$CLOUD_JOB_ID"
+          RECOVER: ${{ inputs.recover }}
+        run: |
+          args=()
+          if [ "$RECOVER" = "true" ]; then args+=(--recover); fi
+          uv run --locked --extra cloud python scripts/cloud_matrix.py prepare --job-id "$CLOUD_JOB_ID" "${args[@]}"
   simulate:
     needs: prepare
     strategy:
@@ -127,7 +136,7 @@ jobs:
     needs: [prepare, simulate]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v7.0.1
         with:

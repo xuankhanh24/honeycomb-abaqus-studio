@@ -48,7 +48,7 @@ def collect(github, catalog, root):
                     break
             else:
                 raise ValueError("Source release exceeds bounded asset inventory")
-            workflow = parent.get("workflow_run_id")
+            workflow = shard.get("workflow_run_id") or parent.get("workflow_run_id")
             name = f"workflow-{workflow}-artifact-manifest.json"
             asset = next((a for a in assets if a["name"] == name), None)
             if asset is None:

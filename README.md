@@ -185,3 +185,21 @@ Repo chứa mã nguồn, tài liệu, schema và cấu hình nhỏ. CAE/ODB, d�
 ## Public web preview
 
 [Open Honeycomb Studio](https://honeycomb-abaqus-studio.vercel.app) to inspect inputs, geometry and genuine Windows circular-clamp reference curves. Owner login and private runner connectivity are verified. The licensed Ubuntu solver remains blocked pending authorized Linux media and native qualification. See [measured cloud status](docs/CLOUD_STATUS.md) and [deployment settings and remaining acceptance](docs/CLOUD_WEB.md).
+
+
+## Chạy bù lượt lỗi trên GitHub Actions
+
+Nếu một job có một số lượt lỗi, dùng **Actions → Mô phỏng bài đã chọn từ web → Run workflow**:
+
+- `job_id`: mã job gốc trên web.
+- `recover`: bật `true`. Chỉ lượt lỗi hoặc thiếu bản lưu được chạy lại; lượt `completed`/`review` đã lưu được giữ nguyên.
+- Toàn bộ lượt vẫn nằm trong cùng job và thư mục. Lịch sử lần chạy cũ được giữ, nguồn dữ liệu ghi đúng workflow của từng lượt.
+- Job phải kết thúc trước khi chạy bù. Nếu mọi lượt đã lưu thành công và chỉ lỗi đóng gói, chạy workflow **Tổng hợp dữ liệu huấn luyện từ các job** với `job_id` gốc.
+
+Ví dụ CMD (cần GitHub CLI đã đăng nhập):
+
+```cmd
+gh workflow run abaqus-linux.yml --ref main -f job_id=MA_JOB_GOC -f recover=true
+```
+
+Cập nhật catalog tự thử lại khi GitHub gặp lỗi tạm thời; mỗi lần ghi đọc lại phiên bản mới để giữ dữ liệu các runner khác. Bước tổng hợp/đóng gói có ngân sách 330 phút; lỗi đóng gói không làm mất các bản lưu solver trên Releases.

@@ -238,6 +238,11 @@ def main():
                 page.set_viewport_size({"width": 1440, "height": 1000})
                 passed("Real management job list and existing job detail", jobs=len(jobs))
                 page.get_by_role("button", name="Dữ liệu", exact=True).click()
+                expect(page.get_by_role("heading", name="Dữ liệu huấn luyện tổng hợp", exact=True)).to_be_visible()
+                expect(page.get_by_role("button", name="Tổng hợp lại dữ liệu các job", exact=True)).to_be_disabled()
+                expect(page.get_by_role("link", name="Theo dõi Actions tổng hợp", exact=True)).to_have_attribute(
+                    "href", "https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/workflows/collect-training.yml")
+                passed("Training collection explains X/y, offers Actions link and protects writes from anonymous users")
                 expect(page.get_by_role("heading", name="Kết quả mô phỏng", exact=True)).to_be_visible()
                 expect(page.locator(".recharts-line-curve")).to_be_visible()
                 canvas = page.locator(".field-view canvas")

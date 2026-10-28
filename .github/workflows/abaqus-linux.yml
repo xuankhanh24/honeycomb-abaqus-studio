@@ -118,7 +118,7 @@ jobs:
     needs: [prepare, simulate]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -130,3 +130,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           CLOUD_JOB_ID: ${{ inputs.job_id }}
         run: uv run --locked --extra cloud python scripts/cloud_matrix.py finalize --job-id "$CLOUD_JOB_ID"
+      - name: Gộp dữ liệu tất cả job · đầu vào, đầu ra và bảng huấn luyện chung
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked --extra cloud python scripts/collect_cloud_training.py

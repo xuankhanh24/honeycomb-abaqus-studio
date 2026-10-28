@@ -658,8 +658,8 @@ def dataset(
             "run_ids": [r["run_id"] for r in rows],
             "features": features
             if features is not None
-            else [k for k in selected[0] if k.startswith("input.")],
-            "targets": targets if targets is not None else [k for k in selected[0] if k in TARGETS],
+            else [k for k in selected_columns if k.startswith("input.")],
+            "targets": targets if targets is not None else [k for k in selected_columns if k in TARGETS],
             "constant_features": [
                 k for k in selected[0] if k.startswith("input.") and len({r.get(k) for r in selected}) == 1
             ],

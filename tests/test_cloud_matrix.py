@@ -15,6 +15,19 @@ def batch(mode="parallel"):
             "spec": spec, "input_hash": digest(spec)}
 
 
+def test_twenty_jobs_are_admitted_and_twenty_one_rejected():
+    original = batch()
+    original["spec"].update(max_parallel_runs=20,
+                            axes=[{"parameter": "energy_J", "values": list(range(1, 21))}])
+    original["input_hash"] = digest(original["spec"])
+    parent = prepare(original, 123)
+    assert len(parent["shards"]) == 20
+    assert parent["execution"]["effective_parallel_runs"] == 20
+    original["spec"]["axes"][0]["values"].append(21)
+    with pytest.raises(ValueError):
+        matrix_plan(original["spec"])
+
+
 def test_separate_runners_preserve_four_cpus_and_physics():
     original = batch()
     parent = prepare(original, 123)

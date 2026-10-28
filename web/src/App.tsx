@@ -162,6 +162,8 @@ export default function App() {
         [json, setJson] = useState(""),
         [setup, setSetup] = useState<Doc | null>(null),
         [references, setReferences] = useState<Doc[]>([]),
+        [training, setTraining] = useState<Doc | null>(null),
+        [collecting, setCollecting] = useState(false),
         [reference, setReference] = useState(0),
         [curve, setCurve] = useState<Doc[]>([]);
     const selectedId = useRef<string | null>(null);
@@ -169,6 +171,7 @@ export default function App() {
         selectedId.current = selected?.id ?? null;
     }, [selected]);
     async function refresh() {
+        void api("/api/training").then(d => setTraining(d.collection)).catch(() => {});
         void api("/api/activity").then(setActivity).catch(() => setActivity({ runs: [], available: false }));
         try {
             const [s, u, j] = await Promise.all([
@@ -580,7 +583,7 @@ export default function App() {
                                             </summary>
                                             <p className="hint">
                                                 Hợp đồng JSON dùng chung với
-                                                worker; tối đa 10 lượt mỗi
+                                                worker; tối đa 20 lượt mỗi
                                                 batch. Thay đổi nâng cao được áp
                                                 dụng khi bạn bấm nút bên dưới.
                                             </p>
@@ -1102,6 +1105,39 @@ export default function App() {
                     )}
                     {tab === "data" && (
                         <section className="sheet">
+                            <section className="parameter-group" aria-labelledby="training-title">
+                                <h2 id="training-title">Dữ liệu huấn luyện tổng hợp</h2>
+                                <p>Tự động gom sau mỗi batch cloud. Mỗi dòng trong <code>samples.csv</code> hoặc <code>samples.parquet</code> là một lượt đạt chất lượng, đã khử trùng giữa các job.</p>
+                                <dl>
+                                    <dt>Đầu vào mô phỏng</dt><dd>Hình học (mm), vật liệu, ngàm, tải (J hoặc m/s), lưới và thời gian (s). Thư mục <code>03_simulations/.../input</code>.</dd>
+                                    <dt>Đầu ra mô phỏng</dt><dd>Lực (N), chuyển vị (mm), năng lượng (J), ứng suất (MPa), đường cong và chất lượng. Thư mục <code>03_simulations/.../output</code>.</dd>
+                                    <dt>Đầu vào huấn luyện X</dt><dd>Các cột <code>input.*</code> được liệt kê trong <code>dataset.json.features</code>. Cần mã hóa biến phân loại và xử lý giá trị thiếu.</dd>
+                                    <dt>Mục tiêu dự đoán y</dt><dd>Chọn trong <code>dataset.json.targets</code>, ví dụ lực cực đại, chuyển vị cực đại, SEA. ID và split chỉ dùng truy vết/chia tập.</dd>
+                                </dl>
+                                <p><code>01_training</code>: bảng chung và từ điển cột · <code>02_audit</code>: nguồn, lý do loại · <code>03_simulations</code>: đầu vào/đầu ra từng lượt.</p>
+                                {training ? <>
+                                    <p className="measure">{training.samples} mẫu đạt · {training.runs} lượt lưu · {training.sources} nguồn · cập nhật {new Date(training.created_at).toLocaleString("vi-VN")}</p>
+                                    {training.samples === 0 && <p>Chưa có mẫu đủ điều kiện huấn luyện. Bảng chỉ có tiêu đề; smoke/review vẫn có trong hồ sơ đối chiếu.</p>}
+                                    {!!training.unavailable_sources && <p>{training.unavailable_sources} nguồn chưa có bản lưu hoàn tất; xem <code>02_audit/source-jobs.json</code>.</p>}
+                                    <div className="actions">
+                                        <a href={training.csv_url}>Tải bảng CSV</a>
+                                        <a href={training.parquet_url}>Tải Parquet</a>
+                                        <a href={training.zip_url}>Tải toàn bộ thư mục ZIP</a>
+                                        <a href={training.release_url} target="_blank" rel="noreferrer">Xem bản phát hành</a>
+                                    </div>
+                                </> : <p>Chưa có bộ tổng hợp. Chạy tổng hợp để lấy các kết quả đã lưu trên GitHub.</p>}
+                                <div className="actions">
+                                    <button disabled={!session.owner || collecting} onClick={async () => {
+                                        setCollecting(true);
+                                        try {
+                                            await api("/api/training/collect", {}, session.csrf);
+                                            await refresh();
+                                        } catch (e) { setError(String(e)); setCollecting(false); }
+                                    }}>{collecting ? "Đã gửi yêu cầu · theo dõi Actions bên cạnh" : "Tổng hợp lại dữ liệu các job"}</button>
+                                    <a href={`${repo}/actions/workflows/collect-training.yml`} target="_blank" rel="noreferrer">Theo dõi Actions tổng hợp</a>
+                                    <button onClick={() => { setCollecting(false); void refresh(); }}>Làm mới</button>
+                                </div>
+                            </section>
                             <div className="sheet-title">
                                 <h2>Kết quả mô phỏng</h2>
                                 <span className="tag">
@@ -1372,7 +1408,7 @@ export default function App() {
                                 <div>
                                     <dt>Giới hạn</dt>
                                     <dd>
-                                        10 lượt / batch · 1 solver · 330 phút
+                                        20 lượt / batch · tối đa 20 runner đồng thời · 330 phút mỗi runner
                                     </dd>
                                 </div>
                             </dl>

@@ -84,6 +84,15 @@ def test_bad_checksum_and_incomplete_archive_are_not_complete(tmp_path):
         restore(manifest, tmp_path)
 
 
+def test_subset_restore_does_not_claim_full_archive(tmp_path):
+    manifest, _ = inventory()
+    with httpx.Client(transport=httpx.MockTransport(lambda _: pytest.fail("No downloads expected"))) as client:
+        result = restore(manifest, tmp_path, client=client, paths=[])
+        assert result == {"files": [], "complete_dataset": False}
+        with pytest.raises(ValueError, match="absent"):
+            restore(manifest, tmp_path, client=client, paths=["missing.json"])
+
+
 @pytest.mark.parametrize(
     "path", ["../escape.odb", "/escape.odb", "C:/escape.odb", "raw\\..\\escape", "raw/CON.txt"]
 )

@@ -56,7 +56,7 @@ export default function BatchSweep({spec, parameters, update}: {
             </fieldset>)}
             <button type="button" onClick={addAxis} disabled={axes.length >= parameters.length}>Thêm tham số khảo sát</button>
             <p className="measure" role="status">{axes.length ? `${axes.length} tham số · ${count === null ? "Khoảng chưa hợp lệ" : `${count.toLocaleString("vi-VN")} tổ hợp dự kiến`}` : "Một lượt với thông số hiện tại."}
-                {count !== null && count > 10 && " Vượt giới hạn cloud 10 lượt/batch. Giảm khoảng, tăng bước hoặc tải input để chạy trên máy đủ tài nguyên."}</p>
+                {count !== null && count > 20 && " Vượt giới hạn cloud 20 lượt/batch. Giảm khoảng, tăng bước hoặc tải input để chạy trên máy đủ tài nguyên."}</p>
         </>}
         <div className="fields">
             <label className="field"><span>Cách thực thi</span><select value={spec.execution_mode ?? "sequential"}
@@ -65,7 +65,7 @@ export default function BatchSweep({spec, parameters, update}: {
                 <option value="parallel">Đồng thời · mỗi lượt một runner riêng</option>
             </select></label>
             {spec.execution_mode === "parallel" && <label className="field"><span>Số lượt đồng thời tối đa</span>
-                <input type="number" min={1} max={8} step={1} value={spec.max_parallel_runs ?? 2}
+                <input type="number" min={1} max={20} step={1} value={spec.max_parallel_runs ?? 2}
                     onChange={e => update({max_parallel_runs: Number(e.target.value)})} /></label>}
             <label className="field"><span>Dự trù RAM mỗi lượt <small>GiB</small></span>
                 <input type="number" min={0.5} step={0.5} value={spec.ram_per_run_gb ?? 4}

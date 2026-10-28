@@ -22,6 +22,8 @@ def main():
     transform = prepare if args.phase == "prepare" else finalize
     value = catalog.update("jobs/" + args.job_id, lambda old: transform(old, workflow))
     if args.phase == "prepare":
+        reserve_release(github, tag=f"training-{workflow}-{os.getenv('GITHUB_RUN_ATTEMPT', '1')}",
+                        sha=os.environ["GITHUB_SHA"], name=f"Dữ liệu huấn luyện tổng hợp · {workflow}")
         reservations = {}
         for shard in value["shards"]:
             release = reserve_release(github, tag="simulation-" + shard["id"],

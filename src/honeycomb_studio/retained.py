@@ -34,7 +34,11 @@ def coverage(runs, included):
     for run in runs:
         reason = "Đã xuất"
         if run["id"] not in included:
-            if run.get("test_only"):
+            if run.get("collection_exclusion"):
+                reason = run["collection_exclusion"]
+            elif (run.get("quality") or {}).get("physical_validation") == "environment_smoke_only":
+                reason = "Smoke chỉ kiểm tra môi trường, không dùng huấn luyện"
+            elif run.get("test_only"):
                 reason = "Dữ liệu thử nghiệm giả lập"
             elif run["status"] != "completed":
                 reason = "Lượt chưa hoàn tất"

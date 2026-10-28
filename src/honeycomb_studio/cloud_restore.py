@@ -93,10 +93,10 @@ def validate_manifest(manifest: dict, *, allow_incomplete=False):
             raise ValueError("Part sizes do not match the original file")
 
 
-def restore(manifest: dict, root: Path, *, client=None, allow_incomplete=False):
+def restore(manifest: dict, root: Path, *, client=None, allow_incomplete=False, paths=None):
     if client is None:
         with httpx.Client(timeout=120, follow_redirects=True) as transport:
-            return restore(manifest, root, client=transport, allow_incomplete=allow_incomplete)
+            return restore(manifest, root, client=transport, allow_incomplete=allow_incomplete, paths=paths)
     validate_manifest(manifest, allow_incomplete=allow_incomplete)
     from .actions_log import get_actions_log
 
@@ -105,6 +105,11 @@ def restore(manifest: dict, root: Path, *, client=None, allow_incomplete=False):
     root.mkdir(parents=True, exist_ok=True)
     # Validate all destinations before the first transfer.
     targets = [(file, destination(root, file["path"])) for file in manifest["files"]]
+    if paths is not None:
+        paths = set(paths)
+        if paths - {file["path"] for file in manifest["files"]}:
+            raise ValueError("Requested files are absent from the archive")
+        targets = [(file, target) for file, target in targets if file["path"] in paths]
     result = []
     for file, target in targets:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -161,4 +166,4 @@ def restore(manifest: dict, root: Path, *, client=None, allow_incomplete=False):
         os.link(partial, target)
         partial.unlink()
         result.append({"path": file["path"], "verified": True, "reused": False})
-    return {"files": result, "complete_dataset": manifest["complete"] is True}
+    return {"files": result, "complete_dataset": manifest["complete"] is True and paths is None}

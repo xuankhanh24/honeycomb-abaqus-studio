@@ -133,7 +133,7 @@ def create_app(github: Github | None = None) -> FastAPI:
             "technical_evidence": technical_evidence(),
             "github_app_connected": github.configured,
             "license_source": "FlexNet trên máy của chủ dự án, qua mạng riêng",
-            "max_runs": 10,
+            "max_runs": 20,
             "cpus": 4,
             "workflow_minutes": 330,
             "qualified_linux_solver": not any(g["status"] == "blocked_environment" for g in qualification()[1]),
@@ -151,19 +151,31 @@ def create_app(github: Github | None = None) -> FastAPI:
     def template():
         model = ModelSpec(core_topology="reentrant_0", reentrant_geometry="angle", clamp_mode="perimeter", cpus=4)
         return {
-            "spec": BatchSpec(model=model, max_runs=10).model_dump(),
+            "spec": BatchSpec(model=model, max_runs=20).model_dump(),
             "parameters": catalogue(),
             "schema": BatchSpec.model_json_schema(),
         }
 
+    @app.get("/api/training")
+    def training():
+        value, _ = catalog.get("training/latest")
+        return {"collection": value}
+
+    @app.post("/api/training/collect")
+    def collect_training(request: Request):
+        require_owner(request)
+        github.repo("POST", "/actions/workflows/collect-training.yml/dispatches", {"ref": "main"})
+        return {"status": "dispatching", "workflow_url":
+                f"https://github.com/{REPOSITORY}/actions/workflows/collect-training.yml"}
+
     @app.post("/api/preview")
     def preview(spec: BatchSpec):
-        if spec.sampling == "lhs" and spec.samples > 10:
-            raise HTTPException(422, "Cloud cho phép tối đa 10 mẫu LHS.")
-        spec = spec.model_copy(update={"max_runs": 10})
+        if spec.sampling == "lhs" and spec.samples > 20:
+            raise HTTPException(422, "Cloud cho phép tối đa 20 mẫu LHS.")
+        spec = spec.model_copy(update={"max_runs": 20})
         runs = expand(spec)
-        if len(runs) > 10:
-            raise HTTPException(422, "Cloud cho phép tối đa 10 lượt mỗi batch.")
+        if len(runs) > 20:
+            raise HTTPException(422, "Cloud cho phép tối đa 20 lượt mỗi batch.")
         return {
             "count": len(runs),
             "execution": matrix_plan(spec.model_dump()),
@@ -270,6 +282,7 @@ def create_app(github: Github | None = None) -> FastAPI:
     def activity():
         """Read-only observation; a development run never claims a saved draft."""
         workflows = {
+            ".github/workflows/collect-training.yml": "Tổng hợp dữ liệu huấn luyện",
             ".github/workflows/linux-impact-7j.yml": "Thử nghiệm native 7 J",
             ".github/workflows/verify-native-parallel.yml": "Thử nghiệm native song song",
             ".github/workflows/abaqus-linux.yml": "Job cloud",

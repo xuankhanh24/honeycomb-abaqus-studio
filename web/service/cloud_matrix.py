@@ -10,7 +10,7 @@ TERMINAL = {"completed", "review", "failed", "archive_failed", "cancelled", "tim
 
 def matrix_plan(spec):
     spec = BatchSpec.model_validate(spec)
-    runs = expand(spec.model_copy(update={"max_runs": 10}))
+    runs = expand(spec.model_copy(update={"max_runs": 20}))
     if any(r["resolved"]["cpus"] > 4 for r in runs):
         raise ValueError("Mỗi runner cloud có 4 CPU; CPU mỗi lượt phải nằm trong khoảng 1–4.")
     slots = min(len(runs), spec.max_parallel_runs if spec.execution_mode == "parallel" else 1)
@@ -29,7 +29,7 @@ def prepare(old, workflow_id):
     if digest(old["spec"]) != old["input_hash"]:
         raise ValueError("Requested input digest does not match the catalog")
     plan = matrix_plan(old["spec"])
-    expanded = expand(BatchSpec.model_validate(old["spec"]).model_copy(update={"max_runs": 10}))
+    expanded = expand(BatchSpec.model_validate(old["spec"]).model_copy(update={"max_runs": 20}))
     shards = []
     for index, run in enumerate(expanded):
         spec = deepcopy(old["spec"])

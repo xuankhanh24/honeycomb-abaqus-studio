@@ -72,7 +72,7 @@ def run(args):
         if digest(spec_data) != job["input_hash"]:
             raise ValueError("Requested input digest does not match the catalog")
         spec_data = json.loads(json.dumps(spec_data))
-        spec_data.update(max_runs=10, backup_after_run=False)
+        spec_data.update(max_runs=20, backup_after_run=False)
         if job["profile"] == "smoke":
             spec_data["data_profile"] = "smoke"
             short = {"duration": 0.0001, "field_intervals": 4, "history_intervals": 100}

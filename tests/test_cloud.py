@@ -20,6 +20,16 @@ def test_public_contract_and_unauthorized_write():
         assert client.post("/api/jobs", json={"request_id": "a" * 32, "spec": spec}).status_code == 403
         assert client.post("/api/jobs/" + "a" * 32 + "/dispatch", json={}).status_code == 403
         assert client.get("/api/status").json()["qualified_linux_solver"] is False
+        assert client.post("/api/training/collect", json={}).status_code == 403
+        assert client.get("/api/status").json()["max_runs"] == 20
+        spec.update(execution_mode="parallel", max_parallel_runs=20,
+                    axes=[{"parameter": "energy_J", "values": list(range(1, 21))}])
+        preview = client.post("/api/preview", json=spec)
+        assert preview.status_code == 200
+        assert preview.json()["count"] == 20
+        assert preview.json()["execution"]["effective_parallel_runs"] == 20
+        spec["axes"][0]["values"].append(21)
+        assert client.post("/api/preview", json=spec).status_code == 422
 
 
 def test_health_identifies_the_deployed_revision(monkeypatch):

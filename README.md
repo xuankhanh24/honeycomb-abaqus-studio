@@ -16,12 +16,84 @@ Xem [kết quả nghiệm thu](docs/VALIDATION_RESULTS.md) để phân biệt c�
 
 Nút **Dữ liệu ML gọn** xuất `samples.csv/Parquet` (mỗi lượt một dòng), đường cong và từ điển cột. Mặc định không nhân bản dữ liệu trường của ODB. PDF mỗi lượt 5 trang tiếng Việt; bảng dẻo và thống kê nút/phần tử nằm ngoài PDF. CSV nút/phần tử là chức năng nâng cao có thể tạo hàng chục GB, không cần cho mô hình ML dạng bảng.
 
+## Cloud: chạy đồng thời và dữ liệu tổng hợp
+
+Web cho phép **20 lượt mỗi batch, tối đa 20 runner đồng thời**, mỗi runner giải một lượt.
+Giới hạn 8 trước đây do ứng dụng tự đặt; giới hạn batch 10 cũng đã được nâng lên 20.
+[GitHub Free cho phép 20 job đồng thời trên runner tiêu chuẩn](https://docs.github.com/en/actions/reference/limits#job-concurrency-limits-for-github-hosted-runners).
+Quota này dùng chung với các workflow khác của tài khoản. License Abaqus, CPU/RAM/đĩa và thời gian cài đặt vẫn quyết định khả năng chạy thực tế.
+Chọn **Đồng thời** và nhập số runner mong muốn ở web. Các batch mô phỏng được xếp theo nhóm workflow dùng chung; 20 là mức tối đa bên trong một batch, không phải 20 batch chạy cùng lúc.
+Trên máy cá nhân, worker vẫn kiểm tra tài nguyên trước khi nhận lượt.
+
+### Đầu vào và đầu ra là gì?
+
+| Giai đoạn | Đầu vào | Đầu ra |
+| --- | --- | --- |
+| Mô phỏng Abaqus | Hình học: panel, skin, core_height, foil, cell_size… (mm); vật liệu; ngàm; năng lượng (J) hoặc vận tốc (m/s); lưới; thời gian (s) | Kết quả lực (N), chuyển vị (mm), năng lượng (J), ứng suất (MPa), đường cong theo thời gian; trạng thái và kiểm tra chất lượng |
+| Huấn luyện dạng bảng | **X**: đúng các cột `input.*` trong `dataset.json.features`, gồm hình học, tải, ngàm và tham số vật liệu được chọn | **y**: chọn một hoặc nhiều cột trong `dataset.json.targets` theo bài toán; ví dụ lực cực đại, chuyển vị cực đại hoặc SEA |
+
+Ví dụ mục tiêu dự đoán:
+
+| Tên cột giữ nguyên trong dữ liệu | Ý nghĩa | Đơn vị |
+| --- | --- | --- |
+| `peak_raw_contact_force_N` | Lực tiếp xúc cực đại từ các mẫu đã ghi | N |
+| `max_top_centre_downward_mm` | Chuyển vị xuống cực đại tại tâm tấm mặt trên | mm |
+| `physical_dissipation_J` | Năng lượng tiêu tán vật lý theo các kênh năng lượng đã ghi | J |
+| `SEA_J_kg` | Năng lượng tiêu tán vật lý chia cho khối lượng tấm sandwich | J/kg |
+| `mises_max_MPa` | Ứng suất von Mises cực đại trong các frame đã ghi | MPa |
+
+`run_id`, `batch_id`, `design_id`, `input_hash`, `split`, số attempt và thông tin chất lượng dùng **truy vết/chia tập**, không đưa vào X.
+Các chỉ số sai số/năng lượng nhân tạo dùng sàng lọc chất lượng; chọn y vật lý phù hợp thay vì dùng tất cả cột một cách máy móc.
+Lưới, CPU và thời gian mô phỏng được lưu trong `resolved.json` để kiểm tra; không phải mọi tham số mô phỏng đều được chọn làm X mặc định.
+Biến phân loại cần mã hóa, ô trống/null là giá trị thiếu, không tự thay bằng 0.
+
+### Lấy file chung ở đâu?
+
+Trên **web → Dữ liệu → Dữ liệu huấn luyện tổng hợp** có nút tải CSV, Parquet, ZIP, tổng hợp lại và theo dõi Actions.
+Mỗi batch cloud kết thúc sẽ tự chạy tổng hợp từ các job đã có bản lưu hoàn tất; cũng có thể chạy riêng workflow [Tổng hợp dữ liệu huấn luyện](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/workflows/collect-training.yml).
+Bản tổng hợp được phát hành dưới tag `training-<workflow-id>-<attempt>`, giữ lịch sử từng phiên bản và SHA-256.
+Không cần bật Abaqus hoặc license để chỉ tổng hợp dữ liệu đã lưu.
+
+```text
+honeycomb-training-<workflow-id>-<attempt>/
+├── README.md                         # Hướng dẫn đọc bộ dữ liệu
+├── collection.json                   # Số mẫu, số lượt, thời điểm tổng hợp
+├── 01_training/
+│   ├── samples.csv                   # FILE HUẤN LUYỆN CHUNG: mỗi dòng một mẫu đạt
+│   ├── samples.parquet               # Cùng bảng, định dạng có kiểu cho Python
+│   ├── dataset.json                  # Danh sách X/y, số mẫu và chia tập
+│   ├── data-dictionary.csv/json      # Tên cột, tiếng Việt, đơn vị, vai trò
+│   ├── FIELD_DESCRIPTIONS.md
+│   ├── curves/<run-id>/              # Đường cong của mẫu được chọn, nếu có
+│   └── provenance/<run-id>/          # Đầu vào, kết quả, chất lượng của mẫu
+├── 02_audit/
+│   ├── source-jobs.json              # Tên bài, ID, link release, checksum nguồn
+│   ├── run-selection.csv             # Nhận/loại từng lượt và lý do
+│   └── input-output-contract.json    # X, y ứng viên và cột chỉ để truy vết
+├── 03_simulations/
+│   └── job-0001_<job-id>/<run-id>/
+│       ├── input/requested.json      # Đầu vào người dùng yêu cầu
+│       ├── input/resolved.json       # Đầu vào thực tế sau xử lý
+│       └── output/
+│           ├── summary.json          # Chỉ số kết quả
+│           ├── quality.json          # Kiểm tra chất lượng
+│           └── attempt-001/          # Đường cong theo thời gian, nếu có
+└── artifact-manifest.json            # Danh sách tệp và SHA-256
+```
+
+Thứ tự `job-0001` chỉ dùng sắp xếp trong bản xuất; tên bài gốc nằm trong `source-jobs.json`, ID giữ nguyên để đối chiếu.
+Không đổi tên thư mục đang chạy của solver. ODB/CAE/INP dung lượng lớn nằm ở release gốc được dẫn trong bảng nguồn.
+Chỉ nhận lượt `completed`, `ml_eligible=true`, không phải `test_only`. Smoke/review/failed giữ hồ sơ nhưng không vào bảng huấn luyện.
+Khử trùng `input_hash` trên toàn bộ job, chia train/validation/test theo `design_id` toàn cục; dùng cột `split` có sẵn để tránh rò rỉ dữ liệu.
+Nếu chưa có mẫu đạt, `samples=0`, CSV chỉ có tiêu đề; không coi đó là bộ dữ liệu đã sẵn sàng huấn luyện.
+Job chưa có bản lưu hoàn tất được ghi lý do trong `source-jobs.json`; lỗi checksum hoặc thiếu nguồn đã xác nhận sẽ làm bước tổng hợp thất bại và giữ bản tổng hợp trước đó.
+
 ## Chức năng
 
 - Chọn lõi lục giác hoặc **auxetic re-entrant hình 1 — 0°**; chỉnh kích thước ô lõm, dịch pha X/Z và lưới chiều sâu Y. Xem [kiểm tra tích hợp](docs/AUXETIC_0_VALIDATION.md).
 - Xem/sửa hình học, bảng vật liệu, điều kiện tải, liên kết, lưới và output; preview input thực tế và toàn bộ lượt trước khi chạy.
 - Quét năng lượng/vận tốc với bước nhảy, tổ hợp nhiều biến, Latin Hypercube có seed hoặc bảng CSV.
-- Một solver tại một thời điểm; tiến độ vật lý, ETA, log, CPU/RAM, datacheck và điều kiện tài nguyên.
+- Thực thi tuần tự hoặc đồng thời có kiểm tra tài nguyên; cloud hỗ trợ tối đa 20 runner trong một batch; tiến độ vật lý, ETA, log, CPU/RAM và datacheck.
 - Dừng hàng đợi hoặc dừng ngay; tiếp tục lượt bị dừng từ đầu, giữ các lượt đã hoàn tất và mọi attempt.
 - Mở CAE/ODB bằng Abaqus; mặc định xuất chỉ số, đường cong và cực trị để huấn luyện/tối ưu; chế độ nâng cao sao chép mọi field ODB sang Parquet.
 - CSV, JSON, Parquet, PDF từng lượt/toàn job, ZIP64 có manifest và checksum.

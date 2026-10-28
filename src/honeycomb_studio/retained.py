@@ -40,6 +40,8 @@ def coverage(runs, included):
                 reason = "Smoke chỉ kiểm tra môi trường, không dùng huấn luyện"
             elif run.get("test_only"):
                 reason = "Dữ liệu thử nghiệm giả lập"
+            elif run["status"] == "review":
+                reason = "Mô phỏng đã có kết quả nhưng cần duyệt chất lượng (review)"
             elif run["status"] != "completed":
                 reason = "Lượt chưa hoàn tất"
             elif not (run.get("quality") or {}).get("ml_eligible"):
@@ -47,7 +49,9 @@ def coverage(runs, included):
             else:
                 reason = "Trùng đầu vào"
         result.append(
-            {"run_id": run["id"], "index": run["index"], "included": run["id"] in included, "reason": reason}
+            {"run_id": run["id"], "index": run["index"], "status": run["status"],
+             "included": run["id"] in included, "reason": reason,
+             "quality_findings": " | ".join((run.get("quality") or {}).get("findings", []))}
         )
     return result
 

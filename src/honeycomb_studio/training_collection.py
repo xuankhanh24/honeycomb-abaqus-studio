@@ -85,7 +85,7 @@ def build_collection(sources, out: Path):
         write_rows(audit / "run-selection.csv", coverage(runs, set(meta["run_ids"])))
     else:
         audit.mkdir(parents=True)
-        (audit / "run-selection.csv").write_text("run_id,index,included,reason\n", encoding="utf-8")
+        (audit / "run-selection.csv").write_text("run_id,index,status,included,reason,quality_findings\n", encoding="utf-8")
     index = []
     job_numbers = {identity: i for i, identity in enumerate(dict.fromkeys(s["job_id"] for s in sources), 1)}
     for source in sources:

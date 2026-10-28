@@ -1,0 +1,8 @@
+{
+  "full_multipart_download": "passed",
+  "whole_zip_sha256": "f838f5bc624bcd1be53bd2c619f74c4f6bb4c0af5ef86fd111561456c95f535f",
+  "original_solver_files_verified": 128,
+  "simulation_odb_files": 2,
+  "datacheck_odb_files": 2,
+  "bytes_verified": 4359653700
+}

@@ -42,8 +42,15 @@ def test_global_dedup_quality_selection_and_design_splits(tmp_path):
     assert "input.energy_J" in contract["X"]
     assert "peak_raw_contact_force_N" in contract["y_candidates"]
     assert "run_id" not in contract["X"]
-    assert list(out.glob("03_simulations/job-0001_*/**/input/resolved.json"))
-    assert list(out.glob("03_simulations/job-0001_*/**/output/summary.json"))
+    assert list(out.glob("03_simulations/job--ten-bai-0--0/**/input/resolved.json"))
+    assert list(out.glob("03_simulations/job--ten-bai-0--0/**/output/summary.json"))
+    results = pq.read_table(out / "05_all_results/simulation-results.parquet").to_pylist()
+    assert len(results) == 4
+    assert sum(r["included_in_training"] for r in results) == 2
+    assert results[-1]["status"] == "review"
+    readiness = json.loads((out / "01_training/readiness.json").read_text(encoding="utf-8"))
+    assert readiness["usable_rows_by_target"]["SEA_J_kg"] == 2
+    assert readiness["evaluation_splits_available"] is False
 
 
 def test_empty_collection_is_explicit_and_auditable(tmp_path):

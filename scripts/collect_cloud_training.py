@@ -9,8 +9,10 @@ from pathlib import Path
 
 from honeycomb_studio.cloud_archive import ReleaseArchive
 from honeycomb_studio.cloud_github import JOB_ID, REPOSITORY, Catalog, Github
+from honeycomb_studio.cloud_job_data import BUILDER_VERSION, publish_job_data
 from honeycomb_studio.cloud_release import reserve_release
 from honeycomb_studio.cloud_restore import public_asset, restore, validate_manifest
+from honeycomb_studio.models import BatchSpec, expand
 from honeycomb_studio.training_collection import build_collection, collect_runs, training_paths
 
 
@@ -26,9 +28,10 @@ def collect(github, catalog, root):
         if parent is None:
             raise ValueError("Indexed source job is missing")
         for shard in parent.get("shards") or [parent]:
-            source = {"job_id": parent["id"], "job_name": parent["name"],
+            source = {"job_id": parent["id"], "job_name": parent["name"], "index": shard.get("index", 0),
                       "shard_id": shard["id"], "status": shard["status"],
-                      "profile": parent["profile"], "runs": []}
+                      "profile": parent["profile"], "runs": [],
+                      "job": {k: parent.get(k) for k in ("id", "name", "profile", "spec", "input_hash", "status", "workflow_run_id", "execution")}}
             sources.append(source)
             print(f"Nguồn {len(sources)} · {parent['name']} · {shard['id']} · {shard['status']}", flush=True)
             if not shard.get("archive_verified") or not shard.get("release_url"):
@@ -62,7 +65,7 @@ def collect(github, catalog, root):
             archive = json.loads(content)
             validate_manifest(archive, allow_incomplete=True)
             source.update(release_url=release["html_url"], manifest_url=url,
-                          manifest_sha256=digest, workflow_run_id=workflow)
+                          manifest_sha256=digest, workflow_run_id=workflow, archive=archive)
             if archive["complete"] is not True:
                 source["excluded_reason"] = "Bản lưu chẩn đoán chưa hoàn chỉnh; không dùng huấn luyện."
                 continue
@@ -86,15 +89,42 @@ def collect(github, catalog, root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("output/training-collection"))
+    parser.add_argument("--full-data", action="store_true", help="Publish complete solver ZIPs for every archived job")
+    parser.add_argument("--full-job-id", default="", help="Limit complete solver ZIP construction to this parent job")
+    parser.add_argument("--require-training-job", default="", help="Fail acceptance if this research job has any unaccepted sample")
     args = parser.parse_args()
     github = Github(token=os.environ["GITHUB_TOKEN"])
     catalog = Catalog(github)
     workflow = int(os.environ["GITHUB_RUN_ID"])
     attempt = int(os.getenv("GITHUB_RUN_ATTEMPT", "1"))
     tag = f"training-{workflow}-{attempt}"
+    if args.full_job_id and not JOB_ID.fullmatch(args.full_job_id):
+        raise ValueError("Invalid full-data job ID")
     release = reserve_release(github, tag=tag, sha=os.environ["GITHUB_SHA"],
                               name=f"Dữ liệu huấn luyện tổng hợp · {workflow} · lần {attempt}")
+    reservations = {}
+    for row in catalog.jobs():
+        if row["status"] not in ("draft", "dispatching", "running", "preflight"):
+            cached, _ = catalog.get("training/jobs/" + row["id"])
+            wants_full = row["id"] == args.full_job_id or (args.full_data and not args.full_job_id)
+            if (cached and cached.get("builder_version") == BUILDER_VERSION
+                    and cached.get("source_status") == row["status"]
+                    and cached.get("workflow_run_id") == row.get("workflow_run_id")
+                    and (not wants_full or cached.get("full_bundle"))):
+                reservations[row["id"]] = None
+                continue
+            reservations[row["id"]] = reserve_release(
+                github, tag=f"job-data-{row['id']}-{workflow}-{attempt}", sha=os.environ["GITHUB_SHA"],
+                name="Dữ liệu job · " + row["name"])
     sources = collect(github, catalog, args.root / "restored")
+    jobs = []
+    for identity in dict.fromkeys(s["job_id"] for s in sources):
+        selected = [s for s in sources if s["job_id"] == identity]
+        if identity not in reservations or not any(s.get("archive") for s in selected):
+            continue
+        full = identity == args.full_job_id or (args.full_data and not args.full_job_id)
+        jobs.append(publish_job_data(github, catalog, selected, reservations[identity],
+                                     workflow=workflow, attempt=attempt, full=full, root=args.root))
     directory = args.root / ("honeycomb-training-" + str(workflow) + "-" + str(attempt))
     summary = build_collection(sources, directory)
     archive = Path(shutil.make_archive(str(directory), "zip", directory.parent, directory.name))
@@ -106,6 +136,11 @@ def main():
                        (directory / "README.md", "README.md"),
                        (directory / "artifact-manifest.json", "artifact-manifest.json")):
         publisher.upload(path, name)
+    all_results = {}
+    for suffix in ("csv", "parquet"):
+        path = directory / f"05_all_results/simulation-results.{suffix}"
+        if path.is_file():
+            all_results[f"all_results_{suffix}_url"] = publisher.upload(path, f"simulation-results.{suffix}")["url"]
     published = github.repo("PATCH", f"/releases/{release['id']}", {
         "draft": False, "prerelease": True,
         "body": f"Bộ tổng hợp: {summary['samples']} mẫu huấn luyện / {summary['runs']} lượt. "
@@ -113,17 +148,26 @@ def main():
                 "X = input.*; y xem dataset.json. Smoke/review bị loại. "
                 f"{summary['unavailable_sources']} nguồn chưa có bản lưu hoàn tất; xem source-jobs.json.",
     })
-    record = {**summary, "release_url": published["html_url"],
+    record = {**summary, **all_results, "job_collections": jobs, "release_url": published["html_url"],
               "workflow_url": f"https://github.com/{REPOSITORY}/actions/runs/{workflow}",
               "csv_url": f"https://github.com/{REPOSITORY}/releases/download/{tag}/samples.csv",
               "parquet_url": f"https://github.com/{REPOSITORY}/releases/download/{tag}/samples.parquet",
               "zip_url": f"https://github.com/{REPOSITORY}/releases/download/{tag}/{archive.name}"}
     catalog.update("training/latest", lambda old: record)
+    catalog.update("training/index", lambda old: {"jobs": jobs})
     text = f"## Dữ liệu huấn luyện tổng hợp\n\n{summary['samples']} mẫu đạt / {summary['runs']} lượt lưu.\n\n[ZIP, CSV và Parquet]({record['release_url']})\n"
     if os.getenv("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
             stream.write(text)
     print(json.dumps(record, ensure_ascii=True))
+    if args.require_training_job:
+        source = next(s for s in sources if s["job_id"] == args.require_training_job)
+        if source["profile"] != "smoke":
+            expected = len(expand(BatchSpec.model_validate(source["job"]["spec"])))
+            result = next((j for j in jobs if j["id"] == args.require_training_job), {})
+            if result.get("samples") != expected or not result.get("source_complete"):
+                raise RuntimeError(f"Chưa đạt nghiệm thu huấn luyện: {result.get('samples', 0)}/{expected} mẫu đạt. "
+                                   "Dữ liệu đã lưu; xem 02_audit/run-selection.csv và quality.json, không hạ ngưỡng chất lượng.")
 
 
 if __name__ == "__main__":

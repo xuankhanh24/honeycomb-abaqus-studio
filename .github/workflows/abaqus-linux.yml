@@ -1,11 +1,15 @@
 name: Mô phỏng bài đã chọn từ web
-run-name: Bài ${{ inputs.job_id }} · mô phỏng Linux từ web
+run-name: ${{ inputs.job_name || inputs.job_id }} · mô phỏng Linux từ web
 on:
   workflow_dispatch:
     inputs:
       job_id:
         description: 'Mã bài đã lưu bởi chủ dự án'
         required: true
+        type: string
+      job_name:
+        description: 'Tên bài hiển thị trong lịch sử chạy'
+        required: false
         type: string
 permissions:
   contents: write
@@ -54,7 +58,7 @@ jobs:
       fail-fast: false
       max-parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
-    name: Mô hình ${{ matrix.index }} · máy chạy riêng, 4 CPU
+    name: Lượt ${{ matrix.display_index }} · máy chạy riêng, 4 CPU
     runs-on: ubuntu-22.04
     timeout-minutes: 330
     env:
@@ -118,7 +122,7 @@ jobs:
     needs: [prepare, simulate]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -133,4 +137,5 @@ jobs:
       - name: Gộp dữ liệu tất cả job · đầu vào, đầu ra và bảng huấn luyện chung
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: uv run --locked --extra cloud python scripts/collect_cloud_training.py
+          CLOUD_JOB_ID: ${{ inputs.job_id }}
+        run: uv run --locked --extra cloud python scripts/collect_cloud_training.py --full-job-id "$CLOUD_JOB_ID" --require-training-job "$CLOUD_JOB_ID"

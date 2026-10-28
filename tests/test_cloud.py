@@ -137,7 +137,7 @@ def test_owner_csrf_idempotency_and_qualification(monkeypatch):
         def repo(self, method, path, body):
             assert method == "POST"
             assert path == "/actions/workflows/abaqus-linux.yml/dispatches"
-            assert body == {"ref": "main", "inputs": {"job_id": "b" * 32}}
+            assert body == {"ref": "main", "inputs": {"job_id": "b" * 32, "job_name": cloud_api.BatchSpec().name}}
 
     monkeypatch.setattr(cloud_api, "Catalog", Memory)
     monkeypatch.setenv("WEB_SESSION_SECRET", "test-secret-only")

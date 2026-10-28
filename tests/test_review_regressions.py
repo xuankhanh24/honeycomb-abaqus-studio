@@ -84,6 +84,7 @@ def test_invalid_table_fails_preview_and_creation_before_persisting(tmp_path):
     "maximum_energy_balance_drift_percent",
     "artificial_energy_over_max_internal_percent",
     "contact_force_check_max_relative_percent",
+    "end_contact_force_N",
 ])
 @pytest.mark.parametrize("invalid", [None, float("nan"), float("inf")])
 def test_missing_or_nonfinite_required_check_is_never_ml_eligible(key, invalid):

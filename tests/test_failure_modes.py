@@ -103,6 +103,7 @@ def test_backup_failure_cannot_turn_success_into_solver_failure(tmp_path, monkey
         "maximum_energy_balance_drift_percent": 0.1,
         "artificial_energy_over_max_internal_percent": 1,
         "contact_force_check_max_relative_percent": 0.1,
+        "end_contact_force_N": 0,
     }
     monkeypatch.setattr("honeycomb_studio.engine.history_summary", lambda *args, **kwargs: (summary, []))
     monkeypatch.setattr(

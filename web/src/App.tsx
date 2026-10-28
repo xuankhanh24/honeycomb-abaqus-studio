@@ -4,6 +4,7 @@ import BatchSweep from "./BatchSweep";
 import { updateAngleInput } from "./angle-input";
 import { actionRunUrl } from "./action-links";
 import ResultBoundary from "./ResultBoundary";
+import JobDataFolder from "./JobDataFolder";
 import {
     Box,
     SlidersHorizontal,
@@ -164,9 +165,16 @@ export default function App() {
         [references, setReferences] = useState<Doc[]>([]),
         [training, setTraining] = useState<Doc | null>(null),
         [collecting, setCollecting] = useState(false),
+        [dataJob, setDataJob] = useState<string | null>(new URLSearchParams(window.location.search).get("data_job")),
         [reference, setReference] = useState(0),
         [curve, setCurve] = useState<Doc[]>([]);
     const selectedId = useRef<string | null>(null);
+    function openDataJob(identity: string) {
+        setDataJob(identity); setTab("data");
+        window.history.replaceState(null, "", "?data_job=" + encodeURIComponent(identity));
+        window.scrollTo({ top: 0, behavior: "instant" });
+    }
+    useEffect(() => { if (dataJob) setTab("data"); }, []);
     useEffect(() => {
         selectedId.current = selected?.id ?? null;
     }, [selected]);
@@ -978,6 +986,7 @@ export default function App() {
                                                         >
                                                             Mở bài
                                                         </button>
+                                                        <button onClick={() => openDataJob(j.id)}>Mở thư mục dữ liệu</button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -1009,6 +1018,14 @@ export default function App() {
                                     </p>
                                     <div className="actions">
                                         {actionRunUrl(selected.workflow_run_id) && <a className="button" href={actionRunUrl(selected.workflow_run_id)!} target="_blank" rel="noopener noreferrer">Theo dõi trên GitHub Actions <ExternalLink size={14} /></a>}
+                                        <button onClick={() => openDataJob(selected.id)}>Mở thư mục dữ liệu job</button>
+                                        {selected.status === "review" && selected.profile !== "smoke" && selected.runs?.some((r: Doc) =>
+                                            r.quality?.findings?.some((f: string) => f.startsWith("Cuối step còn tiếp xúc >10 N"))) &&
+                                            <button disabled={!session.owner || busy} onClick={() => void act(async () => {
+                                                const next = await api(`/api/jobs/${selected.id}/training-retry`, { request_id: crypto.randomUUID().replaceAll("-", "") }, session.csrf);
+                                                selectedId.current = next.id; setSelected(next); await refresh();
+                                            })}>Tạo job research với thời gian ×2</button>}
+                                        {selected.quality_retry && <p>{selected.quality_retry} Bấm Bắt đầu chạy bài này để chạy job mới.</p>}
                                         <button
                                             className="primary"
                                             disabled={startDisabled}
@@ -1105,6 +1122,7 @@ export default function App() {
                     )}
                     {tab === "data" && (
                         <section className="sheet">
+                            {dataJob && <JobDataFolder key={dataJob} identity={dataJob} session={session} close={() => { setDataJob(null); window.history.replaceState(null, "", window.location.pathname); }} />}
                             <section className="parameter-group" aria-labelledby="training-title">
                                 <h2 id="training-title">Dữ liệu huấn luyện tổng hợp</h2>
                                 <p>Tự động gom sau mỗi batch cloud. Mỗi dòng trong <code>samples.csv</code> hoặc <code>samples.parquet</code> là một lượt đạt chất lượng, đã khử trùng giữa các job.</p>
@@ -1124,7 +1142,18 @@ export default function App() {
                                         <a href={training.parquet_url}>Tải Parquet</a>
                                         <a href={training.zip_url}>Tải toàn bộ thư mục ZIP</a>
                                         <a href={training.release_url} target="_blank" rel="noreferrer">Xem bản phát hành</a>
+                                        {training.all_results_csv_url && <a href={training.all_results_csv_url}>Tải mọi kết quả mô phỏng CSV</a>}
+                                        {training.all_results_parquet_url && <a href={training.all_results_parquet_url}>Tải mọi kết quả Parquet</a>}
                                     </div>
+                                    <p>Bảng mọi kết quả bao gồm cả review/smoke để kiểm tra. Bảng huấn luyện chỉ lấy các mẫu đã đạt chất lượng số.</p>
+                                    {!!training.job_collections?.length && <div className="table-scroll"><table>
+                                        <thead><tr><th>Job mô phỏng</th><th>Lượt / mẫu đạt</th><th>Dữ liệu</th><th>Actions</th></tr></thead>
+                                        <tbody>{training.job_collections.map((job: Doc) => <tr key={job.id}>
+                                            <td>{job.name}</td><td>{job.runs} / {job.samples}</td>
+                                            <td><button onClick={() => openDataJob(job.id)}>Mở thư mục job</button></td>
+                                            <td><a href={job.workflow_url} target="_blank" rel="noreferrer">Mở Actions mô phỏng</a></td>
+                                        </tr>)}</tbody>
+                                    </table></div>}
                                 </> : <p>Chưa có bộ tổng hợp. Chạy tổng hợp để lấy các kết quả đã lưu trên GitHub.</p>}
                                 <div className="actions">
                                     <button disabled={!session.owner || collecting} onClick={async () => {

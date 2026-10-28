@@ -17,6 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .cloud_github import JOB_ID, REPOSITORY, Catalog, Github
 from .cloud_matrix import matrix_plan
+from .cloud_quality import longer_research_spec
 from .cloud_runtime import execution_runtime, qualification, technical_evidence
 from .models import BatchSpec, ModelSpec, catalogue, digest, expand
 
@@ -28,6 +29,10 @@ class Submission(BaseModel):
     request_id: str = Field(pattern=r"^[a-f0-9]{32}$")
     profile: Literal["smoke", "research", "full"] = "research"
     spec: BatchSpec
+
+
+class TrainingRetry(BaseModel):
+    request_id: str = Field(pattern=r"^[a-f0-9]{32}$")
 
 
 def gates():
@@ -149,7 +154,8 @@ def create_app(github: Github | None = None) -> FastAPI:
 
     @app.get("/api/template")
     def template():
-        model = ModelSpec(core_topology="reentrant_0", reentrant_geometry="angle", clamp_mode="perimeter", cpus=4)
+        model = ModelSpec(core_topology="reentrant_0", reentrant_geometry="angle", clamp_mode="perimeter",
+                          cpus=4, duration=.012, history_intervals=2400)
         return {
             "spec": BatchSpec(model=model, max_runs=20).model_dump(),
             "parameters": catalogue(),
@@ -165,6 +171,27 @@ def create_app(github: Github | None = None) -> FastAPI:
     def collect_training(request: Request):
         require_owner(request)
         github.repo("POST", "/actions/workflows/collect-training.yml/dispatches", {"ref": "main"})
+        return {"status": "dispatching", "workflow_url":
+                f"https://github.com/{REPOSITORY}/actions/workflows/collect-training.yml"}
+
+    @app.get("/api/jobs/{identity}/data")
+    def job_data(identity: str):
+        if not JOB_ID.fullmatch(identity):
+            raise HTTPException(404)
+        value, _ = catalog.get("jobs/" + identity)
+        if value is None:
+            raise HTTPException(404, "Không tìm thấy job.")
+        data, _ = catalog.get("training/jobs/" + identity)
+        return {"job_id": identity, "name": value["name"], "status": value["status"], "collection": data,
+                "workflow_url": f"https://github.com/{REPOSITORY}/actions/runs/{value['workflow_run_id']}"
+                if value.get("workflow_run_id") else None}
+
+    @app.post("/api/jobs/{identity}/data/collect")
+    def collect_job_data(identity: str, request: Request):
+        require_owner(request)
+        job_data(identity)
+        github.repo("POST", "/actions/workflows/collect-training.yml/dispatches",
+                    {"ref": "main", "inputs": {"job_id": identity}})
         return {"status": "dispatching", "workflow_url":
                 f"https://github.com/{REPOSITORY}/actions/workflows/collect-training.yml"}
 
@@ -404,7 +431,7 @@ def create_app(github: Github | None = None) -> FastAPI:
             github.repo(
                 "POST",
                 "/actions/workflows/abaqus-linux.yml/dispatches",
-                {"ref": "main", "inputs": {"job_id": identity}},
+                {"ref": "main", "inputs": {"job_id": identity, "job_name": value["name"][:100]}},
             )
         except httpx.HTTPError:
             # Leave dispatching: the server may have accepted the request before a lost response.
@@ -421,6 +448,17 @@ def create_app(github: Github | None = None) -> FastAPI:
         # partial outputs. GitHub's immediate cancel would kill that cleanup.
         catalog.update("jobs/" + identity, lambda old: {**old, "cancel_requested": True})
         return {"cancel_requested": True}
+
+    @app.post("/api/jobs/{identity}/training-retry", status_code=201)
+    def training_retry(identity: str, body: TrainingRetry, request: Request):
+        require_owner(request)
+        parent = job(identity)
+        spec = longer_research_spec(parent)
+        submit(Submission(request_id=body.request_id, profile=parent["profile"], spec=spec), request)
+        return catalog.update("jobs/" + body.request_id, lambda old: {
+            **old, "source_job_id": identity,
+            "quality_retry": "Thời gian vật lý ×2, giữ mật độ ghi history; không sửa kết quả hoặc ngưỡng chất lượng gốc.",
+        })
 
     @app.get("/auth/login")
     def login(request: Request):

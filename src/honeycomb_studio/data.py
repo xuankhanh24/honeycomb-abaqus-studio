@@ -374,7 +374,10 @@ def quality(summary: dict) -> dict:
             findings.append(f"{key}={value:.5g}% vượt {threshold}%")
     if abs(summary["initial_kinetic_energy_J"]) < 1e-12:
         findings.append("Động năng ban đầu bằng 0")
-    if summary.get("end_contact_force_N", 0) > 10:
+    end_force = summary.get("end_contact_force_N")
+    if end_force is None or not math.isfinite(end_force):
+        findings.append("Thiếu hoặc không hữu hạn: end_contact_force_N; chưa đủ bằng chứng tách tiếp xúc")
+    elif end_force > 10:
         findings.append("Cuối step còn tiếp xúc >10 N; cần xem xét tăng thời gian vật lý")
     return {
         "solver_completed": summary.get("solver_completed", False),

@@ -59,6 +59,7 @@ def test_quality_is_separate_from_physical_validation():
         "maximum_energy_balance_drift_percent": 0.08,
         "artificial_energy_over_max_internal_percent": 4.52,
         "contact_force_check_max_relative_percent": 0.1,
+        "end_contact_force_N": 0,
     }
     result = quality(summary)
     assert result["ml_eligible"] and result["physical_validation"] == "not_established"

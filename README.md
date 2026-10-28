@@ -18,6 +18,8 @@ Nút **Dữ liệu ML gọn** xuất `samples.csv/Parquet` (mỗi lượt một 
 
 ## Cloud: chạy đồng thời và dữ liệu tổng hợp
 
+**Mỗi lần bấm chạy tạo một job cha, một workflow và một thư mục dữ liệu chung**, chứa các lượt đồng thời. Trên web có nút **Mở thư mục dữ liệu job**, theo dõi Actions, tải ZIP nhỏ và gói đầy đủ ODB/CAE/INP. Có bảng **mọi kết quả đã mô phỏng** và bảng huấn luyện chỉ gồm mẫu đạt chất lượng. Xem [hướng dẫn thư mục, X/y và sửa mẫu chưa đạt](docs/ML_DATA_WORKFLOW.md).
+
 Web cho phép **20 lượt mỗi batch, tối đa 20 runner đồng thời**, mỗi runner giải một lượt.
 Giới hạn 8 trước đây do ứng dụng tự đặt; giới hạn batch 10 cũng đã được nâng lên 20.
 [GitHub Free cho phép 20 job đồng thời trên runner tiêu chuẩn](https://docs.github.com/en/actions/reference/limits#job-concurrency-limits-for-github-hosted-runners).

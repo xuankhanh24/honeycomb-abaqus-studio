@@ -37,7 +37,7 @@ def main():
                                       for s in old["shards"]]}
 
         value = catalog.update("jobs/" + args.job_id, retain_reservations)
-        matrix = {"include": [{"child_id": s["id"], "index": s["index"]} for s in value["shards"]]}
+        matrix = {"include": [{"child_id": s["id"], "index": s["index"], "display_index": s["index"] + 1} for s in value["shards"]]}
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
             out.write("matrix=" + json.dumps(matrix) + "\n")
             out.write("max_parallel=" + str(value["execution"]["effective_parallel_runs"]) + "\n")

@@ -1,6 +1,11 @@
 name: Tổng hợp dữ liệu huấn luyện từ các job
 on:
   workflow_dispatch:
+    inputs:
+      job_id:
+        description: 'Đóng gói đầy đủ job này; để trống để đóng gói toàn bộ job đã lưu'
+        required: false
+        type: string
 permissions:
   contents: write
 concurrency:
@@ -10,7 +15,7 @@ jobs:
   collect:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -21,4 +26,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HONEYCOMB_ACTIONS_LOG: '1'
-        run: uv run --locked --extra cloud python scripts/collect_cloud_training.py
+          DATA_JOB_ID: ${{ inputs.job_id }}
+        run: uv run --locked --extra cloud python scripts/collect_cloud_training.py --full-data --full-job-id "$DATA_JOB_ID"

@@ -237,6 +237,13 @@ def main():
                 passed("Management Actions links fit the mobile viewport")
                 page.set_viewport_size({"width": 1440, "height": 1000})
                 passed("Real management job list and existing job detail", jobs=len(jobs))
+                if jobs:
+                    with page.expect_response(lambda r: r.url.endswith(f"/api/jobs/{jobs[0]['id']}/data")) as folder:
+                        page.get_by_role("button", name="Mở thư mục dữ liệu job", exact=True).click()
+                    assert folder.value.status == 200
+                    expect(page.get_by_role("heading", name="Thư mục dữ liệu job", exact=True)).to_be_visible()
+                    expect(page.get_by_role("button", name="Đóng gói lại toàn bộ dữ liệu job", exact=True)).to_be_disabled()
+                    passed("Job opens its own public data folder and keeps full packaging owner-controlled")
                 page.get_by_role("button", name="Dữ liệu", exact=True).click()
                 expect(page.get_by_role("heading", name="Dữ liệu huấn luyện tổng hợp", exact=True)).to_be_visible()
                 expect(page.get_by_role("button", name="Tổng hợp lại dữ liệu các job", exact=True)).to_be_disabled()

@@ -419,6 +419,17 @@ dd {
 }
 .training-contract dt { font-weight: 600; }
 .training-contract dd { text-align: left; font-weight: 400; overflow-wrap: anywhere; }
+.job-data-folder > h3 { margin-top: 20px; }
+.job-data-folder .actions { margin: 16px 0; }
+.folder-path { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; font-weight: 600; }
+.data-tree { list-style: none; margin: 4px 0; padding-left: 20px; }
+.data-tree summary { padding: 8px 0; cursor: pointer; overflow-wrap: anywhere; }
+.data-tree summary svg { vertical-align: text-bottom; margin-right: 8px; }
+.data-file { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.data-file button { border: 0; color: var(--blue); text-align: left; min-width: 0; overflow-wrap: anywhere; background: transparent; }
+.data-file span { flex-shrink: 0; font-size: 12px; padding-top: 10px; font-variant-numeric: tabular-nums; }
+.data-file-info { padding: 16px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.full-download { margin: 24px 0; padding: 16px 0; border-block: 1px solid var(--line); }
 @media (max-width: 640px) {
     .training-contract { grid-template-columns: minmax(0, 1fr); gap: 6px; }
     .training-contract dd { margin-bottom: 12px; }

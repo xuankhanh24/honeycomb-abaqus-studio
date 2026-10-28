@@ -411,6 +411,18 @@ dd {
     text-align: right;
     font-weight: 600;
 }
+.training-contract {
+    display: grid;
+    grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
+    gap: 12px 20px;
+    margin: 20px 0;
+}
+.training-contract dt { font-weight: 600; }
+.training-contract dd { text-align: left; font-weight: 400; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+    .training-contract { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .training-contract dd { margin-bottom: 12px; }
+}
 .gate {
     display: flex;
     align-items: flex-start;

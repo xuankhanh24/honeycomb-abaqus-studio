@@ -1108,7 +1108,7 @@ export default function App() {
                             <section className="parameter-group" aria-labelledby="training-title">
                                 <h2 id="training-title">Dữ liệu huấn luyện tổng hợp</h2>
                                 <p>Tự động gom sau mỗi batch cloud. Mỗi dòng trong <code>samples.csv</code> hoặc <code>samples.parquet</code> là một lượt đạt chất lượng, đã khử trùng giữa các job.</p>
-                                <dl>
+                                <dl className="training-contract">
                                     <dt>Đầu vào mô phỏng</dt><dd>Hình học (mm), vật liệu, ngàm, tải (J hoặc m/s), lưới và thời gian (s). Thư mục <code>03_simulations/.../input</code>.</dd>
                                     <dt>Đầu ra mô phỏng</dt><dd>Lực (N), chuyển vị (mm), năng lượng (J), ứng suất (MPa), đường cong và chất lượng. Thư mục <code>03_simulations/.../output</code>.</dd>
                                     <dt>Đầu vào huấn luyện X</dt><dd>Các cột <code>input.*</code> được liệt kê trong <code>dataset.json.features</code>. Cần mã hóa biến phân loại và xử lý giá trị thiếu.</dd>

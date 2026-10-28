@@ -149,6 +149,7 @@ jobs:
           CLOUD_JOB_ID: ${{ inputs.job_id }}
         run: uv run --locked --extra cloud python scripts/cloud_matrix.py finalize --job-id "$CLOUD_JOB_ID"
       - name: Gộp dữ liệu tất cả job · đầu vào, đầu ra và bảng huấn luyện chung
+        if: needs.prepare.result == 'success'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CLOUD_JOB_ID: ${{ inputs.job_id }}

@@ -57,6 +57,10 @@ def recover(old, workflow_id):
             history.append(deepcopy(shard))
             shard = {k: shard[k] for k in ("id", "name", "profile", "parent_job_id",
                                            "parent_input_hash", "index", "spec", "input_hash")}
+            # Each solver attempt reserves its own immutable source tag. Keep
+            # the parent/folder and design index, but never retag old outputs.
+            shard["id"] = digest({"parent": old["id"], "index": shard["index"],
+                                  "recovery_workflow": workflow_id})[:32]
             shard.update(status="draft", previous_attempts=history)
         shards.append(shard)
     if not any(s["status"] == "draft" for s in shards):

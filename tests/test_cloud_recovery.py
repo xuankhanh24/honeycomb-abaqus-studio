@@ -55,6 +55,8 @@ def test_recovery_keeps_successes_and_original_workflow_provenance():
     retry = recovered['shards'][2]
     assert retry['status'] == 'draft' and 'workflow_run_id' not in retry
     assert retry['previous_attempts'][0]['workflow_run_id'] == 123
+    assert retry['id'] != parent['shards'][2]['id']
+    assert retry['previous_attempts'][0]['id'] == parent['shards'][2]['id']
     assert retry['spec'] == parent['shards'][2]['spec']
     assert recovered['workflow_run_id'] == 456
     assert parent['status'] == 'failed'

@@ -4,7 +4,14 @@ from copy import deepcopy
 
 import pytest
 
-from honeycomb_studio.cloud_matrix import ShardCatalog, finalize, matrix_plan, prepare
+from honeycomb_studio.cloud_matrix import (
+    ShardCatalog,
+    finalize,
+    matrix_entries,
+    matrix_plan,
+    prepare,
+    workflow_title,
+)
 from honeycomb_studio.models import BatchSpec, ModelSpec, digest, expand
 
 
@@ -13,6 +20,31 @@ def batch(mode="parallel"):
                      axes=[{"parameter": "energy_J", "values": [5, 7, 9]}]).model_dump()
     return {"id": "a" * 32, "name": "fixture", "profile": "research", "status": "draft",
             "spec": spec, "input_hash": digest(spec)}
+
+
+def test_parameter_names_show_delta_range_and_each_actual_design():
+    spec = BatchSpec(model=ModelSpec(core_topology="reentrant_0", reentrant_geometry="angle", cpus=4,
+                                    energy_J=7, duration=.012),
+                     axes=[{"parameter": "reentrant_delta_deg", "values": list(range(25, 46))}]).model_dump()
+    title = workflow_title(spec)
+    assert "δ=25–45° (bước 1°)" in title
+    assert "E=7 J" in title and "t=12 ms" in title and "21 lượt" in title
+    parent = prepare({**batch(), "spec": spec, "input_hash": digest(spec)}, 123)
+    entries = matrix_entries(parent)["include"]
+    assert "Lượt 1/21 · δ=25°" in entries[0]["display_name"]
+    assert "Lượt 21/21 · δ=45°" in entries[-1]["display_name"]
+    for shard in parent["shards"][:-1]:
+        shard.update(status="completed", archive_verified=True)
+    assert matrix_entries(parent)["include"] == [entries[-1]]
+
+
+def test_parameter_names_include_other_axes_and_irregular_values():
+    parent = prepare(batch(), 123)
+    assert "E=5/7/10 J" in workflow_title({**parent["spec"],
+                                         "axes": [{"parameter": "energy_J", "values": [5, 7, 10]}]})
+    entries = matrix_entries(parent)["include"]
+    assert "E=5 J" in entries[0]["display_name"]
+    assert "E=9 J" in entries[-1]["display_name"]
 
 
 def test_twenty_one_runs_stay_in_one_job_with_twenty_parallel_slots():

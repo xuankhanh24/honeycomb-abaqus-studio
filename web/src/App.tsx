@@ -5,6 +5,8 @@ import { updateAngleInput } from "./angle-input";
 import { actionRunUrl } from "./action-links";
 import ResultBoundary from "./ResultBoundary";
 import JobDataFolder from "./JobDataFolder";
+import JobExecution from "./JobExecution";
+import { stateLabel } from "./job-state";
 import {
     Box,
     SlidersHorizontal,
@@ -308,7 +310,7 @@ export default function App() {
           : status.gates.length
             ? "Luồng chạy từ web đang bị khóa bởi các điều kiện bên dưới."
             : selected.status !== "draft"
-              ? "Bài này đã được gửi hoặc đã kết thúc. Tạo một bài mới từ Thiết lập để chạy lượt khác."
+              ? "Bài đã được gửi. Xem từng lượt bên dưới; dùng Chạy bù lượt lỗi hoặc Đóng gói lại theo trạng thái."
               : busy ? "Đang xử lý thao tác trước…" : "Bài đã sẵn sàng để gửi sang GitHub Actions.";
     async function startSelectedJob() {
         if (startDisabled || !selected) return;
@@ -914,7 +916,7 @@ export default function App() {
                                             if (identity) void act(() => openJob(identity));
                                         }}>
                                         <option value="" disabled>{jobs.length ? "Chọn một bài để xem và chuẩn bị chạy…" : "Chưa có bài đã lưu"}</option>
-                                        {jobs.map(job => <option key={job.id} value={job.id}>{job.name} · {job.profile} · {job.status === "draft" ? "Bản nháp" : job.status}</option>)}
+                                        {jobs.map(job => <option key={job.id} value={job.id}>{job.parameter_title ?? job.name} · {stateLabel(job.status)}</option>)}
                                     </select>
                                 </label>
                                 <p id="job-selection-help" className="hint" aria-live="polite">
@@ -969,9 +971,9 @@ export default function App() {
                                         <tbody>
                                             {jobs.map((j) => (
                                                 <tr key={j.id}>
-                                                    <td>{j.name}</td>
+                                                    <td><strong>{j.parameter_title ?? j.name}</strong>{j.parameter_title && <p className="hint">{j.name}</p>}</td>
                                                     <td>{j.profile}</td>
-                                                    <td>{j.status}</td>
+                                                    <td>{stateLabel(j.status)}</td>
                                                     <td>{actionRunUrl(j.workflow_run_id) ? <a href={actionRunUrl(j.workflow_run_id)!} target="_blank" rel="noopener noreferrer">Theo dõi #{j.workflow_run_id} <ExternalLink size={14} /></a> : "Chưa có lượt chạy"}</td>
                                                     <td>
                                                         <button
@@ -1010,12 +1012,11 @@ export default function App() {
                             )}
                             {selected && (
                                 <section className="job-detail">
-                                    <h3>{selected.name}</h3>
-                                    <p>
-                                        Trạng thái:{" "}
-                                        <strong>{selected.status}</strong> ·{" "}
-                                        {selected.profile}
-                                    </p>
+                                    <JobExecution key={selected.id} job={selected} parameters={params} owner={!!session.owner} busy={busy}
+                                        openData={() => openDataJob(selected.id)} perform={async operation => {
+                                            await api(`/api/jobs/${selected.id}/${operation === "recover" ? "recover" : "data/collect"}`, {}, session.csrf);
+                                            await refresh();
+                                        }}/>
                                     <div className="actions">
                                         {actionRunUrl(selected.workflow_run_id) && <a className="button" href={actionRunUrl(selected.workflow_run_id)!} target="_blank" rel="noopener noreferrer">Theo dõi trên GitHub Actions <ExternalLink size={14} /></a>}
                                         <button onClick={() => openDataJob(selected.id)}>Mở thư mục dữ liệu job</button>
@@ -1026,7 +1027,7 @@ export default function App() {
                                                 selectedId.current = next.id; setSelected(next); await refresh();
                                             })}>Tạo job research với thời gian ×2</button>}
                                         {selected.quality_retry && <p>{selected.quality_retry} Bấm Bắt đầu chạy bài này để chạy job mới.</p>}
-                                        <button
+                                        {selected.status === "draft" && <button
                                             className="primary"
                                             disabled={startDisabled}
                                             aria-describedby="run-start-reason"
@@ -1034,8 +1035,8 @@ export default function App() {
                                             onClick={() => void act(startSelectedJob)}
                                         >
                                             Bắt đầu chạy bài này
-                                        </button>
-                                        <button
+                                        </button>}
+                                        {["running", "dispatching", "preflight"].includes(selected.status) && <button
                                             disabled={
                                                 !session.owner ||
                                                 ![
@@ -1057,7 +1058,7 @@ export default function App() {
                                             }
                                         >
                                             Yêu cầu dừng
-                                        </button>
+                                        </button>}
                                         <button
                                             onClick={() =>
                                                 download(
@@ -1077,11 +1078,6 @@ export default function App() {
                                                 <ExternalLink size={14} />
                                             </a>
                                         )}
-                                        {selected.releases?.map((release: Doc) => (
-                                            <a className="button" key={release.index} href={release.url}>
-                                                Kết quả lượt {release.index + 1} <ExternalLink size={14} />
-                                            </a>
-                                        ))}
                                     </div>
                                     {!!status.gates.length && (
                                         <p className="hint">

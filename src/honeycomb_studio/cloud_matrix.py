@@ -1,11 +1,79 @@
 """One expanded design per hosted runner; atomic parent catalog aggregation."""
 
 from copy import deepcopy
+from math import isclose
 
 from .models import BatchSpec, digest, expand
 
 TERMINAL = {"completed", "review", "failed", "archive_failed", "cancelled", "timed_out",
             "blocked_license", "blocked_environment", "blocked_platform_policy"}
+
+LABELS = {"reentrant_delta_deg": ("δ", "°", 1), "energy_J": ("E", " J", 1),
+          "duration": ("t", " ms", 1000), "cpus": ("CPU", "", 1),
+          "panel": ("Panel", " mm", 1), "foil": ("Lá lõi", " mm", 1),
+          "skin": ("Mặt trên", " mm", 1), "core_height": ("Cao lõi", " mm", 1),
+          "velocity_m_s": ("v", " m/s", 1), "mesh_preset": ("Lưới", "", 1)}
+
+
+def parameter_title(runs):
+    """Describe actual expanded inputs, including table/LHS and arbitrary axes."""
+    models = [run["requested"] for run in runs]
+    varying = [key for key in models[0] if any(m[key] != models[0][key] for m in models[1:])]
+    context = (["reentrant_delta_deg"] if models[0]["core_topology"].startswith("reentrant") else [])
+    context += ["energy_J", "duration", "cpus"]
+    labels = []
+    for key in dict.fromkeys(varying + context):
+        label, unit, scale = LABELS.get(key, (key, "", 1))
+        values = list(dict.fromkeys(str(m[key]) for m in models))
+        raw = [m[key] for m in models]
+        if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in raw):
+            numbers = sorted(set(float(v) * scale for v in raw))
+            if len(numbers) == 1:
+                value = f"{numbers[0]:.6g}{unit}"
+            elif len(numbers) > 2 and all(isclose(b - a, numbers[1] - numbers[0], rel_tol=1e-7, abs_tol=1e-9)
+                                         for a, b in zip(numbers, numbers[1:], strict=False)):
+                value = f"{numbers[0]:.6g}–{numbers[-1]:.6g}{unit} (bước {numbers[1] - numbers[0]:.6g}{unit})"
+            else:
+                value = "/".join(f"{v:.6g}" for v in numbers[:4]) + unit
+                if len(numbers) > 4:
+                    value += f"… ({len(numbers)} giá trị)"
+        else:
+            value = "/".join(values[:3])
+            if len(values) > 3:
+                value += f"… ({len(values)} giá trị)"
+        labels.append(f"{label}={value}")
+    return " · ".join(labels)
+
+
+def workflow_title(spec):
+    runs = expand(BatchSpec.model_validate(spec).model_copy(update={"max_runs": 100}))
+    return f"{parameter_title(runs)[:170]} · {len(runs)} lượt"
+
+
+def matrix_entries(parent, *, pending_only=True):
+    # Use the original batch to identify varying parameters even when recovery
+    # only selects one remaining design.
+    reference = expand(BatchSpec.model_validate(parent["spec"]).model_copy(update={"max_runs": 100}))
+    varying = [key for key in reference[0]["requested"]
+               if any(r["requested"][key] != reference[0]["requested"][key] for r in reference[1:])]
+    entries = []
+    for shard in parent["shards"]:
+        if pending_only and shard["status"] != "draft":
+            continue
+        model = expand(BatchSpec.model_validate(shard["spec"]))[0]
+        requested = model["requested"]
+        title = parameter_title([model])
+        extras = []
+        for key in varying:
+            if key not in ("reentrant_delta_deg", "energy_J", "duration", "cpus"):
+                label, unit, scale = LABELS.get(key, (key, "", 1))
+                value = requested[key]
+                value = f"{value * scale:.6g}" if isinstance(value, (int, float)) else str(value)
+                extras.append(f"{label}={value}{unit}")
+        title = " · ".join(extras + [title])
+        entries.append({"child_id": shard["id"], "index": shard["index"], "display_index": shard["index"] + 1,
+                        "display_name": f"Lượt {shard['index'] + 1}/{len(parent['shards'])} · {title}"[:240]})
+    return {"include": entries}
 
 
 def matrix_plan(spec):
@@ -66,6 +134,7 @@ def recover(old, workflow_id):
     if not any(s["status"] == "draft" for s in shards):
         raise ValueError("No failed shards to recover; collect existing data instead")
     return aggregate({**old, "shards": shards, "workflow_run_id": workflow_id,
+                      "recovery_dispatch_pending": False,
                       "previous_workflow_run_id": old["workflow_run_id"]})
 
 

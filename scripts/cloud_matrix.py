@@ -5,7 +5,7 @@ import json
 import os
 
 from honeycomb_studio.cloud_github import JOB_ID, Catalog, Github
-from honeycomb_studio.cloud_matrix import finalize, prepare, recover
+from honeycomb_studio.cloud_matrix import finalize, matrix_entries, prepare, recover, workflow_title
 from honeycomb_studio.cloud_release import reserve_release
 
 
@@ -26,11 +26,12 @@ def main():
         reserve_release(github, tag=f"training-{workflow}-{os.getenv('GITHUB_RUN_ATTEMPT', '1')}",
                         sha=os.environ["GITHUB_SHA"], name=f"Dữ liệu huấn luyện tổng hợp · {workflow}")
         reservations = {}
+        labels = {entry["child_id"]: entry["display_name"] for entry in matrix_entries(value)["include"]}
         for shard in value["shards"]:
             if shard["status"] != "draft":
                 continue
             release = reserve_release(github, tag="simulation-" + shard["id"],
-                                      sha=os.environ["GITHUB_SHA"], name=shard["name"])
+                                      sha=os.environ["GITHUB_SHA"], name=labels[shard["id"]])
             reservations[shard["id"]] = release["id"]
 
         def retain_reservations(old):
@@ -40,11 +41,11 @@ def main():
                                       if s["id"] in reservations else s for s in old["shards"]]}
 
         value = catalog.update("jobs/" + args.job_id, retain_reservations)
-        matrix = {"include": [{"child_id": s["id"], "index": s["index"], "display_index": s["index"] + 1}
-                              for s in value["shards"] if s["status"] == "draft"]}
+        matrix = matrix_entries(value)
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
             out.write("matrix=" + json.dumps(matrix) + "\n")
             out.write("max_parallel=" + str(value["execution"]["effective_parallel_runs"]) + "\n")
+            out.write("parameter_title=" + workflow_title(value["spec"]) + "\n")
 
 
 if __name__ == "__main__":

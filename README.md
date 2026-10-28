@@ -203,3 +203,15 @@ gh workflow run abaqus-linux.yml --ref main -f job_id=MA_JOB_GOC -f recover=true
 ```
 
 Cập nhật catalog tự thử lại khi GitHub gặp lỗi tạm thời; mỗi lần ghi đọc lại phiên bản mới để giữ dữ liệu các runner khác. Bước tổng hợp/đóng gói có ngân sách 330 phút; lỗi đóng gói không làm mất các bản lưu solver trên Releases.
+
+
+### Quản trị job theo tham số
+
+Trong **Công việc → Mở bài**, xem tóm tắt tham số, bốn bước Đầu vào → Mô phỏng → Đóng gói → Tải dữ liệu và số lượt đã lưu. Mở từng lượt để xem chất lượng số, bản lưu gốc và workflow đúng lần thử; dùng bộ lọc lỗi/đang chạy để tìm lượt cần xử lý.
+
+- **Chạy bù lượt lỗi**: xem phạm vi rồi xác nhận; giữ các lượt thành công trong cùng job/folder. Chỉ dùng khi workflow trước đã kết thúc.
+- **Đóng gói lại dữ liệu đã lưu**: tạo gói dữ liệu từ Releases, không chạy solver. Dùng khi mô phỏng hoàn tất nhưng đóng gói lỗi/hết thời gian.
+- **Mở Actions hiện tại** và **Mở thư mục dữ liệu** dẫn tới log và dữ liệu tương ứng. Actions cũ giữ nguyên trạng thái lịch sử.
+- Các lượt mới được đặt tên từ input áp dụng, ví dụ `Lượt 21/21 · δ=45° · E=7 J · t=12 ms · CPU=4`. Tiêu đề workflow từ web ghi khoảng tham số và số lượt. Workflow đã khởi động giữ tiêu đề cũ.
+
+Kiểm thử giao diện fixture (không khởi động solver): phục vụ `web/dist` tại `127.0.0.1:8768`, rồi chạy `uv run --locked --with playwright --extra cloud python scripts/verify_job_management_web.py` với Chrome đã cài.

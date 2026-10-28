@@ -1,5 +1,5 @@
 name: Mô phỏng bài đã chọn từ web
-run-name: ${{ inputs.job_name || inputs.job_id }} · mô phỏng Linux từ web
+run-name: ${{ inputs.recover && 'Chạy bù' || 'Mô phỏng' }} · ${{ inputs.job_name || inputs.job_id }}
 on:
   workflow_dispatch:
     inputs:
@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       job_name:
-        description: 'Tên bài hiển thị trong lịch sử chạy'
+        description: 'Tóm tắt tham số áp dụng, ví dụ δ=25–45° · E=7 J · t=12 ms · 21 lượt'
         required: false
         type: string
       recover:
@@ -28,12 +28,14 @@ env:
   HONEYCOMB_LOG_TITLE: 'Mô phỏng nghiên cứu — tiến độ và kết quả'
 jobs:
   prepare:
+    name: Chuẩn bị · ${{ inputs.job_name || inputs.job_id }}
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       max_parallel: ${{ steps.matrix.outputs.max_parallel }}
+      parameter_title: ${{ steps.matrix.outputs.parameter_title }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -72,10 +74,11 @@ jobs:
       fail-fast: false
       max-parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
-    name: Lượt ${{ matrix.display_index }} · máy chạy riêng, 4 CPU
+    name: ${{ matrix.display_name }}
     runs-on: ubuntu-22.04
     timeout-minutes: 330
     env:
+      HONEYCOMB_LOG_TITLE: ${{ matrix.display_name }}
       CLOUD_JOB_ID: ${{ inputs.job_id }}
       ABAQUS_MEDIA_DRIVE_FILE_ID: ${{ vars.ABAQUS_MEDIA_DRIVE_FILE_ID }}
       ABAQUS_LICENSE_ENDPOINT: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
@@ -111,7 +114,7 @@ jobs:
         run: uv run --locked python scripts/actions_step.py --title "Tải ISO từ kho Drive" --details output/actions-logs/download.log -- uv run --locked python scripts/prepare_linux_media.py
       - name: Kiểm tra SHA-256 và cài Abaqus trong môi trường cách ly
         run: python3 scripts/actions_step.py --title "Kiểm tra và cài Abaqus" --details output/actions-logs/install.log -- bash scripts/linux_media/install_runtime.sh
-      - name: Chạy mô phỏng thật và giữ dữ liệu nghiên cứu
+      - name: Giải mô hình · ${{ matrix.display_name }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
@@ -133,6 +136,7 @@ jobs:
             ${{ runner.temp }}/honeycomb-results/**/resolved-input.json
             ${{ runner.temp }}/honeycomb-results/**/logs/*.log
   finalize:
+    name: Tổng hợp dữ liệu · ${{ needs.prepare.outputs.parameter_title || inputs.job_name || inputs.job_id }}
     needs: [prepare, simulate]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04

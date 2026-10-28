@@ -74,6 +74,44 @@ def test_recovery_rejects_active_duplicate_or_successful_job():
         recover(parent, 456)
 
 
+def test_owner_can_dispatch_one_selective_recovery_but_not_duplicate(monkeypatch):
+    from fastapi.testclient import TestClient
+    from itsdangerous import TimestampSigner
+    from test_cloud_matrix import MemoryCatalog
+
+    from honeycomb_studio import cloud_api
+
+    parent = prepare(batch(), 123)
+    parent['status'] = 'failed'
+    for shard in parent['shards'][:2]:
+        shard.update(status='completed', archive_verified=True, workflow_run_id=123)
+    parent['shards'][2].update(status='failed', workflow_run_id=123)
+    memory = MemoryCatalog(parent)
+    calls = []
+    class Connected:
+        configured = True
+
+        def repo(self, method, path, body=None):
+            if method == 'GET':
+                return {'status': 'completed'}
+            calls.append((path, body))
+
+    monkeypatch.setattr(cloud_api, 'Catalog', lambda github: memory)
+    monkeypatch.setattr(cloud_api, 'gates', lambda: [])
+    monkeypatch.setenv('WEB_SESSION_SECRET', 'recovery-test-only')
+    monkeypatch.setenv('WEB_LOCAL_HTTP', '1')
+    with TestClient(cloud_api.create_app(Connected())) as client:
+        path = '/api/jobs/' + parent['id'] + '/recover'
+        assert client.post(path, json={}).status_code == 403
+        session = base64.b64encode(json.dumps({'user_id': cloud_api.OWNER_ID, 'csrf': 'fixture'}).encode())
+        client.cookies.set('session', TimestampSigner('recovery-test-only').sign(session).decode())
+        headers = {'X-Honeycomb-CSRF': 'fixture'}
+        assert client.post(path, json={}, headers=headers).status_code == 200
+        assert client.post(path, json={}, headers=headers).status_code == 409
+    assert len(calls) == 1 and calls[0][1]['inputs']['recover'] is True
+    assert memory.parent['shards'] == parent['shards']
+
+
 def test_get_retries_transient_failure_but_post_does_not(monkeypatch):
     import pytest
 

@@ -138,6 +138,8 @@ class Catalog:
                     row = {k: updated[k] for k in ("id", "name", "status", "profile")}
                     if updated.get("workflow_run_id"):
                         row["workflow_run_id"] = updated["workflow_run_id"]
+                    if updated.get("parameter_title"):
+                        row["parameter_title"] = updated["parameter_title"]
 
                     def index(old):
                         rows = (old or {}).get("jobs", [])

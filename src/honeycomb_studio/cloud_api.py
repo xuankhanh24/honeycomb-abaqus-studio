@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from .cloud_github import JOB_ID, REPOSITORY, Catalog, Github
-from .cloud_matrix import matrix_plan
+from .cloud_matrix import matrix_entries, matrix_plan, recover, workflow_title
 from .cloud_quality import longer_research_spec
 from .cloud_runtime import execution_runtime, qualification, technical_evidence
 from .models import BatchSpec, ModelSpec, catalogue, digest, expand
@@ -345,6 +345,10 @@ def create_app(github: Github | None = None) -> FastAPI:
             raise HTTPException(404, "Không tìm thấy bài.")
         if value.get("workflow_run_id"):
             value["workflow"] = github.repo("GET", "/actions/runs/" + str(value["workflow_run_id"]))
+        value["parameter_title"] = workflow_title(value["spec"])
+        if value.get("shards"):
+            labels = {e["child_id"]: e["display_name"] for e in matrix_entries(value, pending_only=False)["include"]}
+            value["shards"] = [{**s, "display_name": labels[s["id"]]} for s in value["shards"]]
         return value
 
     @app.get("/api/jobs/{identity}/field-view/{run_id}")
@@ -394,6 +398,7 @@ def create_app(github: Github | None = None) -> FastAPI:
             "spec": body.spec.model_dump(),
             "input_hash": digest(body.spec.model_dump()),
             "status": "draft",
+            "parameter_title": workflow_title(body.spec),
         }
 
         def insert(old):
@@ -406,7 +411,7 @@ def create_app(github: Github | None = None) -> FastAPI:
         def index(old):
             rows = (old or {}).get("jobs", [])
             if not any(r["id"] == body.request_id for r in rows):
-                rows.insert(0, {k: saved[k] for k in ("id", "name", "status", "profile")})
+                rows.insert(0, {k: saved[k] for k in ("id", "name", "status", "profile", "parameter_title")})
             return {"jobs": rows}
 
         catalog.update("index", index)
@@ -431,12 +436,36 @@ def create_app(github: Github | None = None) -> FastAPI:
             github.repo(
                 "POST",
                 "/actions/workflows/abaqus-linux.yml/dispatches",
-                {"ref": "main", "inputs": {"job_id": identity, "job_name": value["name"][:100]}},
+                {"ref": "main", "inputs": {"job_id": identity, "job_name": workflow_title(value["spec"])}},
             )
         except httpx.HTTPError:
             # Leave dispatching: the server may have accepted the request before a lost response.
             raise
         return {"id": value["id"], "status": "dispatching"}
+
+    @app.post("/api/jobs/{identity}/recover")
+    def recover_job(identity: str, request: Request):
+        require_owner(request)
+        value = job(identity)
+        if gates():
+            raise HTTPException(409, "Môi trường chưa sẵn sàng; chưa gửi lượt chạy bù.")
+        if value.get("workflow", {}).get("status") != "completed":
+            raise HTTPException(409, "Đợi workflow hiện tại kết thúc trước khi chạy bù.")
+        try:
+            recover(value, 0)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+        def reserve(old):
+            if old.get("recovery_dispatch_pending") or old.get("workflow_run_id") != value.get("workflow_run_id"):
+                raise HTTPException(409, "Lượt chạy bù đã được gửi; mở Actions để theo dõi.")
+            recover(old, 0)
+            return {**old, "recovery_dispatch_pending": True}
+
+        catalog.update("jobs/" + identity, reserve)
+        github.repo("POST", "/actions/workflows/abaqus-linux.yml/dispatches", {
+            "ref": "main", "inputs": {"job_id": identity, "job_name": workflow_title(value["spec"]), "recover": True}})
+        return {"id": identity, "recovery_dispatch_pending": True}
 
     @app.post("/api/jobs/{identity}/cancel")
     def cancel(identity: str, request: Request):

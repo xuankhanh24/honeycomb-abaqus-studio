@@ -1,5 +1,9 @@
 # Cloud implementation: measured status
 
+## Dataset acceptance — 28 October 2026
+
+The [real two-run research job](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40630762284) and [complete job packaging](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40645400771) succeeded. Both 12 ms runs pass the existing numerical quality thresholds; final contact force is 0 N. The consolidated collection contains 19 retained simulation records and two accepted training rows, with 69 non-null columns. Each parent job has its own downloadable folder, including concurrent runs and original solver files. See [the current data acceptance and limitations](ML_DATA_WORKFLOW.md). Two samples do not establish model generalization, mesh convergence, experimental validity, publisher entitlement, or platform-policy eligibility. Earlier dated sections below describe historical observations.
+
 ## Current acceptance — 26 October 2026
 
 See [the acceptance ledger](PLAN_ACCEPTANCE.md) for the current requirement-by-requirement

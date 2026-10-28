@@ -1,5 +1,13 @@
 # Job mô phỏng, thư mục dữ liệu và huấn luyện
 
+## Đã kiểm thử thật — 28/10/2026
+
+[Job research 20°/30°, 7 J, panel 100 mm, 12 ms](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40630762284) hoàn tất thành công: **2/2 mẫu đạt chất lượng số**, lực tiếp xúc cuối bước 0 N; không giảm các ngưỡng chất lượng. [Thư mục job trên web](https://honeycomb-abaqus-studio.vercel.app/?data_job=e583980b8c8e401c9a63f0d7fe363d44) chứa cả hai lượt đồng thời. [Gói đầy đủ](https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/job-data-e583980b8c8e401c9a63f0d7fe363d44-40645400771-1) có 2.832.649.534 byte, chia 3 phần kèm công cụ tải/kiểm tra SHA-256.
+
+[Bộ tổng hợp đã nghiệm thu](https://github.com/xuankhanh24/honeycomb-abaqus-studio/releases/tag/training-40645400771-1) có **19 lượt đã lưu, 2 mẫu được nhận**. CSV/Parquet huấn luyện có 2 dòng, 69 cột, không có giá trị thiếu; mọi y ứng viên có 2 dòng số hữu hạn. Bảng mọi kết quả giữ 19 dòng, kể cả mẫu bị loại. Bộ này có train=1, validation=0, test=1: cấu trúc và chất lượng mẫu đạt, **số mẫu chưa đủ để huấn luyện/đánh giá mô hình có khả năng tổng quát hóa**. Không coi việc solver chạy thành công là bằng chứng hội tụ lưới hay kiểm chứng thí nghiệm.
+
+Kiểm thử trình duyệt trên web thật xác nhận link Actions, thư mục job, bộ lọc ODB, tải gói đầy đủ và giao diện máy tính/điện thoại. [Kiểm thử web trên GitHub Actions](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40632739953) đã qua; [workflow đóng gói cuối](https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/40645400771) thành công. Các kết quả này là ảnh chụp nghiệm thu theo thời điểm, không thay thế trạng thái catalog hiện tại.
+
 ## Một lần chạy = một job = một thư mục
 
 Một lần bấm chạy trên web tạo một job cha và một workflow Actions. Nếu chọn đồng thời, workflow chia các lượt cho runner riêng; tất cả vẫn thuộc cùng job. Mỗi lượt có chỉ số và thư mục con riêng. Các release gốc của runner giữ dữ liệu bất biến; release **Dữ liệu job** gom chúng thành một thư mục tải về chung.

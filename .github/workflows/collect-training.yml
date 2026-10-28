@@ -8,11 +8,12 @@ on:
         type: string
 permissions:
   contents: write
-concurrency:
-  group: honeycomb-training-collection
-  cancel-in-progress: false
 jobs:
   collect:
+    concurrency:
+      group: honeycomb-training-collection
+      cancel-in-progress: false
+      queue: max
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
     timeout-minutes: 330

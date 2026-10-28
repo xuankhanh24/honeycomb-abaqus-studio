@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ExternalLink, FolderOpen, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 import { actionRunUrl } from "./action-links";
-import { jobState, stateLabel } from "./job-state";
+import { jobState, shardLabel, stateLabel } from "./job-state";
 
 type Doc = Record<string, any>;
 export default function JobExecution({job, parameters, owner, busy: externalBusy, openData, perform}: {
@@ -29,6 +29,7 @@ export default function JobExecution({job, parameters, owner, busy: externalBusy
     const shards: Doc[] = job.shards ?? [];
     const visible = shards.filter(s => filter === "all" || (filter === "errors"
         ? !["draft", "dispatching", "preflight", "running", "completed", "review"].includes(s.status)
+            || (["completed", "review"].includes(s.status) && !s.archive_verified)
         : ["draft", "dispatching", "preflight", "running"].includes(s.status)));
     return <section className="execution-panel" aria-label="Tiến trình và thao tác job">
         <header className="execution-heading"><div>
@@ -36,17 +37,25 @@ export default function JobExecution({job, parameters, owner, busy: externalBusy
             <p>{job.name} · {stateLabel(job.status)} · {job.profile}</p>
         </div>{url && <a className="button" href={url} target="_blank" rel="noopener noreferrer">
             Mở Actions hiện tại <ExternalLink size={15}/></a>}</header>
+        <p className="hint">Một đợt = một lần gửi khoảng tham số. Mỗi lượt = một job trên runner riêng.
+            Các đợt cùng dùng quota GitHub; khi có slot trống, GitHub có thể nhận lượt đang chờ từ đợt khác.
+            Tổng hợp dữ liệu sau khi toàn bộ lượt trong đợt kết thúc.</p>
         <ol className="execution-steps" aria-label="Các bước xử lý">
             <li data-done="true"><strong>1. Đầu vào đã lưu</strong><span>Thông số và cấu hình gốc</span></li>
             <li data-done={state.total > 0 && state.complete === state.total}><strong>2. Mô phỏng</strong>
                 <span>{state.total ? `${state.complete}/${state.total} lượt đã lưu kết quả` : "Chưa bố trí runner"}</span></li>
             <li data-done={state.packed}><strong>3. Đóng gói dữ liệu</strong>
-                <span>{state.packed ? "Workflow hoàn tất" : state.packagingFailed ? "Cần đóng gói lại" : state.total && state.complete === state.total && state.active ? "Workflow đang tổng hợp / đóng gói" : "Chờ các lượt kết thúc"}</span></li>
+                <span>{state.packed ? "Workflow hoàn tất" : state.packagingFailed ? "Cần đóng gói lại"
+                    : state.total && state.complete + state.failed === state.total
+                        ? state.active ? "Workflow đang tổng hợp / đóng gói" : "Đợt đã kết thúc · xem dữ liệu và log"
+                        : "Chờ các lượt kết thúc"}</span></li>
             <li><strong>4. Kiểm tra và tải</strong><button onClick={openData}>Mở thư mục dữ liệu <FolderOpen size={14}/></button></li>
         </ol>
         {!!state.total && <div className="execution-progress"><label htmlFor={`progress-${job.id}`}>
             {state.complete}/{state.total} lượt đã có kết quả lưu · {state.failed} lượt cần xử lý</label>
             <progress id={`progress-${job.id}`} value={state.complete} max={state.total}/>
+            <p role="status">{state.waiting} chờ runner · {state.processing} đang xử lý · {state.complete} đã lưu · {state.failed} lỗi</p>
+            {!job.queue_snapshot_available && state.active && <p className="hint">Số chờ dựa trên catalog; mở Actions để xem trạng thái runner mới nhất.</p>}
             <p className="hint">Tiến độ theo số lượt đã lưu. Tiến độ solver và tốc độ truyền xem trong log Actions.</p></div>}
         {state.packagingFailed && <p className="execution-warning"><AlertCircle size={18}/>
             Các lượt mô phỏng đã có kết quả. Workflow lỗi hoặc bị dừng ở phần sau; mở log để kiểm tra, rồi đóng gói lại nếu cần. Không cần chạy lại solver.</p>}
@@ -75,11 +84,13 @@ export default function JobExecution({job, parameters, owner, busy: externalBusy
             </select></label></div>
             <div className="execution-runs">{visible.map(s => <details key={s.id} className="execution-run">
                 <summary><span>{s.display_name ?? `Lượt ${s.index + 1}`}</span>
-                    <span className="execution-status">{s.status === "completed" ? <CheckCircle2 size={15}/> : null}{stateLabel(s.status)}</span></summary>
+                    <span className="execution-status">{s.status === "completed" ? <CheckCircle2 size={15}/> : null}{shardLabel(s)}</span></summary>
                 <dl><dt>Lưu kết quả</dt><dd>{s.archive_verified ? "Bản lưu đã xác minh checksum" : "Chưa có bản lưu đã xác minh"}</dd>
                     <dt>Chất lượng số</dt><dd>{s.runs?.length ? `${s.runs.filter((r: Doc) => r.quality?.ml_eligible).length}/${s.runs.length} mẫu đạt tiêu chí huấn luyện` : "Chưa có đánh giá"}</dd></dl>
                 {s.error && <p className="execution-error">{s.error}</p>}
-                <div className="actions">{actionRunUrl(s.workflow_run_id) && <a href={actionRunUrl(s.workflow_run_id)!} target="_blank" rel="noopener noreferrer">Mở log workflow của lượt <ExternalLink size={14}/></a>}
+                <div className="actions">{Number.isSafeInteger(s.action_job_id) && s.action_job_id > 0 && url
+                    ? <a href={`${url}/job/${s.action_job_id}`} target="_blank" rel="noopener noreferrer">Mở log job của lượt <ExternalLink size={14}/></a>
+                    : actionRunUrl(s.workflow_run_id) && <a href={actionRunUrl(s.workflow_run_id)!} target="_blank" rel="noopener noreferrer">Mở log workflow của lượt <ExternalLink size={14}/></a>}
                     {s.release_url && <a href={s.release_url} target="_blank" rel="noopener noreferrer">Bản lưu gốc <ExternalLink size={14}/></a>}</div>
                 {!!s.previous_attempts?.length && <details><summary>Lịch sử {s.previous_attempts.length} lần thử trước</summary>
                     {s.previous_attempts.map((a: Doc, i: number) => <p key={i}>Lần {i + 1}: {stateLabel(a.status)} · {actionRunUrl(a.workflow_run_id) &&

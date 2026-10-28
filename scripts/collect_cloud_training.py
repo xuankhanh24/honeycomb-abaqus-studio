@@ -10,6 +10,7 @@ from pathlib import Path
 from honeycomb_studio.cloud_archive import ReleaseArchive
 from honeycomb_studio.cloud_github import JOB_ID, REPOSITORY, Catalog, Github
 from honeycomb_studio.cloud_job_data import BUILDER_VERSION, publish_job_data
+from honeycomb_studio.cloud_matrix import TERMINAL
 from honeycomb_studio.cloud_release import reserve_release
 from honeycomb_studio.cloud_restore import public_asset, restore, validate_manifest
 from honeycomb_studio.models import BatchSpec, expand
@@ -34,6 +35,9 @@ def collect(github, catalog, root):
                       "job": {k: parent.get(k) for k in ("id", "name", "profile", "spec", "input_hash", "status", "workflow_run_id", "execution")}}
             sources.append(source)
             print(f"Nguồn {len(sources)} · {parent['name']} · {shard['id']} · {shard['status']}", flush=True)
+            if parent["status"] not in TERMINAL:
+                source["excluded_reason"] = "Đợt chạy chưa kết thúc; chờ tất cả lượt trước khi tổng hợp."
+                continue
             if not shard.get("archive_verified") or not shard.get("release_url"):
                 source["excluded_reason"] = "Chưa có bản lưu hoàn tất đã xác minh; bài đang chạy/chưa chạy/lỗi."
                 continue

@@ -24,7 +24,13 @@ Web cho phép **100 lượt mỗi batch, tối đa 20 runner đồng thời**, m
 Giới hạn 8 trước đây do ứng dụng tự đặt; giới hạn batch 10 cũng đã được nâng lên 100.
 [GitHub Free cho phép 20 job đồng thời trên runner tiêu chuẩn](https://docs.github.com/en/actions/reference/limits#job-concurrency-limits-for-github-hosted-runners).
 Quota này dùng chung với các workflow khác của tài khoản. License Abaqus, CPU/RAM/đĩa và thời gian cài đặt vẫn quyết định khả năng chạy thực tế.
-Chọn **Đồng thời** và nhập số runner mong muốn ở web. Các batch mô phỏng được xếp theo nhóm workflow dùng chung; 20 là mức tối đa bên trong một batch, không phải 20 batch chạy cùng lúc.
+Chọn **Đồng thời** và nhập số runner mong muốn ở web. **Một lượt = một Actions job**, một đợt = một lần gửi khoảng tham số (tối đa 100 lượt). Giới hạn song song trên web áp dụng cho từng đợt; quota tài khoản dùng chung cho mọi đợt và CI. Ví dụ 21 lượt, mức song song 20: lượt còn lại có thể nhận slot khi một job kết thúc. Một đợt khác cũng được đưa vào hàng đợi ngay, không chờ cả đợt trước hoàn thành. GitHub quyết định thứ tự cấp runner; license vẫn phải đủ cho số solver thực tế.
+
+**Chỉ tổng hợp đợt đã kết thúc toàn bộ lượt** (kể cả lượt lỗi). Dữ liệu của đợt đang chạy được ghi rõ là đang chờ và chưa đưa vào bảng huấn luyện chung. Lượt lỗi có báo cáo, không được giả thành mẫu đạt; chạy bù giữ nguyên lượt thành công. Mỗi đợt giữ nguyên mã, thư mục, đầu vào, kết quả từng lượt và checksum. Các bước xuất bảng chung dùng hàng đợi riêng `queue: max`, tránh ghi đè giữa các đợt; chúng không khóa các job mô phỏng.
+
+Web hiển thị **chờ runner / đang xử lý / đã lưu / lỗi**, nút **Mở Actions hiện tại**, **Mở log job của lượt** và **Mở thư mục dữ liệu**. Khi API GitHub tạm lỗi, web ghi rõ số chờ dựa trên catalog. Bản tổng hợp toàn bộ dữ liệu vẫn có CSV/Parquet và báo cáo loại mẫu.
+
+Kiểm tra hàng đợi độc lập: workflow **Kiểm thử hàng đợi nhiều đợt** chạy 21 + 3 job nhỏ, tổng hợp riêng sau từng đợt và kiểm SHA-256. Artifact `queue-fixture-*` là dữ liệu kiểm thử hạ tầng, không phải mô phỏng Abaqus, không đưa vào catalog/huấn luyện.
 Trên máy cá nhân, worker vẫn kiểm tra tài nguyên trước khi nhận lượt.
 
 ### Đầu vào và đầu ra là gì?

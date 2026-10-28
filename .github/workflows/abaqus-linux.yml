@@ -21,8 +21,9 @@ permissions:
   checks: write
   id-token: write
 concurrency:
-  group: honeycomb-licensed-solver
+  group: honeycomb-batch-${{ inputs.job_id }}
   cancel-in-progress: false
+  queue: max
 env:
   HONEYCOMB_ACTIONS_LOG: '1'
   HONEYCOMB_LOG_TITLE: 'Mô phỏng nghiên cứu — tiến độ và kết quả'
@@ -140,6 +141,11 @@ jobs:
     needs: [prepare, simulate]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
+    # Only publishers serialize. Solver jobs from other batches keep running.
+    concurrency:
+      group: honeycomb-training-collection
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 330
     steps:
       - uses: actions/checkout@v7.0.1

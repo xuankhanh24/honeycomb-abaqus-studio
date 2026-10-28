@@ -1,6 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { jobState } from "../src/job-state.ts";
+import { jobState, shardLabel } from "../src/job-state.ts";
+
+test("queue counts include installing runners without claiming saved solver data", () => {
+    const state = jobState({shards: [
+        {status: "draft", action_status: "queued"},
+        {status: "draft", action_status: "in_progress"},
+        {status: "running"}, {status: "completed", archive_verified: true}, {status: "failed"},
+    ]});
+    assert.equal(state.waiting, 1);
+    assert.equal(state.processing, 2);
+    assert.equal(state.complete, 1);
+    assert.equal(state.failed, 1);
+    assert.equal(state.canPackage, true);
+    assert.equal(shardLabel({status: "draft", action_status: "in_progress"}), "Đang xử lý trên runner");
+});
 
 test("solver success plus packaging timeout offers packaging without rerunning solver", () => {
     const state = jobState({shards: [{status: "completed", archive_verified: true}],

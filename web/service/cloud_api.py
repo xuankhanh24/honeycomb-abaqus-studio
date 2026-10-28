@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from .cloud_github import JOB_ID, REPOSITORY, Catalog, Github
-from .cloud_matrix import matrix_entries, matrix_plan, recover, workflow_title
+from .cloud_matrix import TERMINAL, matrix_entries, matrix_plan, recover, workflow_title
 from .cloud_quality import longer_research_spec
 from .cloud_runtime import execution_runtime, qualification, technical_evidence
 from .models import BatchSpec, ModelSpec, catalogue, digest, expand
@@ -189,7 +189,8 @@ def create_app(github: Github | None = None) -> FastAPI:
     @app.post("/api/jobs/{identity}/data/collect")
     def collect_job_data(identity: str, request: Request):
         require_owner(request)
-        job_data(identity)
+        if job_data(identity)["status"] not in TERMINAL:
+            raise HTTPException(409, "Đợi toàn bộ lượt trong đợt kết thúc trước khi tổng hợp dữ liệu.")
         github.repo("POST", "/actions/workflows/collect-training.yml/dispatches",
                     {"ref": "main", "inputs": {"job_id": identity}})
         return {"status": "dispatching", "workflow_url":
@@ -349,6 +350,24 @@ def create_app(github: Github | None = None) -> FastAPI:
         if value.get("shards"):
             labels = {e["child_id"]: e["display_name"] for e in matrix_entries(value, pending_only=False)["include"]}
             value["shards"] = [{**s, "display_name": labels[s["id"]]} for s in value["shards"]]
+            try:
+                actions = []
+                for page in (1, 2):
+                    rows = github.repo("GET", f"/actions/runs/{value['workflow_run_id']}/jobs?per_page=100&page={page}").get("jobs", [])
+                    actions.extend(rows)
+                    if len(rows) < 100:
+                        break
+                by_name = {a["name"]: a for a in actions}
+                for shard in value["shards"]:
+                    # Completed recovery sources belong to their original workflow.
+                    if shard.get("workflow_run_id", value["workflow_run_id"]) != value["workflow_run_id"]:
+                        continue
+                    action = by_name.get(shard["display_name"])
+                    if action:
+                        shard.update(action_status=action["status"], action_job_id=action["id"])
+                value["queue_snapshot_available"] = True
+            except (httpx.HTTPError, KeyError, TypeError):
+                value["queue_snapshot_available"] = False
         return value
 
     @app.get("/api/jobs/{identity}/field-view/{run_id}")

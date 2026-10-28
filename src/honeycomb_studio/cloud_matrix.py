@@ -85,8 +85,9 @@ def matrix_plan(spec):
     return {"requested_parallel_runs": spec.max_parallel_runs if spec.execution_mode == "parallel" else 1,
             "effective_parallel_runs": slots, "cpu_per_run": runs[0]["resolved"]["cpus"],
             "runner_cpus": 4, "runner_count": len(runs), "architecture": "github-job-per-run",
+            "queue_scope": "github-account", "aggregation_scope": "terminal-batch",
             "estimate_only": True,
-            "note": "Mỗi lượt dùng runner riêng có 4 CPU. Quota GitHub và license có thể làm lượt chờ; RAM/đĩa được kiểm tra trên từng runner."}
+            "note": "Một lượt = một job/runner 4 CPU. Các đợt dùng chung quota GitHub; slot trống nhận lượt chờ, thứ tự do GitHub quyết định. Giới hạn song song áp dụng riêng mỗi đợt; license có thể làm solver chờ. Tổng hợp khi tất cả lượt trong đợt kết thúc."}
 
 
 def prepare(old, workflow_id):

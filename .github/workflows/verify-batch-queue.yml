@@ -1,0 +1,83 @@
+name: Kiểm thử hàng đợi nhiều đợt
+run-name: Kiểm thử hạ tầng · 21 + 3 job · tổng hợp riêng từng đợt
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  range_A:
+    name: Kiểm thử đợt A · δ=${{ matrix.delta }}°
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        delta: [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Lưu dữ liệu kiểm thử và checksum · không chạy solver
+        run: python scripts/verify_actions_queue.py run --range A --delta ${{ matrix.delta }}
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: queue-fixture-A-${{ matrix.delta }}
+          path: queue-fixtures/
+          retention-days: 3
+  aggregate_A:
+    name: Tổng hợp kiểm thử đợt A · sau 21 lượt
+    needs: range_A
+    if: always()
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: queue-fixture-A-*
+          path: queue-fixtures/
+          merge-multiple: true
+      - name: Đủ dữ liệu · không trùng lượt · checksum đúng · tổng hợp sau lượt cuối
+        run: python scripts/verify_actions_queue.py aggregate --range A --expected 21
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: queue-summary-A
+          path: queue-fixtures/summary-A.json
+          retention-days: 3
+  range_B:
+    name: Kiểm thử đợt B · δ=${{ matrix.delta }}°
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        delta: [50, 51, 52]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Lưu dữ liệu kiểm thử và checksum · không chạy solver
+        run: python scripts/verify_actions_queue.py run --range B --delta ${{ matrix.delta }}
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: queue-fixture-B-${{ matrix.delta }}
+          path: queue-fixtures/
+          retention-days: 3
+  aggregate_B:
+    name: Tổng hợp kiểm thử đợt B · sau 3 lượt
+    needs: range_B
+    if: always()
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: queue-fixture-B-*
+          path: queue-fixtures/
+          merge-multiple: true
+      - name: Đủ dữ liệu · không trùng lượt · checksum đúng · tổng hợp sau lượt cuối
+        run: python scripts/verify_actions_queue.py aggregate --range B --expected 3
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: queue-summary-B
+          path: queue-fixtures/summary-B.json
+          retention-days: 3

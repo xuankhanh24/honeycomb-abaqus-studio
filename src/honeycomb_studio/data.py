@@ -513,6 +513,7 @@ def dataset(
 ):
     rows: list[dict[str, Any]] = []
     groups = {}
+    requested_keys = set()
     for rid in dict.fromkeys(run_ids):
         run = store.get("runs", rid)
         if (
@@ -531,6 +532,23 @@ def dataset(
                     flat[prefix + k] = v
 
         flatten(run["resolved"])
+        # Retain swept controls outside the physical feature shortlist, such
+        # as duration, CPU count and output sampling, in the default export.
+        def requested_columns(payload, prefix="input."):
+            for key, value in payload.items():
+                if isinstance(value, dict):
+                    requested_columns(value, prefix + key + ".")
+                elif isinstance(value, (str, int, float, bool)) or value is None:
+                    requested_keys.add(prefix + key)
+
+        requested_columns(run.get("requested") or run["resolved"])
+        if flat.get("input.core_topology") == "reentrant_0":
+            height = flat.get("input.reentrant_cell_height")
+            indent = flat.get("input.reentrant_indent")
+            if height and indent is not None:
+                # The saved angle setting is inactive in indent mode. Export
+                # the angle of the geometry actually used by the solver.
+                flat["input.reentrant_delta_deg"] = round(math.degrees(math.atan2(2 * indent, height)), 12)
         flat.setdefault("input.core_topology", "hexagonal")
         flat.setdefault("input.clamp_mode", "circular")
         if flat["input.core_topology"] == "hexagonal":
@@ -592,11 +610,13 @@ def dataset(
     identity = "d" + uuid.uuid4().hex[:16]
     out = destination if destination is not None else store.root / "datasets" / identity
     out.mkdir(parents=True, exist_ok=True)
+    varying_requested = {key for key in requested_keys if len({r.get(key) for r in rows}) > 1}
+    default_features = {"input." + key for key in FEATURES} | varying_requested
     selected = []
     for row in rows:
         keys = PROVENANCE & row.keys()
         keys.update(
-            features if features is not None else ["input." + k for k in FEATURES if "input." + k in row]
+            features if features is not None else default_features & row.keys()
         )
         keys.update(targets if targets is not None else [k for k in TARGETS if k in row])
         unknown = keys - row.keys()
@@ -665,6 +685,9 @@ def dataset(
             "targets": targets if targets is not None else [k for k in selected_columns if k in TARGETS],
             "constant_features": [
                 k for k in selected[0] if k.startswith("input.") and len({r.get(k) for r in selected}) == 1
+            ],
+            "varying_features": [
+                k for k in selected_columns if k.startswith("input.") and len({r.get(k) for r in selected}) > 1
             ],
             "note": "Constant features may be removed by training preprocessing; custom plastic tables require explicit curve features. Numerical quality does not establish experimental validity.",
             "resampling": {

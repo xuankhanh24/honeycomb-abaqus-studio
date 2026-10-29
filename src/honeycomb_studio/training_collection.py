@@ -79,6 +79,7 @@ def build_collection(sources, out: Path, *, single_job=False):
         write_json(training / "dataset.json", {
             "samples": 0, "run_ids": [], "features": ["input." + k for k in FEATURES],
             "targets": TARGETS, "split_counts": {k: 0 for k in ("train", "validation", "test")},
+            "varying_features": [],
             "note": "Chưa có mẫu đạt điều kiện. Không dùng bảng rỗng để huấn luyện.",
         })
     meta = json.loads((training / "dataset.json").read_text(encoding="utf-8"))
@@ -161,6 +162,9 @@ def build_collection(sources, out: Path, *, single_job=False):
         "- `01_training/samples.csv`: bảng huấn luyện chung; mỗi dòng là một đầu vào duy nhất đạt chất lượng.\n"
         "- `01_training/samples.parquet`: cùng dữ liệu, giữ kiểu và nén tốt hơn cho Python.\n"
         "- `01_training/dataset.json`: số mẫu, danh sách X/y và cách chia train/validation/test.\n"
+        "- `input.reentrant_delta_deg`: góc lõm δ thực tế (độ); giữ cùng độ lõm mm. "
+        "Các đầu vào dạng số/phân loại thay đổi giữa các mẫu cũng được giữ trong bảng; "
+        "xem `dataset.json.varying_features` để nhận diện cột thay đổi.\n"
         "- `01_training/data-dictionary.csv` và `FIELD_DESCRIPTIONS.md`: tên, đơn vị và ý nghĩa từng cột.\n"
         "- `02_audit/run-selection.csv`: từng lượt được nhận hoặc lý do bị loại.\n"
         "- `02_audit/source-jobs.json`: tên bài, ID và liên kết kho gốc; ghi cả bài thiếu dữ liệu.\n"

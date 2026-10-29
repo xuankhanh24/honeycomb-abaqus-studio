@@ -16,7 +16,7 @@ from .models import digest
 from .store import write_json
 from .training_collection import build_collection
 
-BUILDER_VERSION = "job-folder-v3-direct"
+BUILDER_VERSION = "job-folder-v4-sweep-columns"
 
 
 def publish_job_data(github, catalog, sources, release, *, workflow, attempt, full, root):

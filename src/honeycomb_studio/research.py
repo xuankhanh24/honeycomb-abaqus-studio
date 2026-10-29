@@ -13,6 +13,8 @@ FEATURES = [
     "hex_theta_deg",
     "reentrant_cell_height",
     "reentrant_indent",
+    "reentrant_geometry",
+    "reentrant_delta_deg",
     "phase_z",
     "panel",
     "skin",

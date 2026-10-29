@@ -12,13 +12,20 @@ def canonical_manifest(manifest, assets):
     return manifest
 
 
-def reserve_release(github, *, tag, sha, name):
+def reserve_release(github, *, tag, sha, name, source_tag=None):
     path = "/git/ref/tags/" + tag
     ref = github.repo("GET", path, allow_missing=True)
     if ref is None:
-        head = github.repo("GET", "/git/ref/heads/main")["object"]["sha"]
-        if head != sha:
-            raise RuntimeError("Source moved before release reservation; no solver started. Reserve a source tag before running the job.")
+        if source_tag:
+            # Collection runs hours after admission. An existing source tag
+            # keeps the exact workflow commit addressable even when main moves.
+            source = github.repo("GET", "/git/ref/tags/" + source_tag)
+            if source["object"]["sha"] != sha or source["object"]["type"] != "commit":
+                raise ValueError("Pinned source tag differs from the exact workflow commit")
+        else:
+            head = github.repo("GET", "/git/ref/heads/main")["object"]["sha"]
+            if head != sha:
+                raise RuntimeError("Source moved before release reservation; no solver started. Reserve a source tag before running the job.")
         ref = github.repo("POST", "/git/refs", {"ref": "refs/tags/" + tag, "sha": sha})
     if ref["object"]["sha"] != sha or ref["object"]["type"] != "commit":
         raise ValueError("Release source tag differs from the exact workflow commit")

@@ -74,10 +74,13 @@ def test_web_exposes_runner_state_and_blocks_collecting_active_range(monkeypatch
 
     parent = prepare(batch(), 12)
     label = matrix_entries(parent)["include"][0]["display_name"]
+    collection = {"source_complete": True, "source_status": "completed", "workflow_run_id": 12,
+                  "collection_workflow_url": "https://github.com/xuankhanh24/honeycomb-abaqus-studio/actions/runs/13",
+                  "files": [{"path": "large-inventory"}]}
 
     class Memory:
         def get(self, key):
-            return deepcopy(parent) if key.startswith("jobs/") else None, None
+            return deepcopy(parent if key.startswith("jobs/") else collection), None
 
     class Connected:
         configured = True
@@ -97,6 +100,9 @@ def test_web_exposes_runner_state_and_blocks_collecting_active_range(monkeypatch
         assert value["shards"][0]["action_status"] == "in_progress"
         assert value["shards"][0]["action_job_id"] == 99
         assert value["shards"][0]["status"] == "draft"
+        assert value["data_collection"]["workflow_run_id"] == 12
+        assert value["data_collection"]["source_complete"] is True
+        assert "files" not in value["data_collection"]
         session = base64.b64encode(json.dumps({"user_id": cloud_api.OWNER_ID, "csrf": "fixture"}).encode())
         client.cookies.set("session", TimestampSigner("queue-test-only").sign(session).decode())
         assert client.post(path + "/data/collect", headers={"X-Honeycomb-CSRF": "fixture"}).status_code == 409

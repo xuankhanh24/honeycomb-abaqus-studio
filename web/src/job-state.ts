@@ -24,7 +24,9 @@ export function jobState(job: Doc) {
     const waiting = shards.filter(s => ["draft", "dispatching"].includes(s.status)
         && !["in_progress", "completed"].includes(s.action_status)).length;
     const processing = shards.length - complete - failed - waiting;
-    const packed = job.workflow?.conclusion === "success";
+    const collection = job.data_collection;
+    const packed = job.workflow?.conclusion === "success" || !!(collection?.source_complete
+        && collection.workflow_run_id === job.workflow_run_id && collection.source_status === job.status);
     const packagingFailed = shards.length > 0 && complete === shards.length && job.workflow?.status === "completed" && !packed;
     return {total: shards.length, complete, failed, waiting, processing, active, packed, packagingFailed,
         canRecover: !!failed && !active && !job.cancel_requested && !job.recovery_dispatch_pending,

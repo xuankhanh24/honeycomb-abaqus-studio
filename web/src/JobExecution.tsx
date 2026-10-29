@@ -45,7 +45,7 @@ export default function JobExecution({job, parameters, owner, busy: externalBusy
             <li data-done={state.total > 0 && state.complete === state.total}><strong>2. Mô phỏng</strong>
                 <span>{state.total ? `${state.complete}/${state.total} lượt đã lưu kết quả` : "Chưa bố trí runner"}</span></li>
             <li data-done={state.packed}><strong>3. Đóng gói dữ liệu</strong>
-                <span>{state.packed ? "Workflow hoàn tất" : state.packagingFailed ? "Cần đóng gói lại"
+                <span>{state.packed ? "Dữ liệu đã tổng hợp đầy đủ" : state.packagingFailed ? "Cần đóng gói lại"
                     : state.total && state.complete + state.failed === state.total
                         ? state.active ? "Workflow đang tổng hợp / đóng gói" : "Đợt đã kết thúc · xem dữ liệu và log"
                         : "Chờ các lượt kết thúc"}</span></li>

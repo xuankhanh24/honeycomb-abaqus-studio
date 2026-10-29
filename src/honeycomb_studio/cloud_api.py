@@ -346,6 +346,10 @@ def create_app(github: Github | None = None) -> FastAPI:
             raise HTTPException(404, "Không tìm thấy bài.")
         if value.get("workflow_run_id"):
             value["workflow"] = github.repo("GET", "/actions/runs/" + str(value["workflow_run_id"]))
+        collection, _ = catalog.get("training/jobs/" + identity)
+        value["data_collection"] = ({k: collection.get(k) for k in
+                                    ("source_complete", "source_status", "workflow_run_id", "collection_workflow_url")}
+                                    if collection else None)
         value["parameter_title"] = workflow_title(value["spec"])
         if value.get("shards"):
             labels = {e["child_id"]: e["display_name"] for e in matrix_entries(value, pending_only=False)["include"]}

@@ -23,7 +23,8 @@ def main():
     transform = (recover if args.recover else prepare) if args.phase == "prepare" else finalize
     value = catalog.update("jobs/" + args.job_id, lambda old: transform(old, workflow))
     if args.phase == "prepare":
-        reserve_release(github, tag=f"training-{workflow}-{os.getenv('GITHUB_RUN_ATTEMPT', '1')}",
+        source_tag = f"training-{workflow}-{os.getenv('GITHUB_RUN_ATTEMPT', '1')}"
+        reserve_release(github, tag=source_tag,
                         sha=os.environ["GITHUB_SHA"], name=f"Dữ liệu huấn luyện tổng hợp · {workflow}")
         reservations = {}
         labels = {entry["child_id"]: entry["display_name"] for entry in matrix_entries(value)["include"]}
@@ -31,7 +32,7 @@ def main():
             if shard["status"] != "draft":
                 continue
             release = reserve_release(github, tag="simulation-" + shard["id"],
-                                      sha=os.environ["GITHUB_SHA"], name=labels[shard["id"]])
+                                      sha=os.environ["GITHUB_SHA"], name=labels[shard["id"]], source_tag=source_tag)
             reservations[shard["id"]] = release["id"]
 
         def retain_reservations(old):

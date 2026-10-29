@@ -32,3 +32,14 @@ test("recovery preserves success and waits until the workflow ends", () => {
     assert.equal(jobState(job).complete, 1);
     assert.equal(jobState({...job, recovery_dispatch_pending: true}).canRecover, false);
 });
+
+test("a successful later collection clears the old packaging failure only for the same source", () => {
+    const job = {status: "completed", workflow_run_id: 12,
+        shards: [{status: "completed", archive_verified: true}],
+        workflow: {status: "completed", conclusion: "failure"},
+        data_collection: {source_complete: true, workflow_run_id: 12, source_status: "completed"}};
+    assert.equal(jobState(job).packed, true);
+    assert.equal(jobState(job).packagingFailed, false);
+    assert.equal(jobState({...job, workflow_run_id: 13}).packed, false);
+    assert.equal(jobState({...job, status: "running"}).packed, false);
+});

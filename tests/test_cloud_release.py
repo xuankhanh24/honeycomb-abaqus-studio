@@ -12,6 +12,8 @@ class Fake:
         self.calls.append((method, path, body))
         ref = {"object": {"type": "commit", "sha": "wrong" if self.wrong_tag else "source"}}
         if path.startswith("/git/ref/tags/"):
+            if path.endswith("/pinned-source"):
+                return ref
             return ref if self.existing else None
         if path == "/git/refs":
             return ref
@@ -41,3 +43,17 @@ def test_refuse_unreserved_old_source_before_expensive_solver():
     assert not any(method == "POST" for method, _, _ in github.calls)
     with pytest.raises(ValueError, match="exact workflow commit"):
         reserve_release(Fake(existing=True, wrong_tag=True), tag="test", sha="source", name="Test")
+
+
+def test_late_collection_reservation_uses_already_pinned_workflow_source():
+    github = Fake(moved=True)
+    release = reserve_release(github, tag="test", sha="source", name="Test", source_tag="pinned-source")
+    assert release["target_commitish"] == "source"
+    assert ("POST", "/git/refs", {"ref": "refs/tags/test", "sha": "source"}) in github.calls
+
+
+def test_late_collection_rejects_a_different_pinned_source():
+    github = Fake(moved=True, wrong_tag=True)
+    with pytest.raises(ValueError, match="exact workflow commit"):
+        reserve_release(github, tag="test", sha="source", name="Test", source_tag="pinned-source")
+    assert not any(method == "POST" for method, _, _ in github.calls)

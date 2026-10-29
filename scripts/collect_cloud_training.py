@@ -119,7 +119,7 @@ def main():
                 continue
             reservations[row["id"]] = reserve_release(
                 github, tag=f"job-data-{row['id']}-{workflow}-{attempt}", sha=os.environ["GITHUB_SHA"],
-                name="Dữ liệu job · " + row["name"])
+                name="Dữ liệu job · " + row["name"], source_tag=tag)
     sources = collect(github, catalog, args.root / "restored")
     directory = args.root / ("honeycomb-training-" + str(workflow) + "-" + str(attempt))
     summary = build_collection(sources, directory)

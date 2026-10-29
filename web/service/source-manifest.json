@@ -6,7 +6,7 @@
   "cloud_github.py": "fb786e98b36d1c37fb0078ca0d27da8b19c8b8d430e1542725db970cdaa50f7e",
   "cloud_matrix.py": "8fe47cf1ca8bba5bc125a65570febe5dfe836479e2c863b023993a0d72cbda25",
   "cloud_quality.py": "9f8420147a65aa8bf9d852287c56f26c689fcad0a70b94f767b53fd1399553a3",
-  "cloud_api.py": "95dd21333b283a7e577740b6afd4fca2b6d3d827b942795e7affb87816f8dba6",
+  "cloud_api.py": "d94b19c06e49e3a62d6a1da90f248dc36ee02d394c6eee07c8abb1bba6a7212e",
   "cloud_runtime.py": "fd2477fb116f102f8c8be2e8b157d63b2caf8cb85ef5f01672cfa9cdddde6170",
   "runtime-evidence.json": "52616cd698b6162bd107ed5a7b2d94fe50ef18f92e8c3ae76f5def89ea9e7473",
   "adapters/reentrant.py": "ff008f42cbd0d08de9080d1df3b80a662ccb0af36a5e4de4aae3b76a335c51ae",

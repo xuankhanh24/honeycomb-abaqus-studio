@@ -1,5 +1,7 @@
+import httpx
 import pytest
 
+from honeycomb_studio.cloud_github import Github
 from honeycomb_studio.cloud_release import reserve_release
 
 
@@ -57,3 +59,33 @@ def test_late_collection_rejects_a_different_pinned_source():
     with pytest.raises(ValueError, match="exact workflow commit"):
         reserve_release(github, tag="test", sha="source", name="Test", source_tag="pinned-source")
     assert not any(method == "POST" for method, _, _ in github.calls)
+
+
+@pytest.mark.parametrize("committed", [False, True])
+def test_ref_creation_recovers_transient_422_without_retagging(monkeypatch, committed):
+    monkeypatch.setattr("time.sleep", lambda _: None)
+    state = {"exists": False, "posts": 0}
+
+    def handler(request):
+        path = request.url.path
+        ref = {"object": {"type": "commit", "sha": "source"}}
+        if path.endswith("/git/ref/tags/test"):
+            return httpx.Response(200 if state["exists"] else 404, json=ref)
+        if path.endswith("/git/ref/heads/main"):
+            return httpx.Response(200, json=ref)
+        if path.endswith("/git/refs"):
+            state["posts"] += 1
+            if state["posts"] == 1:
+                state["exists"] = committed
+                return httpx.Response(422, json={"message": "Reference creation failed"})
+            state["exists"] = True
+            return httpx.Response(201, json=ref)
+        if "/releases/tags/" in path:
+            return httpx.Response(404, json={})
+        if path.endswith("/releases") and request.method == "GET":
+            return httpx.Response(200, json=[])
+        return httpx.Response(201, json={"id": 1})
+
+    github = Github(token="fixture", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert reserve_release(github, tag="test", sha="source", name="Test")["id"] == 1
+    assert state["posts"] == (1 if committed else 2)

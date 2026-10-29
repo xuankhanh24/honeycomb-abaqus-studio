@@ -1,5 +1,9 @@
 """Pin the source tag before a long job lets the default branch advance."""
 
+import time
+
+import httpx
+
 
 def canonical_manifest(manifest, assets):
     by_id = {asset["id"]: asset for asset in assets}
@@ -26,7 +30,23 @@ def reserve_release(github, *, tag, sha, name, source_tag=None):
             head = github.repo("GET", "/git/ref/heads/main")["object"]["sha"]
             if head != sha:
                 raise RuntimeError("Source moved before release reservation; no solver started. Reserve a source tag before running the job.")
-        ref = github.repo("POST", "/git/refs", {"ref": "refs/tags/" + tag, "sha": sha})
+        for attempt in range(5):
+            try:
+                ref = github.repo("POST", "/git/refs", {"ref": "refs/tags/" + tag, "sha": sha})
+                break
+            except (httpx.HTTPStatusError, httpx.TransportError) as exc:
+                if isinstance(exc, httpx.HTTPStatusError) and (
+                    exc.response.status_code not in (409, 422, 429) and exc.response.status_code < 500
+                ):
+                    raise
+                # The named reference may exist after a lost response or race.
+                # Read it before retrying creation; never PATCH an existing tag.
+                ref = github.repo("GET", path, allow_missing=True)
+                if ref is not None:
+                    break
+                if attempt == 4:
+                    raise
+                time.sleep(2 ** (attempt + 1))
     if ref["object"]["sha"] != sha or ref["object"]["type"] != "commit":
         raise ValueError("Release source tag differs from the exact workflow commit")
     release = github.repo("GET", "/releases/tags/" + tag, allow_missing=True)

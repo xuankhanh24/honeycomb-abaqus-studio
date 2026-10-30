@@ -136,6 +136,20 @@ jobs:
             ${{ runner.temp }}/honeycomb-results/**/requested-input.json
             ${{ runner.temp }}/honeycomb-results/**/resolved-input.json
             ${{ runner.temp }}/honeycomb-results/**/logs/*.log
+      - name: Giữ toàn bộ kết quả khi xuất Releases lỗi để khôi phục không tính lại
+        if: failure()
+        timeout-minutes: 15
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: recoverable-results-${{ github.run_id }}-${{ matrix.index }}
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/honeycomb-results/**
+            !${{ runner.temp }}/honeycomb-results/**/credentials/**
+            !${{ runner.temp }}/honeycomb-results/**/session.json
+            !${{ runner.temp }}/honeycomb-results/**/engine-settings.json
   finalize:
     name: Tổng hợp dữ liệu · ${{ needs.prepare.outputs.parameter_title || inputs.job_name || inputs.job_id }}
     needs: [prepare, simulate]

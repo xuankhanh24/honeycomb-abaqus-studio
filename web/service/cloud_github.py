@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import random
 import re
 import time
 from typing import Any
@@ -13,6 +14,58 @@ import httpx
 
 REPOSITORY = "xuankhanh24/honeycomb-abaqus-studio"
 JOB_ID = re.compile(r"^[a-f0-9]{32}$")
+
+
+def rate_limit_delay(response: httpx.Response, attempt: int) -> float | None:
+    """Retry only explicit throttling, never disguise a permanent permission error."""
+    if response.status_code not in (403, 429):
+        return None
+    message = response.text.lower()
+    limited = (response.status_code == 429 or 'retry-after' in response.headers
+               or response.headers.get('x-ratelimit-remaining') == '0'
+               or 'rate limit' in message or 'abuse detection' in message)
+    if not limited:
+        return None
+    delay = min(60 * 2 ** attempt, 900)
+    if 'retry-after' in response.headers:
+        delay = max(delay, float(response.headers['retry-after']))
+    if response.headers.get('x-ratelimit-remaining') == '0' and 'x-ratelimit-reset' in response.headers:
+        delay = max(delay, float(response.headers['x-ratelimit-reset']) - time.time() + 1)
+    return delay + random.uniform(1, 10)
+
+
+def wait_for_rate_limit(response: httpx.Response, attempt: int) -> bool:
+    delay = rate_limit_delay(response, attempt)
+    if delay is None:
+        return False
+    # Leave time for an Actions runner to retain its output before the hard deadline.
+    started = os.getenv('HONEYCOMB_WORKFLOW_STARTED_EPOCH')
+    if started and time.time() + delay > float(started) + 330 * 60 - 90:
+        return False
+    try:
+        from .actions_log import get_actions_log
+    except ImportError:  # The lightweight web service has no runner logger.
+        logger = None
+    else:
+        logger = get_actions_log()
+    if logger:
+        logger.emit('WAIT', f'GitHub giới hạn API ({response.status_code}); chờ {delay:.0f}s rồi kiểm tra lại asset trước khi tải tiếp.')
+    time.sleep(delay)
+    return True
+
+
+def raise_github_error(response: httpx.Response):
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        try:
+            reason = str(response.json().get('message', ''))[:400]
+        except (ValueError, AttributeError):
+            reason = ''
+        details = {k: response.headers[k] for k in (
+            'x-github-request-id', 'x-ratelimit-remaining', 'x-ratelimit-reset', 'retry-after') if k in response.headers}
+        raise httpx.HTTPStatusError(f'{exc}; GitHub message: {reason}; diagnostics: {details}',
+                                    request=exc.request, response=response) from exc
 
 
 class Github:
@@ -62,9 +115,11 @@ class Github:
         token = self.access_token()
         if token:
             headers["Authorization"] = "Bearer " + token
-        for attempt in range(4):
+        for attempt in range(8):
             try:
                 response = self.client.request(method, "https://api.github.com" + path, headers=headers, json=body)
+                if attempt < 7 and wait_for_rate_limit(response, attempt):
+                    continue
                 if method != "GET" or response.status_code < 500 or attempt == 3:
                     break
             except httpx.TransportError:
@@ -73,7 +128,7 @@ class Github:
             time.sleep(2 ** attempt)
         if allow_missing and response.status_code == 404:
             return None
-        response.raise_for_status()
+        raise_github_error(response)
         return response.json() if response.content else None
 
     def repo(self, method: str, path: str, body=None, **kwargs):

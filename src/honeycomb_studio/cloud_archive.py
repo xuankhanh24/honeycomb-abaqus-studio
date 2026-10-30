@@ -12,7 +12,7 @@ from urllib.parse import quote
 
 import httpx
 
-from .cloud_github import Github
+from .cloud_github import Github, raise_github_error, wait_for_rate_limit
 
 MAX_PART = 1024**3
 ALLOWED = {
@@ -78,11 +78,12 @@ class ReleaseArchive:
         self.release_id = release_id
         self.limit = limit
         self.tag = tag
+        self._assets = None
 
     def upload(self, path: Path, name: str):
         # A lost upload response may have left a complete asset on GitHub. Each
         # retry inventories and verifies it before attempting another upload.
-        for retry in range(3):
+        for retry in range(8):
             try:
                 uploaded = self._upload(path, name)
                 if self.tag:
@@ -93,10 +94,13 @@ class ReleaseArchive:
                     uploaded["url"] = f"https://github.com/{REPOSITORY}/releases/download/{quote(self.tag, safe='')}/{quote(name, safe='')}"
                 return uploaded
             except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+                self._assets = None  # Re-read after uncertain writes; never upload blindly.
+                if isinstance(exc, httpx.HTTPStatusError) and retry < 7 and wait_for_rate_limit(exc.response, retry):
+                    continue
                 transient = not isinstance(exc, httpx.HTTPStatusError) or (
                     exc.response.status_code == 429 or exc.response.status_code >= 500
                 )
-                if not transient or retry == 2:
+                if not transient or retry >= 2:
                     raise
                 time.sleep(2 ** retry)
 
@@ -104,14 +108,17 @@ class ReleaseArchive:
         from .actions_log import get_actions_log
 
         logger = get_actions_log()
-        assets = self.github.repo("GET", f"/releases/{self.release_id}/assets?per_page=100")
-        page = 2
-        while len(assets) == (page - 1) * 100:
-            extra = self.github.repo("GET", f"/releases/{self.release_id}/assets?per_page=100&page={page}")
-            assets.extend(extra)
-            if len(extra) < 100:
-                break
-            page += 1
+        if self._assets is None:
+            assets = self.github.repo("GET", f"/releases/{self.release_id}/assets?per_page=100")
+            page = 2
+            while len(assets) == (page - 1) * 100:
+                extra = self.github.repo("GET", f"/releases/{self.release_id}/assets?per_page=100&page={page}")
+                assets.extend(extra)
+                if len(extra) < 100:
+                    break
+                page += 1
+            self._assets = assets
+        assets = self._assets
         with path.open("rb") as source:
             expected = "sha256:" + hashlib.file_digest(source, "sha256").hexdigest()
         for asset in assets:
@@ -154,12 +161,13 @@ class ReleaseArchive:
                     content=chunks(stream) if transfer else stream,
                     timeout=300,
                 )
-            response.raise_for_status()
+            raise_github_error(response)
             asset = response.json()
             if asset.get("digest") != expected or asset["size"] != path.stat().st_size:
                 raise ValueError("GitHub did not confirm the uploaded asset SHA-256 and size")
             if transfer:
                 transfer.verified()
+            self._assets.append(asset)
         except Exception as exc:
             if transfer:
                 transfer.failed(exc)

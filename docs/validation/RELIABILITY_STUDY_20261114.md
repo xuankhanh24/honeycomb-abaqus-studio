@@ -38,6 +38,15 @@ MAE OOF giảm **13,44%** trong so sánh v5–v6 cùng giao thức. Tuy vậy, s
 khỏi báo cáo hoặc gọi bản mới tốt hơn ở mọi thiết kế. So sánh trực tiếp với
 MAE v4.1 37,251 J/kg phải ghi khác seed và tiêu chí chọn mô hình.
 
+Kiểm tra bổ sung leave-one-geometry-cluster-out: chia 411 hình học thành năm
+vùng bằng KMeans trên X chuẩn hóa theo biên (không dùng nhãn). Giữ họ mô hình
+đã chọn, fit lại và dự báo từng vùng bị bỏ ra. Đây là stress test hồi cứu, không
+phải một vòng chọn mô hình mới. MAE gộp **36,782 J/kg**, RMSE **53,737 J/kg**;
+MAE từng vùng khoảng **22,71–51,12 J/kg**. Ngưỡng xác suất 0,10 dùng chẩn đoán
+cho lọt **3/55** ca được nhận dù có thêm miền hỗ trợ. Điều này củng cố quyết định
+giữ policy chính ở trạng thái chưa đủ bằng chứng; không biến ngưỡng 0,10 thành
+bảo đảm an toàn. Không gọi đây là kiểm chứng mù hoặc tỷ lệ lỗi đã được chứng nhận.
+
 V6 chưa đạt mục tiêu MAE <=20 J/kg, MAPE <=2%, APE q95 <=5% và chưa có đủ bằng
 chứng rủi ro mặt sau <=5%. Threshold được chọn là `null`: không có thiết kế được
 policy chứng nhận. Sáu đề xuất là điểm thu thập FEA, không phải sáu nghiệm tối ưu

@@ -25,6 +25,14 @@ Các tệp native được hard-link khi chuẩn bị xuất để tránh nhân 
 
 ## Báo cáo sau 12 ms
 
+### Khôi phục ca chưa giải do giới hạn ổ đĩa
+
+Lượt 12 ms đầu đã chặn S5 trước khi giải: ngân sách full-export yêu cầu khoảng 125,56 GB, runner còn 97,7 GiB (khoảng 104,9 GB). ODB S5 8 ms được xác minh trong manifest hoàn chỉnh có kích thước 16,519 GB, tổng bản lưu 16,656 GB. Không có thay đổi vật lý nào để xử lý lỗi tài nguyên.
+
+Worker native research được bật riêng chính sách `research-hardlinks`: hai lần dung lượng ODB dự đoán (gồm một ODB làm biên dự phòng), ngân sách trạng thái native và một part truyền tối đa 1 GiB. Vẫn giữ thêm 20 GB dự phòng của batch, kiểm tra CPU/RAM và theo dõi ổ trống trong khi chạy. Các chế độ thông thường/full-export giữ nguyên chính sách cũ; không thay lưới, vật liệu, thời lượng hay ngưỡng chất lượng. Cả hai cửa kiểm tra tài nguyên của Engine dùng cùng chính sách.
+
+Sau khi workflow 12 ms hiện tại kết thúc, controller được phép phục hồi tối đa một lần, chỉ đối với shard `blocked_environment` có lỗi admission CPU/RAM/disk và chưa có kết quả solver. Ca B0249 đã có kết quả hợp lệ và archive/restart xác minh được giữ nguyên. Không dùng cơ chế này để chạy lại lỗi solver, lỗi upload, kết quả dở dang hoặc dữ liệu kém chất lượng. Lịch sử workflow/SHA cũ được giữ, source mới phải qua kiểm tra sáu mô-đun vật lý, và input hash không đổi. Không sửa ownership của batch khi B0249 còn đang chạy.
+
 Sau khi lượt 12 ms hoàn tất, cùng controller kiểm tra đúng catalog và source SHA rồi xuất `duration-comparison.json`, `.csv`, `.md` trong artifact `duration-followup-receipt`. Báo cáo cũng được lưu vào catalog của lượt 12 ms.
 
 Báo cáo so sánh SEA, độ võng mặt đáy, xóa phần tử, lực/vận tốc cuối và chỉ tiêu chất lượng ở 8/12 ms. Ngưỡng chênh lệch 2% là tiêu chí dự án. Không kết luận 8 ms đủ chỉ vì SEA gần nhau nếu kiểm tra kết thúc sự kiện chưa đạt; cũng không mặc định 12 ms đủ nếu `event_finished` còn false. Hai ca kiểm chứng không chứng minh hội tụ thời lượng cho toàn bộ miền thiết kế và không thay thế thực nghiệm.

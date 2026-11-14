@@ -52,6 +52,7 @@ class Engine:
         self.fake = fake
         self.shutdown = threading.Event()
         self.runtime_fingerprint = "native-unqualified"
+        self.research_archive = False
         self.explicit_continuation = False
         self.wake = threading.Event()
         self.guard = threading.RLock()
@@ -198,6 +199,7 @@ class Engine:
                                   psutil.cpu_count() or 1, psutil.virtual_memory().available / 1024**3,
                                   shutil.disk_usage(self.store.root).free / 1e9,
                                   linked_checkpoint=self.explicit_continuation,
+                                  research_archive=self.research_archive,
                                   retained_disk_gb=[self._retained_solver_gb(r) for r in candidates])
             slots = plan["effective_parallel_runs"]
             self.store.event(batch["id"], None, {"type": "admission", **plan})
@@ -452,7 +454,8 @@ class Engine:
                 attempt = Path(a["path"])
             else:
                 free = shutil.disk_usage(self.store.root).free / 1e9
-                required = disk_requirement(batch['spec'], r['resolved'], linked_checkpoint=self.explicit_continuation)
+                required = disk_requirement(batch['spec'], r['resolved'], linked_checkpoint=self.explicit_continuation,
+                                            research_archive=self.research_archive)
                 if not self.fake and free < batch["spec"]["min_free_gb"] + required:
                     b = self.store.get("batches", r["batch_id"])
                     b.update(

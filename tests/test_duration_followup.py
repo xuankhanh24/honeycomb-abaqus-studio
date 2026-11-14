@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from honeycomb_studio.cloud_matrix import prepare, validate_source
-from honeycomb_studio.duration_followup import comparison_report, plan_followup
+from honeycomb_studio.cloud_matrix import prepare, recover, validate_source
+from honeycomb_studio.duration_followup import comparison_report, plan_followup, resource_recovery_indices
 from honeycomb_studio.models import BatchSpec, ModelSpec, digest, expand
 
 
@@ -132,6 +132,78 @@ def test_report_requires_original_physics_sealed_restart_and_verified_archive(pr
         followup['shards'][1]['archive_verified'] = False
     with pytest.raises(ValueError):
         comparison_report(source, followup, run, config)
+
+
+def blocked_followup():
+    source, followup, run, config = completed_followup()
+    followup['status'] = 'blocked_environment'
+    followup['shards'][1].update(status='blocked_environment', runs=[],
+                                error='blocked_environment: insufficient CPU/RAM/disk for requested run configuration')
+    return source, followup, run, config
+
+
+def test_recover_only_unsolved_resource_block_preserving_completed_baseline():
+    _, followup, _, _ = blocked_followup()
+    baseline = deepcopy(followup['shards'][0])
+    assert resource_recovery_indices(followup) == [1]
+    resumed = recover(followup, 1000)
+    assert resumed['shards'][0] == baseline
+    assert resumed['shards'][1]['status'] == 'draft'
+    assert resumed['shards'][1]['spec'] == followup['shards'][1]['spec']
+    assert len(resumed['shards'][1]['previous_attempts']) == 1
+    followup['duration_resource_recovery_count'] = 1
+    with pytest.raises(ValueError, match='already used'):
+        resource_recovery_indices(followup)
+
+
+@pytest.mark.parametrize('problem', ['still_running', 'solver_error', 'upload_error', 'partial_solver'])
+def test_no_automatic_recompute_of_live_or_computed_results(problem):
+    _, followup, _, _ = blocked_followup()
+    if problem == 'still_running':
+        followup['status'] = 'running'
+    elif problem == 'solver_error':
+        followup['shards'][1]['status'] = 'failed'
+    elif problem == 'upload_error':
+        followup['shards'][1]['status'] = 'archive_failed'
+    else:
+        followup['shards'][1]['runs'] = [{'id': 'partial', 'status': 'failed'}]
+    with pytest.raises(ValueError):
+        resource_recovery_indices(followup)
+
+
+def test_resource_recovery_claim_dispatches_once_and_retains_baseline(monkeypatch):
+    _, followup, _, config = blocked_followup()
+    path = Path(__file__).parents[1] / 'scripts/dispatch_duration_followup.py'
+    spec = importlib.util.spec_from_file_location('resource_fixture', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    saved = deepcopy(followup)
+    baseline = deepcopy(saved['shards'][0])
+    posts = []
+
+    class Remote:
+        def repo(self, method, route, body=None):
+            if route == '/branches/main':
+                return {'commit': {'sha': 'fixed-source'}}
+            if route.startswith('/contents/'):
+                return {'content': base64.b64encode(b'fixture').decode()}
+            assert method == 'POST' and body['inputs']['recover'] == 'true'
+            posts.append(body)
+
+    class Catalog:
+        def update(self, _, transform):
+            nonlocal saved
+            saved = transform(deepcopy(saved))
+            return deepcopy(saved)
+
+    first = module.dispatch_resource_recovery(Remote(), Catalog(), followup, config, [1], 'fixed-source')
+    assert first['recovered_candidate_ids'] == ['S2']
+    assert first['retained_candidate_ids'] == ['B0249']
+    assert saved['shards'][0] == baseline
+    assert saved['input_hash'] == followup['input_hash']
+    assert saved['duration_resource_recovery_count'] == 1
+    second = module.dispatch_resource_recovery(Remote(), Catalog(), followup, config, [1], 'fixed-source')
+    assert second['dispatched'] is False and len(posts) == 1
 
 
 @pytest.mark.parametrize('lost_response', [False, True])

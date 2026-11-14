@@ -18,7 +18,7 @@ def _valid_result(shard, duration=.008):
     summary = run.get('summary') or {}
     sea = summary.get('SEA_core_J_kg')
     last_time = summary.get('last_time_s')
-    if (run.get('status') not in ('completed', 'review') or
+    if (run.get('status') not in ('completed', 'review') or run.get('test_only') is True or
             (run.get('quality') or {}).get('numerical_quality') != 'passed' or
             summary.get('solver_completed') is not True or
             summary.get('history_integrity_passed') is not True or
@@ -96,13 +96,49 @@ def plan_followup(parent: dict, source_run: dict, config: dict, execution_sha: s
                 'restart_storage_required': True, 'models_refit': False, 'original_489_unchanged': True}}
 
 
-def comparison_report(source: dict, followup: dict, source_run: dict, config: dict):
-    """Compare measured horizons; a longer run is not experimental validation."""
+def resource_recovery_indices(followup):
+    """Retry only cases that never solved because hosted disk admission failed."""
+    if followup.get('status') not in ('completed', 'review', 'blocked_environment'):
+        raise ValueError('Resource recovery must wait for the entire current workflow')
+    indices = []
+    for shard in followup['shards']:
+        if shard['status'] in ('completed', 'review') and shard.get('archive_verified') is True:
+            if (_valid_result(shard, .012) is None or
+                    shard['runs'][0].get('restart_state', {}).get('available') is not True):
+                raise ValueError('Completed reference needs numerical/restart review before spending another solver run')
+            continue
+        if (shard['status'] == 'blocked_environment' and not shard.get('runs') and
+                'insufficient CPU/RAM/disk' in (shard.get('error') or '')):
+            indices.append(shard['index'])
+        else:
+            raise ValueError('A solver/upload/quality failure requires review; refusing an automatic solver rerun')
+    if indices and followup.get('duration_resource_recovery_count', 0) >= 1:
+        raise ValueError('The single authorized resource recovery attempt was already used')
+    return indices
+
+
+def validate_followup_inputs(source, followup, source_run, config):
     context = followup['validation_context']
     expected = plan_followup(source, source_run, config, context['expected_source_sha'])
     if (expected is None or followup['id'] != expected['id'] or followup['input_hash'] != expected['input_hash'] or
             digest(followup['spec']) != expected['input_hash'] or context != expected['validation_context']):
         raise ValueError('Follow-up inputs or source provenance changed')
+    models = expand(BatchSpec.model_validate(followup['spec']))
+    shards = followup.get('shards', [])
+    if len(shards) != len(models) or {s['index'] for s in shards} != set(range(len(models))):
+        raise ValueError('Incomplete follow-up matrix')
+    for shard in shards:
+        if (shard.get('parent_input_hash') != followup['input_hash'] or
+                digest(shard['spec']) != shard['input_hash'] or
+                expand(BatchSpec.model_validate(shard['spec']))[0]['resolved'] != models[shard['index']]['resolved']):
+            raise ValueError('Follow-up shard inputs changed')
+    return expected
+
+
+def comparison_report(source: dict, followup: dict, source_run: dict, config: dict):
+    """Compare measured horizons; a longer run is not experimental validation."""
+    validate_followup_inputs(source, followup, source_run, config)
+    context = followup['validation_context']
     shards = followup.get('shards', [])
     if len(shards) != 2 or {s['index'] for s in shards} != {0, 1}:
         raise ValueError('Incomplete 12-ms matrix')

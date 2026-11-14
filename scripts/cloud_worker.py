@@ -88,6 +88,7 @@ def run(args):
         if store.list("batches"):
             raise ValueError("Use a clean workspace; do not silently reuse an earlier cloud attempt")
         engine = Engine(store, abaqus=str(args.abaqus), fake=False)
+        engine.research_archive = job['profile'] == 'research'
         engine.runtime_fingerprint = digest(runtime)
         batch = store.create(spec)
         progress = Progress(github, catalog, args.job_id, store, batch["id"], deadline)

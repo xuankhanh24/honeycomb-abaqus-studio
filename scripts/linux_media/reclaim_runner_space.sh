@@ -29,7 +29,7 @@ fi
 
 # These preinstalled SDKs are unused by the Python/Abaqus workflow. Keep the
 # fixed allowlist small and leave the solver, Docker images and outputs intact.
-for unused_sdk in /usr/local/lib/android /usr/share/dotnet /opt/ghc; do
+for unused_sdk in /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL; do
   if [[ -d "$unused_sdk" && ! -L "$unused_sdk" ]]; then
     sudo du -sh "$unused_sdk"
     sudo rm -rf --one-file-system -- "$unused_sdk"

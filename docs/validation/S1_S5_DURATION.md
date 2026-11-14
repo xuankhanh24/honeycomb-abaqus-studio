@@ -11,7 +11,7 @@ Yêu cầu thực hiện trên GitHub Actions: để sáu ca 8 ms hoàn tất, s
 
 Workflow `validation-duration-followup.yml` nhận sự kiện hoàn tất của đúng lượt nguồn. Nó kiểm tra toàn bộ sáu kết quả đã lưu, trạng thái solver, lịch sử đầu ra, chất lượng số và đầu vào từng shard trước khi chọn ứng viên. Không dùng SEA dự báo để lựa chọn. Nếu dữ liệu thiếu/lỗi hoặc không có ứng viên còn nguyên mặt đáy, bước chọn dừng với thông báo; không tạo kết quả thay thế.
 
-Hai ca mới giữ hình học, vật liệu, lưới, vận tốc, 4 CPU và double precision. Chỉ thay thời lượng thành 12 ms và tăng field/history intervals lên 1200/6000 để giữ chu kỳ lưu 10 µs/2 µs. Mức dự phòng đĩa vẫn là 20 GB. Dọn thêm .NET và GHC không dùng trên runner Linux tạm để có đủ chỗ cho lượt 12 ms và bộ restart.
+Hai ca mới giữ hình học, vật liệu, lưới, vận tốc, 4 CPU và double precision. Chỉ thay thời lượng thành 12 ms và tăng field/history intervals lên 1200/6000 để giữ chu kỳ lưu 10 µs/2 µs. Mức dự phòng đĩa vẫn là 20 GB. Dọn thêm .NET, GHC và CodeQL không dùng trên runner Linux tạm để có đủ chỗ cho lượt 12 ms và bộ restart. Trước khi cấp runner, bước prepare đối chiếu source SHA với yêu cầu đã khóa để chặn việc nhánh main thay đổi giữa lúc gửi và nhận bài.
 
 Job ID cố định và thao tác claim trên catalog ngăn gửi trùng khi controller chạy lại hoặc mất phản hồi dispatch. Workflow chỉ nối tiếp đợt đã chỉ định; không phải lịch chạy định kỳ. Có thể chạy thủ công controller để kiểm tra trạng thái: khi nguồn còn chạy, nó chỉ trả `waiting_for_source` và không tạo solver mới.
 

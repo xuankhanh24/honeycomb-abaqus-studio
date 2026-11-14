@@ -5,7 +5,14 @@ import json
 import os
 
 from honeycomb_studio.cloud_github import JOB_ID, Catalog, Github
-from honeycomb_studio.cloud_matrix import finalize, matrix_entries, prepare, recover, workflow_title
+from honeycomb_studio.cloud_matrix import (
+    finalize,
+    matrix_entries,
+    prepare,
+    recover,
+    validate_source,
+    workflow_title,
+)
 from honeycomb_studio.cloud_release import reserve_release
 
 
@@ -27,6 +34,7 @@ def main():
     def transform(old):
         if args.phase == 'finalize':
             return finalize(old, workflow)
+        validate_source(old, os.environ['GITHUB_SHA'])
         if args.recover:
             return recover(old, workflow, repair_indices=indices)
         return prepare(old, workflow)

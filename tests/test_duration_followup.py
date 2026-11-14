@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from honeycomb_studio.cloud_matrix import prepare
+from honeycomb_studio.cloud_matrix import prepare, validate_source
 from honeycomb_studio.duration_followup import comparison_report, plan_followup
 from honeycomb_studio.models import BatchSpec, ModelSpec, digest, expand
 
@@ -55,6 +55,9 @@ def test_select_measured_rear_intact_best_and_preserve_all_other_physics():
         assert model['resolved']['duration'] / model['resolved']['history_intervals'] == pytest.approx(.008 / 4000)
         assert model['resolved']['cpus'] == 4
     assert plan_followup(parent, run, config, 'new-sha') == result
+    validate_source(result, 'new-sha')
+    with pytest.raises(ValueError, match='no solver admitted'):
+        validate_source(result, 'main-moved-after-dispatch')
 
 
 def test_waiting_source_is_read_only_and_identity_is_checked_first():

@@ -230,10 +230,15 @@ class ReleaseArchive:
             return self._publish(prepared, attempt=attempt, complete=complete, checkpoint=checkpoint)
 
     def _publish(self, root: Path, *, attempt: str, complete: bool, checkpoint: str | None = None):
+        from .completed_restart import completed_restart_records
+
         files: list[dict[str, Any]] = []
         root = root.resolve()
         native_paths = checkpoint_paths(root)
         native_records = (json.loads((root / 'segment.json').read_text())['files'] if native_paths else {})
+        native_records = {'state/' + name: expected for name, expected in native_records.items()}
+        native_records.update(completed_restart_records(root))
+        native_paths = native_records.keys()
         with tempfile.TemporaryDirectory(prefix="honeycomb-upload-") as temp:
             for path in sorted(root.rglob("*")):
                 relative = path.relative_to(root)
@@ -264,7 +269,7 @@ class ReleaseArchive:
                 if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
                     raise ValueError("Source changed during archival; no complete manifest will be published")
                 if native:
-                    expected = native_records[relative.as_posix().removeprefix('state/')]
+                    expected = native_records[relative.as_posix()]
                     if any(record[key] != expected.get(key) for key in ('bytes', 'sha256')):
                         raise ValueError('Native checkpoint changed after sealing')
                 files.append(record)

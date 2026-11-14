@@ -27,12 +27,14 @@ if [[ -f "$media" && ! -L "$media" ]]; then
   rm -- "$media"
 fi
 
-# Abaqus does not use the image's preinstalled Android SDK. Remove only this
-# fixed directory on the ephemeral hosted runner; preserve runtime and outputs.
-if [[ -d /usr/local/lib/android && ! -L /usr/local/lib/android ]]; then
-  sudo du -sh /usr/local/lib/android
-  sudo rm -rf --one-file-system -- /usr/local/lib/android
-fi
+# These preinstalled SDKs are unused by the Python/Abaqus workflow. Keep the
+# fixed allowlist small and leave the solver, Docker images and outputs intact.
+for unused_sdk in /usr/local/lib/android /usr/share/dotnet /opt/ghc; do
+  if [[ -d "$unused_sdk" && ! -L "$unused_sdk" ]]; then
+    sudo du -sh "$unused_sdk"
+    sudo rm -rf --one-file-system -- "$unused_sdk"
+  fi
+done
 
 echo "Storage after cleanup (normal admission and reserve checks still apply):"
 df -h "$runner_temp"

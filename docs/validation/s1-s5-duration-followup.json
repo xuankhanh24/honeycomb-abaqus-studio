@@ -1,0 +1,24 @@
+{
+  "repository": "xuankhanh24/honeycomb-abaqus-studio",
+  "source_workflow_run_id": 43566570839,
+  "source_job_id": "3bc66c62749746a7839df1a87392d798",
+  "source_sha": "7448dfc4811dc304d5c6bceb447b810556905ffa",
+  "source_input_hash": "ef45746a4f4aa61e4175731ab0e4a5c64fdc978444eb6610e10cc0882bc0b357",
+  "candidate_ids": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "B0249"
+  ],
+  "physics_sha256": {
+    "src/honeycomb_studio/models.py": "6808b3a457b194d4f8d6a9415bde7fe7c010ad8ad49e09969c7a91afba7fd0cc",
+    "src/honeycomb_studio/adapters/build.py": "4c4d9e2e98adefa09ad56361fd35bf9001117be8f1719f3e43700bc8c04a7815",
+    "src/honeycomb_studio/adapters/reentrant.py": "07a38de48e0c1e674ab9b51051a025c90fc619df25bceb3df5a08256b44469ed",
+    "src/honeycomb_studio/adapters/hexagonal.py": "d7378e2bdb363b4c245a2dc9f6fbba40c4c86815ba59338c19a8539ba1db7e26",
+    "src/honeycomb_studio/adapters/damage_keywords.py": "4cf687c2dea0a3238709d7df682686d5afec802b5a5614af0896f619840cafcb",
+    "src/honeycomb_studio/adapters/damage_metrics.py": "02a51cc8bc3dfd2c860ed6ec21b503140a7d7399384f7ca1dbcc475a3e79f8e4"
+  },
+  "followup_job_id": "16582a107020fec6da4eb3b066b9d5b8"
+}

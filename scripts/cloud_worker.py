@@ -15,6 +15,7 @@ from honeycomb_studio.cloud_matrix import ShardCatalog
 from honeycomb_studio.cloud_progress import Progress, execution_deadline
 from honeycomb_studio.cloud_runtime import execution_runtime
 from honeycomb_studio.cloud_streaming import RollingFields
+from honeycomb_studio.completed_restart import seal_completed_restart
 from honeycomb_studio.engine import Engine
 from honeycomb_studio.models import BatchSpec, digest, expand
 from honeycomb_studio.store import Store, write_json
@@ -143,6 +144,8 @@ def run(args):
                 raise RuntimeError("blocked_environment: insufficient CPU/RAM/disk for requested run configuration")
             for finished in wave:
                 record = {k: finished.get(k) for k in ("id", "status", "summary", "quality", "error")}
+                if finished['status'] in ('completed', 'review') and job['profile'] != 'smoke':
+                    record['restart_state'] = seal_completed_restart(args.root, finished, runtime)
                 attempt = finished.get("attempts", [])
                 view = Path(attempt[-1]["path"]) / "extracted/field-view.json" if attempt else None
                 if view and view.is_file() and view.stat().st_size <= 4 * 1024**2:

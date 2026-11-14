@@ -8,8 +8,9 @@ from pathlib import Path
 def prepare(source: Path, target: Path):
     # Lazy import avoids a cycle when ReleaseArchive prepares its own publication view.
     from .cloud_archive import ALLOWED, checkpoint_paths
+    from .completed_restart import completed_restart_records
 
-    native_paths = checkpoint_paths(source)
+    native_paths = checkpoint_paths(source) | completed_restart_records(source).keys()
     has_reductions = any(source.glob("**/reduced-fields/*.json")) or any(source.glob("**/remote-fields/*.json"))
     reductions = []
     for path in sorted(source.rglob("*")):

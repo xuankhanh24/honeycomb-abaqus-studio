@@ -1,0 +1,51 @@
+name: Kiểm chứng thời lượng S1-S5 sau lượt 8 ms
+run-name: Kiểm tra nối tiếp 12 ms sau lượt 43566570839
+on:
+  workflow_run:
+    workflows: ['Mô phỏng bài đã chọn từ web']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: duration-followup-43566570839
+  cancel-in-progress: false
+jobs:
+  followup:
+    if: >-
+      github.event_name == 'workflow_dispatch' || github.event.workflow_run.id == 43566570839 ||
+      contains(github.event.workflow_run.display_title, '16582a10')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - name: Chọn theo FEA 8 ms và gửi tối đa hai ca kiểm chứng 12 ms
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked --extra cloud python scripts/dispatch_duration_followup.py
+      - name: Ghi trạng thái theo dõi
+        if: always()
+        run: |
+          if [ -f output/duration-followup.json ]; then
+            printf '```json\n' >> "$GITHUB_STEP_SUMMARY"
+            cat output/duration-followup.json >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/duration-comparison.md ]; then
+            cat output/duration-comparison.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: duration-followup-receipt
+          path: |
+            output/duration-followup.json
+            output/duration-comparison.*
+          if-no-files-found: ignore
+          retention-days: 30

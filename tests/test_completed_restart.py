@@ -19,6 +19,7 @@ def completed_run(root):
     raw.mkdir(parents=True)
     for extension in ('abq.1', 'abq.2', 'mdl', 'pac', 'stt', 'prt', 'res', 'sel', 'odb'):
         (raw / ('job.' + extension)).write_bytes(('transport fixture: ' + extension).encode())
+    (raw / 'job.abq').write_bytes(b'')  # Preserve an empty master stub beside nonempty domain state.
     (raw / 'other.abq').write_bytes(b'unrelated job')
     (raw / 'job.private').write_bytes(b'not a native restart family')
     (attempt / 'solver-complete.json').write_text(json.dumps({
@@ -33,7 +34,7 @@ def test_complete_native_families_round_trip_without_copying_large_state(tmp_pat
     source = tmp_path / 'source'
     run = completed_run(source)
     sealed = seal_completed_restart(source, run, {'release': 'fixture'})
-    assert sealed['available'] is True and sealed['files'] == 9
+    assert sealed['available'] is True and sealed['files'] == 10
     raw = source / 'runs/r1/attempts/001/raw'
     view = tmp_path / 'publication'
     view.mkdir()
@@ -61,7 +62,7 @@ def test_complete_native_families_round_trip_without_copying_large_state(tmp_pat
         assert (target / name).read_bytes() == (source / name).read_bytes()
 
 
-@pytest.mark.parametrize('problem', ['live', 'unfinished', 'missing', 'wrong_time'])
+@pytest.mark.parametrize('problem', ['live', 'unfinished', 'missing', 'wrong_time', 'synthetic'])
 def test_do_not_certify_an_unusable_end_state(tmp_path, problem):
     run = completed_run(tmp_path)
     folder = tmp_path / 'runs/r1/attempts/001'
@@ -71,6 +72,8 @@ def test_do_not_certify_an_unusable_end_state(tmp_path, problem):
         run['status'] = 'solving'
     elif problem == 'missing':
         (folder / 'raw/job.sel').unlink()
+    elif problem == 'synthetic':
+        run['test_only'] = True
     else:
         (folder / 'solver-complete.json').write_text(json.dumps({
             'sta': {'solver_success': True, 'simulation_time_s': .007}}))

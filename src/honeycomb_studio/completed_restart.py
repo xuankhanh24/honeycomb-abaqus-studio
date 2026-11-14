@@ -5,12 +5,18 @@ import json
 import math
 import re
 from pathlib import Path
+from typing import TypedDict
 
 from .models import digest
 from .store import write_json
 
 FAMILIES = ('abq', 'mdl', 'pac', 'stt', 'prt', 'res', 'sel', 'odb')
 KIND = 'honeycomb-completed-explicit-restart'
+
+
+class FileRecord(TypedDict):
+    bytes: int
+    sha256: str
 
 
 def _family(name, job_name):
@@ -21,16 +27,17 @@ def _family(name, job_name):
 def _inventory(raw, job_name):
     if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,127}', job_name):
         raise ValueError('Invalid native restart job name')
-    files = {}
+    files: dict[str, FileRecord] = {}
     for path in sorted(raw.iterdir()):
         if not _family(path.name, job_name):
             continue
-        if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+        if path.is_symlink() or not path.is_file():
             raise ValueError('Invalid native restart file: ' + path.name)
         with path.open('rb') as stream:
             files[path.name] = {'bytes': path.stat().st_size,
                                 'sha256': hashlib.file_digest(stream, 'sha256').hexdigest()}
-    missing = [family for family in FAMILIES if not any(_family(name, job_name) == family for name in files)]
+    missing = [family for family in FAMILIES if not any(
+        _family(name, job_name) == family and record['bytes'] > 0 for name, record in files.items())]
     if missing:
         raise ValueError('Missing completed Explicit restart families: ' + ', '.join(missing))
     return files
@@ -38,7 +45,7 @@ def _inventory(raw, job_name):
 
 def seal_completed_restart(root: Path, run: dict, runtime: dict):
     """Call after the solver and postprocessors have closed every attempt file."""
-    if (run.get('status') not in ('completed', 'review') or
+    if (run.get('status') not in ('completed', 'review') or run.get('test_only') is True or
             run.get('summary', {}).get('solver_completed') is not True or not run.get('attempts')):
         raise ValueError('Cannot seal an unfinished solver attempt')
     attempt = run['attempts'][-1]
@@ -86,11 +93,12 @@ def completed_restart_records(root: Path):
         if not isinstance(files, dict) or not files:
             raise ValueError('Missing native restart inventory')
         for family in FAMILIES:
-            if not any(_family(name, job_name) == family for name in files):
+            if not any(_family(name, job_name) == family and isinstance(record, dict) and
+                       type(record.get('bytes')) is int and record['bytes'] > 0 for name, record in files.items()):
                 raise ValueError('Incomplete native restart family: ' + family)
         for name, expected in files.items():
             if (not _family(name, job_name) or type(expected.get('bytes')) is not int or
-                    expected['bytes'] <= 0 or not re.fullmatch(r'[0-9a-f]{64}', expected.get('sha256', ''))):
+                    expected['bytes'] < 0 or not re.fullmatch(r'[0-9a-f]{64}', expected.get('sha256', ''))):
                 raise ValueError('Unsafe native restart inventory entry')
             source = receipt_path.parent / 'raw' / name
             source.resolve().relative_to(root)

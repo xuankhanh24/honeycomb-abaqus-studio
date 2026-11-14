@@ -143,8 +143,9 @@ def run(args):
             if not wave:
                 raise RuntimeError("blocked_environment: insufficient CPU/RAM/disk for requested run configuration")
             for finished in wave:
-                record = {k: finished.get(k) for k in ("id", "status", "summary", "quality", "error")}
-                if finished['status'] in ('completed', 'review') and job['profile'] != 'smoke':
+                record = {k: finished.get(k) for k in ("id", "status", "summary", "quality", "error", "test_only")}
+                if (finished['status'] in ('completed', 'review') and job['profile'] != 'smoke' and
+                        finished.get('test_only') is not True):
                     record['restart_state'] = seal_completed_restart(args.root, finished, runtime)
                 attempt = finished.get("attempts", [])
                 view = Path(attempt[-1]["path"]) / "extracted/field-view.json" if attempt else None

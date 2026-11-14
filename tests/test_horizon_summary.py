@@ -64,7 +64,8 @@ def test_native_explicit_increment_offset_is_retained_and_bounded(tmp_path):
 
 
 @pytest.mark.parametrize('problem', ['missing_frame', 'nan_energy', 'unknown_deleted', 'unordered',
-                                    'no_mass', 'no_integrity', 'wrong_end', 'wrong_provenance'])
+                                    'no_mass', 'no_integrity', 'wrong_end', 'wrong_provenance',
+                                    'wrong_energy_summary', 'wrong_damage_summary'])
 def test_missing_or_inconsistent_native_evidence_blocks_horizon_receipt(tmp_path, problem):
     resolved, native = native_fixture(tmp_path)
     if problem in ('missing_frame', 'unknown_deleted', 'unordered'):
@@ -86,6 +87,10 @@ def test_missing_or_inconsistent_native_evidence_blocks_horizon_receipt(tmp_path
         native['history_integrity_passed'] = False
     elif problem == 'wrong_end':
         native['last_time_s'] = .010
+    elif problem == 'wrong_energy_summary':
+        native['core_dissipation_J'] = 18000.
+    elif problem == 'wrong_damage_summary':
+        native['rear_skin_deleted'] = False
     with pytest.raises((ValueError, TypeError)):
         seal_horizon_summary(tmp_path, resolved, native, .008, '' if problem == 'wrong_provenance' else 'a' * 64)
     assert not (tmp_path / 'horizon-8ms.json').exists()

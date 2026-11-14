@@ -60,6 +60,13 @@ def seal_horizon_summary(directory: Path, resolved: dict, native: dict, horizon:
             np.any(energy < -1.e-9) or np.any(displacement < 0) or
             any(type(v) is not int or v < 0 for v in deleted)):
         raise ValueError('Nonfinite energy/motion or invalid categorical deletion evidence')
+    for key, value in (('core_dissipation_J', energy[-1]), ('SEA_core_J_kg', energy[-1] / mass)):
+        saved = native.get(key)
+        if (not isinstance(saved, (int, float)) or isinstance(saved, bool) or not math.isfinite(saved) or
+                not math.isclose(float(value), saved, rel_tol=1.e-8, abs_tol=1.e-8)):
+            raise ValueError('Native CSV endpoint disagrees with completed summary: ' + key)
+    if native.get('rear_skin_deleted') is not (max(deleted) > 0):
+        raise ValueError('Native rear history disagrees with completed damage summary')
     prefix_energy, prefix_force = energy[:end + 1], force[:end + 1]
     tail = times[:end + 1] >= times[end] - .0005
     force_limit = max(1., .01 * float(prefix_force.max()))

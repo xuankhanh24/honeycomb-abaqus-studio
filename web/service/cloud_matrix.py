@@ -90,6 +90,12 @@ def matrix_plan(spec):
             "note": "Một lượt = một job/runner 4 CPU. Các đợt dùng chung quota GitHub; slot trống nhận lượt chờ, thứ tự do GitHub quyết định. Giới hạn song song áp dụng riêng mỗi đợt; license có thể làm solver chờ. Tổng hợp khi tất cả lượt trong đợt kết thúc."}
 
 
+def validate_source(old, source_sha):
+    expected = (old.get('validation_context') or {}).get('expected_source_sha')
+    if expected and source_sha != expected:
+        raise ValueError('Source commit differs from the locked validation request; no solver admitted')
+
+
 def prepare(old, workflow_id):
     if old.get("cancel_requested") or old["status"] not in ("draft", "dispatching"):
         raise ValueError("Batch cannot be claimed; duplicate dispatches and reruns require a new request ID")

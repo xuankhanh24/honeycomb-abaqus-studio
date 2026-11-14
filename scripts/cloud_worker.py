@@ -17,6 +17,7 @@ from honeycomb_studio.cloud_runtime import execution_runtime
 from honeycomb_studio.cloud_streaming import RollingFields
 from honeycomb_studio.completed_restart import seal_completed_restart
 from honeycomb_studio.engine import Engine
+from honeycomb_studio.horizon_summary import seal_horizon_summary
 from honeycomb_studio.models import BatchSpec, digest, expand
 from honeycomb_studio.store import Store, write_json
 
@@ -149,6 +150,18 @@ def run(args):
                         finished.get('test_only') is not True):
                     record['restart_state'] = seal_completed_restart(args.root, finished, runtime)
                 attempt = finished.get("attempts", [])
+                if (job.get('research_horizon_s') is not None and attempt and
+                        finished['status'] in ('completed', 'review') and finished.get('test_only') is not True):
+                    try:
+                        record['research_horizon'] = seal_horizon_summary(
+                            Path(attempt[-1]['path']) / 'extracted',
+                            expand(BatchSpec.model_validate(job['spec']))[0]['resolved'],
+                            finished['summary'], job['research_horizon_s'], job['input_hash'])
+                    except Exception as horizon_error:
+                        # Preserve the completed native solver and restart even if
+                        # subwindow evidence needs review. Never rerun to hide it.
+                        record['research_horizon'] = {'available': False, 'horizon_s': job['research_horizon_s'],
+                                                       'error': str(horizon_error)}
                 view = Path(attempt[-1]["path"]) / "extracted/field-view.json" if attempt else None
                 if view and view.is_file() and view.stat().st_size <= 4 * 1024**2:
                     try:

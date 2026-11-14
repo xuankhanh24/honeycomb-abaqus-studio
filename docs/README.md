@@ -31,6 +31,8 @@
 - [Hình học và va đập](research/GEOMETRY_AND_IMPACT.md)
 - [Ngàm chu vi](research/PERIMETER_CLAMP.md)
 - [Kiểm chứng khoa học](research/SCIENTIFIC_VALIDATION.md)
+- [Đánh giá độ tin cậy surrogate v5](research/SURROGATE_RELIABILITY_V5.md)
+- [Surrogate năng lượng và khối lượng hình học v6](research/SURROGATE_RELIABILITY_V6_PHYSICS.md)
 - [Xuất trường theo luồng](research/ROLLING_FIELDS.md)
 
 ## Phát triển

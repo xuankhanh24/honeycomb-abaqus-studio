@@ -1,0 +1,20 @@
+{
+  "status": "input_and_prediction_preflight_passed",
+  "solver_executed": false,
+  "job_id": "d5d13071e373761550cd3a7d64ecc81b",
+  "model_sha256": "04dc793ca6c403bcaf374450b6afee62fc5726e2738672e85090590ef390e28a",
+  "config_sha256": "f6a64e0d89d36a4f7b18c1092ce4e21ecc1ae6c49e4c22db26e7c951b9a5e271",
+  "candidate_count": 6,
+  "predictions_recomputed_from_locked_model": true,
+  "output_cadence_preserved": true,
+  "changed_parameters": [
+    "reentrant_delta_deg",
+    "foil",
+    "cell_size",
+    "reentrant_cell_height",
+    "duration",
+    "field_intervals",
+    "history_intervals"
+  ],
+  "physical_validation": "not_established"
+}

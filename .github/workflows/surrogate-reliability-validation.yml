@@ -1,0 +1,39 @@
+name: Kiểm chứng độc lập mô hình đã khóa
+run-name: Kiểm chứng FEA mô hình đã khóa
+on:
+  workflow_run:
+    workflows: ['Mô phỏng bài đã chọn từ web']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: surrogate-reliability-20261114
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.workflow_run.display_title, '16582a10') ||
+      contains(github.event.workflow_run.display_title, 'reliability-20261114')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - name: Chờ lượt 12 ms, kiểm tra nguồn và gửi tối đa sáu ca mới
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked --extra cloud python scripts/dispatch_reliability_validation.py
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: surrogate-reliability-receipt
+          path: output/reliability-*.json
+          if-no-files-found: ignore
+          retention-days: 30

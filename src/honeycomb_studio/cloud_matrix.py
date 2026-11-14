@@ -114,6 +114,13 @@ def prepare(old, workflow_id):
         shards.append({"id": identity, "name": old["name"], "profile": old["profile"],
                        "parent_job_id": old["id"], "parent_input_hash": old["input_hash"],
                        "index": index, "status": "draft", "spec": spec, "input_hash": digest(spec)})
+        context = old.get('validation_context') or {}
+        if context.get('kind') == 'locked-surrogate-fea-verification-v1':
+            horizon = context.get('prediction_horizon_s')
+            if (not isinstance(horizon, (int, float)) or isinstance(horizon, bool) or
+                    not 0 < horizon < run['resolved']['duration']):
+                raise ValueError('Surrogate verification requires a distinct earlier prediction horizon')
+            shards[-1]['research_horizon_s'] = horizon
     return {**old, "workflow_run_id": workflow_id, "status": "running", "phase": "matrix queued",
             "execution": plan, "shards": shards, "runs": []}
 
@@ -140,6 +147,8 @@ def recover(old, workflow_id, *, repair_indices=()):
             history.append(deepcopy(shard))
             shard = {k: shard[k] for k in ("id", "name", "profile", "parent_job_id",
                                            "parent_input_hash", "index", "spec", "input_hash")}
+            if 'research_horizon_s' in source:
+                shard['research_horizon_s'] = source['research_horizon_s']
             # Each solver attempt reserves its own immutable source tag. Keep
             # the parent/folder and design index, but never retag old outputs.
             shard["id"] = digest({"parent": old["id"], "index": shard["index"],

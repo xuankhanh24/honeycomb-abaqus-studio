@@ -107,6 +107,9 @@ def bulk_field(blocks, meta, spool, sequence, chunk_size, instance_lookup):
 
 
 def run(config):
+    if config.get('validation_metrics'):
+        from validation_metrics import run as validation_run
+        return validation_run(config)
     out = config["extract_directory"]
     if not os.path.isdir(out):
         os.makedirs(out)

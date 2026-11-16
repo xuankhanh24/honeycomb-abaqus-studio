@@ -90,6 +90,9 @@ def run(args):
             raise ValueError("Use a clean workspace; do not silently reuse an earlier cloud attempt")
         engine = Engine(store, abaqus=str(args.abaqus), fake=False)
         engine.research_archive = job['profile'] == 'research'
+        # A sealed earlier-horizon validation needs scalar evidence at every
+        # frame, rather than serializing the full stress/displacement matrices.
+        engine.validation_metrics = job['profile'] == 'research' and job.get('research_horizon_s') is not None
         engine.runtime_fingerprint = digest(runtime)
         batch = store.create(spec)
         progress = Progress(github, catalog, args.job_id, store, batch["id"], deadline)

@@ -139,7 +139,7 @@ jobs:
             ${{ runner.temp }}/honeycomb-results/**/resolved-input.json
             ${{ runner.temp }}/honeycomb-results/**/logs/*.log
       - name: Giữ toàn bộ kết quả khi xuất Releases lỗi để khôi phục không tính lại
-        if: failure()
+        if: failure() || cancelled()
         timeout-minutes: 15
         uses: actions/upload-artifact@v7.0.2
         with:

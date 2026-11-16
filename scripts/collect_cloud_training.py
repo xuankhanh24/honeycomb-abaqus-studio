@@ -177,6 +177,13 @@ def main():
     catalog.update("training/index", lambda old: {"jobs": jobs})
     if args.require_training_job:
         source = next(s for s in sources if s["job_id"] == args.require_training_job)
+        required_parent, _ = catalog.get("jobs/" + args.require_training_job)
+        if (required_parent.get("validation_context") or {}).get("kind") == "locked-surrogate-fea-verification-v1":
+            from honeycomb_studio.validation_completion import verification_completion
+            verified = verification_completion(required_parent)
+            (args.root / "validation-completion.json").write_text(json.dumps(verified, indent=2), encoding="utf-8")
+            print("Frozen FEA verification completed; observed deletion labels and training eligibility are unchanged.", flush=True)
+            return
         if source["profile"] != "smoke":
             expected = len(expand(BatchSpec.model_validate(source["job"]["spec"])))
             result = next((j for j in jobs if j["id"] == args.require_training_job), {})

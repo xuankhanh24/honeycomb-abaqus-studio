@@ -106,6 +106,12 @@ def prepare(old, workflow_id):
         raise ValueError("Requested input digest does not match the catalog")
     plan = matrix_plan(old["spec"])
     expanded = expand(BatchSpec.model_validate(old["spec"]).model_copy(update={"max_runs": 100}))
+    context = old.get('validation_context') or {}
+    metrics_only = context.get('native_metrics_only', False)
+    if type(metrics_only) is not bool:
+        raise ValueError('native_metrics_only must be a boolean')
+    if metrics_only and (old['profile'] != 'research' or old['spec'].get('export_all_fields') is not False):
+        raise ValueError('Native metrics-only extraction requires research with full field export disabled')
     shards = []
     for index, run in enumerate(expanded):
         spec = deepcopy(old["spec"])
@@ -115,7 +121,8 @@ def prepare(old, workflow_id):
         shards.append({"id": identity, "name": old["name"], "profile": old["profile"],
                        "parent_job_id": old["id"], "parent_input_hash": old["input_hash"],
                        "index": index, "status": "draft", "spec": spec, "input_hash": digest(spec)})
-        context = old.get('validation_context') or {}
+        if metrics_only:
+            shards[-1]['validation_metrics_only'] = True
         if context.get('kind') == 'locked-surrogate-fea-verification-v1':
             horizon = context.get('prediction_horizon_s')
             if (not isinstance(horizon, (int, float)) or isinstance(horizon, bool) or
@@ -150,6 +157,8 @@ def recover(old, workflow_id, *, repair_indices=()):
                                            "parent_input_hash", "index", "spec", "input_hash")}
             if 'research_horizon_s' in source:
                 shard['research_horizon_s'] = source['research_horizon_s']
+            if 'validation_metrics_only' in source:
+                shard['validation_metrics_only'] = source['validation_metrics_only']
             # Each solver attempt reserves its own immutable source tag. Keep
             # the parent/folder and design index, but never retag old outputs.
             shard["id"] = digest({"parent": old["id"], "index": shard["index"],

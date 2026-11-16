@@ -664,6 +664,8 @@ class Engine:
                 Path(__file__).with_name("research.py"),
                 ADAPTERS / "extract.py",
                 ADAPTERS / "damage_metrics.py",
+                ADAPTERS / "validation_metrics.py",
+                ADAPTERS / "rear_metrics_bulk.py",
                 ADAPTERS / "viewer.py",
                 ADAPTERS / "render.py",
             ]
@@ -685,6 +687,7 @@ class Engine:
                 "chunk_size": 48000,
                 "full_fields": full_fields,
                 "damage_metrics": bool(r["resolved"]["core_material"].get("johnson_cook")),
+                "validation_metrics": bool(getattr(self, "validation_metrics", False)),
             },
         )
         write_json(extracted / "export-policy.json", {"full_fields": full_fields})

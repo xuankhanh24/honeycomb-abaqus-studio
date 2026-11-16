@@ -48,6 +48,8 @@ class LicenseUnavailable(Exception):
 
 
 class Engine:
+    postprocess_only = False
+
     def __init__(self, store: Store, abaqus="C:/SIMULIA/Commands/abaqus.bat", fake=False):
         self.store = store
         self.abaqus = abaqus
@@ -204,6 +206,7 @@ class Engine:
                                   shutil.disk_usage(self.store.root).free / 1e9,
                                   linked_checkpoint=self.explicit_continuation,
                                   research_archive=self.research_archive,
+                                  scalar_postprocess=self.postprocess_only and self.validation_metrics,
                                   retained_disk_gb=[self._retained_solver_gb(r) for r in candidates])
             slots = plan["effective_parallel_runs"]
             self.store.event(batch["id"], None, {"type": "admission", **plan})

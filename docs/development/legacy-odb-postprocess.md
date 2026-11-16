@@ -42,3 +42,24 @@ the original workflow state. Pin the original manifest and scientific input;
 retain the old workflow and all verified siblings. Do not run ordinary selective
 matrix recovery on a legacy shard that has no saved-solver reference, because
 that mode may create a fresh solver attempt.
+
+## Admission for an already restored ODB
+
+The first legacy recovery restored a 25 GB ODB, then the common admission
+planner still reserved 76.28 GB for a fresh FE dataset plus the 20 GB batch
+reserve. The observed runner had 73.4 GiB free and adequate CPU/RAM, so it
+rejected extraction before any native reader started.
+
+Only SavedSolverEngine with validation_metrics enabled and full-field export
+disabled now uses the closed-ODB scalar budget: 4 GB scratch plus one 1 GiB
+publication volume, in addition to the unchanged batch reserve. CPU/RAM gates
+remain in force. Normal FE, full-field exports, restart and local admission
+policies are unchanged. The no-FE guard and original ODB checksum verification
+remain separate requirements. This budget is an orchestration estimate, not
+numerical acceptance or physical validation.
+
+The regression test drives the real execute_wave call using the observed
+73.4-GiB-free runner and original mesh/output settings. It failed before the
+fix; the fixed extraction path is admitted while the identical ordinary FE
+path remains blocked. Further cases retain reserve, CPU, RAM and full-export
+limits.

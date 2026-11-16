@@ -227,6 +227,8 @@ def _restore_archived_solver(store, job, spec, runtime, github, manifest):
 class SavedSolverEngine(Engine):
     """An extraction recovery can never fall back to build/check/solve."""
 
+    postprocess_only = True
+
     def _execute(self, r, batch):
         if (len(r.get("attempts", [])) != 1 or r.get("force_new_solver") or r.get("explicit_recover")):
             raise ValueError("Postprocessing recovery requires the original solver attempt")

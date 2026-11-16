@@ -8,6 +8,21 @@ from honeycomb_studio.models import BatchSpec, ModelSpec
 from honeycomb_studio.store import Store
 
 
+def test_scalar_recovery_keeps_reserves_cpu_ram_and_full_export_limits():
+    spec = BatchSpec(export_all_fields=False).model_dump()
+    spec['model']['cpus'] = 4
+    model = spec['model']
+    options = dict(research_archive=True, scalar_postprocess=True)
+    required = disk_requirement(spec, model, **options)
+    assert required == 4 + 1024**3 / 1e9
+    assert execution_plan(spec, [model], 4, 14, spec['min_free_gb'] + required + 1, **options)['effective_parallel_runs'] == 1
+    assert execution_plan(spec, [model], 3, 14, 100, **options)['effective_parallel_runs'] == 0
+    assert execution_plan(spec, [model], 4, 3, 100, **options)['effective_parallel_runs'] == 0
+    assert execution_plan(spec, [model], 4, 14, spec['min_free_gb'] + required - .01, **options)['effective_parallel_runs'] == 0
+    spec['export_all_fields'] = True
+    assert disk_requirement(spec, model, **options) == disk_requirement(spec, model, research_archive=True)
+
+
 def test_research_archive_is_opt_in_and_full_export_keeps_its_original_budget():
     requested = ModelSpec(core_topology='reentrant_0', reentrant_geometry='angle', cpus=4,
                       duration=.012, field_intervals=1200, history_intervals=6000,

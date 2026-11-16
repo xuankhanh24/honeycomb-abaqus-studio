@@ -165,3 +165,80 @@ def test_collection_uses_each_shards_original_workflow(tmp_path, monkeypatch):
         raise_for_status=lambda: None, content=manifest)))
     sources = module.collect(github, CatalogFixture(), tmp_path)
     assert [source['workflow_run_id'] for source in sources] == [123, 456]
+
+
+def test_recovery_prefers_verified_solver_and_retains_it_across_failed_extractions():
+    from honeycomb_studio.cloud_github import REPOSITORY
+    from honeycomb_studio.solver_checkpoint import KIND
+
+    parent = prepare(batch(), 123)
+    parent['status'] = 'failed'
+    for shard in parent['shards'][:2]:
+        shard.update(status='completed', archive_verified=True)
+    original = parent['shards'][2]
+    reference = {'kind': KIND, 'available': True, 'input_hash': original['input_hash'],
+                 'run_input_hash': 'a' * 64, 'runtime_hash': 'c' * 64, 'source_sha': 'd' * 40,
+                 'manifest': {'asset_id': 123, 'bytes': 100, 'digest': 'sha256:' + 'e' * 64,
+                              'url': f'https://github.com/{REPOSITORY}/releases/download/fixture/manifest.json'}}
+    original.update(status='failed', solver_checkpoint=reference)
+    recovered = recover(parent, 456)
+    assert recovered['shards'][:2] == parent['shards'][:2]
+    assert recovered['shards'][2]['postprocess_source'] == reference
+    recovered['status'] = 'failed'
+    recovered['shards'][2]['status'] = 'failed'
+    again = recover(recovered, 789)
+    assert again['shards'][2]['postprocess_source'] == reference
+    assert len(again['shards'][2]['previous_attempts']) == 2
+    original['solver_checkpoint']['input_hash'] = '0' * 64
+    import pytest
+
+    with pytest.raises(ValueError, match='checkpoint identity'):
+        recover(parent, 456)
+
+
+def test_packaged_web_can_choose_postprocessing_without_loading_the_native_engine():
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from honeycomb_studio.cloud_github import REPOSITORY
+    from honeycomb_studio.solver_checkpoint_ref import KIND
+
+    parent = prepare(batch(), 123)
+    parent['status'] = 'failed'
+    for shard in parent['shards'][:2]:
+        shard.update(status='completed', archive_verified=True)
+    shard = parent['shards'][2]
+    shard.update(status='failed', solver_checkpoint={
+        'kind': KIND, 'available': True, 'input_hash': shard['input_hash'],
+        'run_input_hash': 'a' * 64, 'runtime_hash': 'c' * 64, 'source_sha': 'd' * 40,
+        'manifest': {'asset_id': 123, 'bytes': 100, 'digest': 'sha256:' + 'e' * 64,
+                     'url': f'https://github.com/{REPOSITORY}/releases/download/fixture/manifest.json'},
+    })
+    program = """
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from service.cloud_matrix import recover
+result = recover(json.load(sys.stdin), 456)
+assert result['shards'][2]['postprocess_source']['available'] is True
+assert 'service.solver_checkpoint' not in sys.modules
+assert 'honeycomb_studio.engine' not in sys.modules
+"""
+    result = subprocess.run(
+        [sys.executable, '-B', '-I', '-c', program, str(Path(__file__).parents[1] / 'web')],
+        input=json.dumps(parent), text=True, capture_output=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_empty_recorded_checkpoint_cannot_silently_start_a_new_solver():
+    import pytest
+
+    for bad in (None, {}, False):
+        parent = prepare(batch(), 123)
+        parent['status'] = 'failed'
+        for shard in parent['shards'][:2]:
+            shard.update(status='completed', archive_verified=True)
+        parent['shards'][2].update(status='failed', solver_checkpoint=bad)
+        with pytest.raises(ValueError, match='checkpoint identity'):
+            recover(parent, 456)

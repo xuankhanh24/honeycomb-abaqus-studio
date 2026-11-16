@@ -5,6 +5,7 @@ import re
 import shutil
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -23,6 +24,7 @@ ACTIVE = {
     "building",
     "checking",
     "solving",
+    "archiving_solver",
     "extracting",
     "cataloguing",
     "verifying_export",
@@ -64,6 +66,7 @@ class Engine:
         self.postprocess_guard = threading.Lock()
         self.backup = None
         self.field_sink = None
+        self.solver_sink: Callable[[dict, dict], None] | None = None
         self.continuation_control: Path | None = None
         self.explicit_continuation = False
         # Process identity survives engine crashes. Never launch a replacement while
@@ -604,6 +607,11 @@ class Engine:
                 write_json(attempt / "solver-complete.json", {"completed_at": now(), "sta": sta})
                 a["solver_progress"] = sta
             assert a is not None
+            # Cloud workers seal the closed ODB before any fallible extraction.
+            # A failed backup stops here, retaining the original solver attempt.
+            if self.solver_sink is not None and not r.get("solver_checkpoint", {}).get("available"):
+                self._phase(r, "archiving_solver")
+                self.solver_sink(r, batch)
             # Arrow/Matplotlib, rolling publication and shared batch reports stay
             # serialized while independent solver processes can overlap.
             with self.postprocess_guard:

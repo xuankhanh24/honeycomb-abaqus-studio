@@ -182,6 +182,44 @@ def test_postprocess_only_engine_refuses_every_fe_phase(tmp_path, phase):
         store.db.close()
 
 
+def test_closed_odb_scalar_extraction_uses_postprocess_disk_admission(tmp_path, monkeypatch, request):
+    """Reproduce the real 73.4-GiB-free hosted runner after restoring a 25-GB ODB."""
+    from honeycomb_studio.models import ModelSpec
+
+    model = ModelSpec(
+        core_topology="reentrant_0", reentrant_geometry="angle", cpus=4,
+        duration=0.008, field_intervals=800, history_intervals=4000,
+        field_variables=["U", "V", "S", "PEEQ", "STATUS", "SDEG", "DMICRT", "TEMP", "CFORCE"],
+        reentrant_delta_deg=32.94455748789792, foil=0.05244492574908995,
+        cell_size=5.2006133009998745, reentrant_cell_height=4.152761895465622,
+        mesh_preset="custom", core_centre_seed=0.7, core_outer_seed=1.3,
+        core_z_divisions=20, skin_centre_seed=0.75, skin_outer_seed=1.25,
+    )
+    store = Store(tmp_path / "original-odb")
+    request.addfinalizer(store.db.close)
+    batch = store.create(BatchSpec(model=model, min_free_gb=20, ram_per_run_gb=4, export_all_fields=False))
+    run = store.list("runs", batch["id"])[0]
+    monkeypatch.setattr("honeycomb_studio.engine.psutil.cpu_count", lambda: 4)
+    monkeypatch.setattr("honeycomb_studio.engine.psutil.virtual_memory",
+                        lambda: SimpleNamespace(available=14.5 * 1024**3))
+    monkeypatch.setattr("honeycomb_studio.engine.shutil.disk_usage",
+                        lambda _: SimpleNamespace(free=73.4 * 1024**3))
+    engine = SavedSolverEngine(store, abaqus="must-not-start-FE", fake=False)
+    engine.research_archive = True
+    engine.validation_metrics = True
+    invoked = []
+    monkeypatch.setattr(engine, "_execute", lambda *args: invoked.append("extract-original-ODB"))
+    wave = engine.execute_wave([run], batch)
+    assert invoked == ["extract-original-ODB"] and len(wave) == 1
+    # A fresh FE run retains its conservative existing disk budget.
+    fresh = Engine(store, abaqus="must-not-start-FE", fake=False)
+    fresh.research_archive = True
+    fresh.validation_metrics = True
+    monkeypatch.setattr(fresh, "_execute", lambda *args: invoked.append("forbidden-new-FE"))
+    assert fresh.execute_wave([run], batch) == []
+    assert "forbidden-new-FE" not in invoked
+
+
 @pytest.mark.parametrize("problem", ["partial_STA", "locked", "live", "empty_ODB", "synthetic"])
 def test_backup_rejects_unfinished_or_live_native_outputs(tmp_path, archived_solver, problem):
     source = archived_solver

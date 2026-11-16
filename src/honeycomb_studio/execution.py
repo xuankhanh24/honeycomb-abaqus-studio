@@ -3,7 +3,12 @@
 from .estimates import mesh_work, predict
 
 
-def disk_requirement(spec, model, *, linked_checkpoint=False, research_archive=False, retained_disk_gb=0):
+def disk_requirement(spec, model, *, linked_checkpoint=False, research_archive=False, retained_disk_gb=0,
+                     scalar_postprocess=False):
+    if scalar_postprocess and spec.get('export_all_fields') is False:
+        # The closed ODB already occupies disk. Scalar histories/rear reductions
+        # need bounded scratch plus one upload volume, not a second FE dataset.
+        return 4.0 + 1024**3 / 1e9
     prediction = predict(model)
     if linked_checkpoint and spec.get('export_all_fields') is False:
         # Measured full-mesh probes bound native state below twice the mesh
@@ -21,14 +26,15 @@ def disk_requirement(spec, model, *, linked_checkpoint=False, research_archive=F
 
 
 def execution_plan(spec, models, cpus, available_ram_gb, free_disk_gb, *, linked_checkpoint=False,
-                   research_archive=False, retained_disk_gb=()):
+                   research_archive=False, retained_disk_gb=(), scalar_postprocess=False):
     requested = spec.get("max_parallel_runs", 2) if spec.get("execution_mode", "sequential") == "parallel" else 1
     cpu_per_run = models[0]["cpus"] if models else 1
     retained = list(retained_disk_gb) if retained_disk_gb else [0] * len(models)
     if len(retained) != len(models):
         raise ValueError('Retained disk inventory must match the candidate runs')
     disk_per_run = disk_requirement(spec, models[0], linked_checkpoint=linked_checkpoint,
-                                    research_archive=research_archive, retained_disk_gb=retained[0]) if models else 0
+                                    research_archive=research_archive, retained_disk_gb=retained[0],
+                                    scalar_postprocess=scalar_postprocess) if models else 0
     ram_per_run = spec.get("ram_per_run_gb", 4)
     limits = {
         "requested": requested,
@@ -42,7 +48,8 @@ def execution_plan(spec, models, cpus, available_ram_gb, free_disk_gb, *, linked
     slots = 0
     for model, existing in zip(models[:requested], retained[:requested], strict=True):
         disk = disk_requirement(spec, model, linked_checkpoint=linked_checkpoint,
-                                research_archive=research_archive, retained_disk_gb=existing)
+                                research_archive=research_archive, retained_disk_gb=existing,
+                                scalar_postprocess=scalar_postprocess)
         if model["cpus"] > cpu_left or ram_per_run > ram_left or disk > disk_left:
             break
         slots += 1
@@ -56,7 +63,8 @@ def execution_plan(spec, models, cpus, available_ram_gb, free_disk_gb, *, linked
     return {"requested_parallel_runs": requested, "effective_parallel_runs": slots,
             "cpu_per_run": cpu_per_run, "limits": limits, "ram_per_run_gb": ram_per_run,
             "disk_per_run_gb": disk_per_run, "estimated_serial_minutes": serial,
-            "disk_policy": ("linked-checkpoint" if linked_checkpoint else "research-hardlinks")
+            "disk_policy": "closed-odb-scalar" if scalar_postprocess and spec.get('export_all_fields') is False else
+                           ("linked-checkpoint" if linked_checkpoint else "research-hardlinks")
                            if (linked_checkpoint or research_archive) and spec.get('export_all_fields') is False
                            else "full-export",
             "optimistic_solver_parallel_minutes": sum(p["solver_minutes"] for p in predictions) / max(1, slots),

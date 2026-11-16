@@ -90,3 +90,12 @@ def test_verification_still_fails_on_incomplete_or_invalid_evidence(problem):
         shard["runs"][0]["research_horizon"]["summary"]["last_time_s"] = 0.012
     with pytest.raises(ValueError, match="missing or invalid"):
         verification_completion(value)
+
+
+@pytest.mark.parametrize("field", ["SEA_core_J_kg", "core_mass_kg", "core_dissipation_J"])
+@pytest.mark.parametrize("invalid", [None, True, "25", float("nan"), float("inf")])
+def test_verification_rejects_non_numeric_or_non_finite_sea_evidence(field, invalid):
+    value = parent()
+    value["shards"][1]["runs"][0]["research_horizon"]["summary"][field] = invalid
+    with pytest.raises(ValueError, match="missing or invalid"):
+        verification_completion(value)

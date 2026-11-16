@@ -8,7 +8,7 @@ The bulk rear reader preserves the reference algorithm's STATUS < 0.5 threshold,
 
 The aggregation requirement now distinguishes a finished verification experiment from a batch where every design is eligible for training. A numerically valid simulation with rear deletion is usable evidence that a surrogate screen failed. It remains ineligible under the application's existing intact-bottom training rule. Validation aggregation requires every archive, full native history, sampled earlier horizon and internally consistent SEA calculation; it reports the observed deletion outcomes without overriding them.
 
-The workflow permits only the explicitly authorized V11 recovery job on branch `fix/v11-postprocess-timeout`, with `recover=true`. Main retains its existing admission path. Recovery preserves the four archived completed/reviewed shards and reruns only the interrupted shard. Failure artifact retention now also covers cancellation.
+Recovery uses the existing main-branch admission and OIDC policy. Recovery preserves the four archived completed/reviewed shards and reruns only the interrupted shard. Failure artifact retention now also covers cancellation. Hash-preserved legacy Python 2.7 readers retain their source bytes and have narrowly scoped lint exceptions for import spacing and the unsupported Python 3 zip(strict=...) keyword.
 
 Regression signal:
 

@@ -53,6 +53,7 @@ class Engine:
         self.shutdown = threading.Event()
         self.runtime_fingerprint = "native-unqualified"
         self.research_archive = False
+        self.validation_metrics = False
         self.explicit_continuation = False
         self.wake = threading.Event()
         self.guard = threading.RLock()

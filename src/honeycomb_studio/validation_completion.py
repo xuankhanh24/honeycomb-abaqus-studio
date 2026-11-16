@@ -1,8 +1,13 @@
 """Completion of a frozen FEA verification is independent of an intact-bottom outcome."""
 
 import math
+from typing import TypeGuard
 
 from .models import BatchSpec, digest, expand
+
+
+def _finite_number(value: object) -> TypeGuard[int | float]:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def verification_completion(parent):
@@ -34,7 +39,9 @@ def verification_completion(parent):
         earlier = horizon.get("summary") or {}
         sea, mass, energy = (earlier.get(k) for k in ("SEA_core_J_kg", "core_mass_kg", "core_dissipation_J"))
         scalar_valid = (
-            all(type(v) in (int, float) and math.isfinite(v) for v in (sea, mass, energy))
+            _finite_number(sea)
+            and _finite_number(mass)
+            and _finite_number(energy)
             and sea >= 0
             and mass > 0
             and energy >= 0

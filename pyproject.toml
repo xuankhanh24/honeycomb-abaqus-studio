@@ -56,5 +56,11 @@ extend-exclude = ["src/honeycomb_studio/adapters"]
 select = ["E4", "E7", "E9", "F", "I", "B"]
 ignore = ["B023"]
 
+# These hash-preserved Abaqus Python 2.7 readers cannot accept zip(strict=...).
+[tool.ruff.lint.per-file-ignores]
+"scripts/continuation98/damage_metrics_fast.py" = ["I001", "B905"]
+"scripts/repair98/damage_metrics_fast.py" = ["I001", "B905"]
+"scripts/repair98v3/damage_metrics_fast.py" = ["I001", "B905"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

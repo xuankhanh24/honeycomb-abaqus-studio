@@ -30,7 +30,7 @@ env:
 jobs:
   prepare:
     name: Chuẩn bị · ${{ inputs.job_name || inputs.job_id }}
-    if: github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/fix/v11-postprocess-timeout' && inputs.job_id == '0f4417ed062403c3627ac409bed40c30' && inputs.recover)
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     outputs:
@@ -155,7 +155,7 @@ jobs:
   finalize:
     name: Tổng hợp dữ liệu · ${{ needs.prepare.outputs.parameter_title || inputs.job_name || inputs.job_id }}
     needs: [prepare, simulate]
-    if: always() && (github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/fix/v11-postprocess-timeout' && inputs.job_id == '0f4417ed062403c3627ac409bed40c30' && inputs.recover))
+    if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
     # Only publishers serialize. Solver jobs from other batches keep running.
     concurrency:

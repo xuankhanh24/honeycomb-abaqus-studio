@@ -30,6 +30,12 @@ bytes and original history before `recover` is admitted. A cleanup crash, missin
 family, altered input or history gap blocks continuation rather than inventing
 a usable checkpoint. Research scalar evidence is retained through every segment.
 
+The legacy `abaqus-linux.yml` entry point also routes research requests into the
+same verified segments. This admission rule applies even when a client still
+uses the older web deployment or a CLI with the original workflow filename.
+Completed restart receipts and earlier-horizon summaries are preserved; the
+reserved release is published before any checkpoint download URL is generated.
+
 ## The already-running V14 batch
 
 Workflow 43914437764 was admitted before this change and cannot acquire a callback

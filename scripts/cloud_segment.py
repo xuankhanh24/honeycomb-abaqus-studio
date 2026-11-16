@@ -19,8 +19,10 @@ from honeycomb_studio.cloud_continuation import (
 from honeycomb_studio.cloud_github import JOB_ID, Catalog, Github
 from honeycomb_studio.cloud_matrix import ShardCatalog
 from honeycomb_studio.cloud_progress import Progress
+from honeycomb_studio.completed_restart import seal_completed_restart
 from honeycomb_studio.data import checksum
 from honeycomb_studio.engine import Engine
+from honeycomb_studio.horizon_summary import seal_horizon_summary
 from honeycomb_studio.models import BatchSpec, digest, expand
 from honeycomb_studio.solver_checkpoint import (
     SavedSolverEngine,
@@ -73,7 +75,7 @@ def execute_segment(root, store, run, batch, progress, runtime_hash, control, *,
     return run, history_check
 
 
-def main():
+def main(*, root=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--parent-id', required=True)
     parser.add_argument('--job-id', required=True)
@@ -81,7 +83,7 @@ def main():
     args = parser.parse_args()
     if not all(JOB_ID.fullmatch(i) for i in (args.parent_id, args.job_id)):
         raise ValueError('Invalid job identity')
-    root = Path('/tmp/honeycomb-results')  # portable absolute path across all segment runners
+    root = root or Path('/tmp/honeycomb-results')  # portable absolute path across all segment runners
     workflow = int(os.environ['GITHUB_RUN_ID'])
     github = Github(token=os.environ['GITHUB_TOKEN'])
     catalog = ShardCatalog(Catalog(github), args.parent_id, args.job_id, workflow)
@@ -144,6 +146,10 @@ def main():
     store.save('batches', batch)
     catalog.update(key, lambda old: {**old, 'status': 'running', 'workflow_run_id': workflow,
                                     'phase': f'Explicit continuation segment {args.segment + 1}/4'})
+    # Publish the reserved tag before generating any download URLs. Draft
+    # release URLs are not durable evidence for the next runner.
+    release = github.repo('PATCH', f"/releases/{job['reserved_release_id']}", {'draft': False})
+    catalog.update(key, lambda old: {**old, 'release_id': release['id'], 'release_url': release['html_url']})
     # 240-minute slice leaves room for multi-GB checkpoint transfer and publication.
     deadline = time.monotonic() + max(0, 240 * 60 - (time.time() - float(os.environ['HONEYCOMB_WORKFLOW_STARTED_EPOCH'])))
     progress = Progress(github, catalog, args.job_id, store, batch['id'], deadline)
@@ -162,13 +168,24 @@ def main():
         run, history_check = execute_segment(root, store, run, batch, progress, runtime_hash, control,
             job=job, postprocess_only=postprocess_only, solver_sink=None if postprocess_only else save_solver)
         if run['status'] in ('completed', 'review'):
+            record = {k: run.get(k) for k in ('id', 'status', 'summary', 'quality', 'error')}
+            record['restart_state'] = (
+                {'available': False, 'reason': 'ODB-only recovery; no FE restart state restored'}
+                if postprocess_only else seal_completed_restart(root, run, runtime))
+            if job.get('research_horizon_s') is not None:
+                try:
+                    record['research_horizon'] = seal_horizon_summary(
+                        Path(run['attempts'][-1]['path']) / 'extracted', expected['resolved'],
+                        run['summary'], job['research_horizon_s'], job['input_hash'])
+                except Exception as error:
+                    record['research_horizon'] = {'available': False, 'horizon_s': job['research_horizon_s'],
+                                                  'error': str(error)}
             publisher = ReleaseArchive(github, job['reserved_release_id'], tag='simulation-' + args.job_id)
             publisher.publish(root, attempt=f'workflow-{workflow}', complete=True)
-            release = github.repo('PATCH', f'/releases/{job["reserved_release_id"]}', {'draft': False})
             catalog.update(key, lambda old: {**old, 'status': run['status'], 'archive_verified': True,
                            'release_id': release['id'], 'release_url': release['html_url'],
                            'phase': 'completed across Explicit segments',
-                           'runs': [{k: run.get(k) for k in ('id', 'status', 'summary', 'quality', 'error')}]})
+                           'runs': [record]})
             outcome = 'completed'
         else:
             if progress.stop_reason != 'timed_out' or run['status'] != 'interrupted':

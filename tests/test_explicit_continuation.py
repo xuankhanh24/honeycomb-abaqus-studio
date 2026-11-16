@@ -180,6 +180,61 @@ def test_segment_uses_closed_odb_after_extraction_exhausts_budget(tmp_path, monk
     assert json.loads((tmp_path / 'solver-complete.json').read_text())['sta']['solver_success'] is True
 
 
+@pytest.mark.parametrize('horizon', [None, .004])
+def test_segment_publishes_tag_before_assets_and_preserves_restart_and_horizon(tmp_path, monkeypatch, horizon):
+    import sys
+    sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
+    import cloud_segment
+
+    from honeycomb_studio.models import digest
+    spec = BatchSpec().model_dump()
+    state = dict(id='a' * 32, status='draft', profile='research', spec=spec,
+                 input_hash=digest(spec), reserved_release_id=1, validation_metrics_only=True)
+    if horizon is not None:
+        state['research_horizon_s'] = horizon
+    published = []
+    def update(key, transform):
+        state.update(transform(dict(state)))
+        return state
+    class Github:
+        def __init__(self, **kwargs):
+            pass
+        def repo(self, method, path, body):
+            assert method == 'PATCH' and path == '/releases/1' and body['draft'] is False
+            published.append('public')
+            return {'id': 1, 'html_url': 'https://example.test/release'}
+    class Archive:
+        def __init__(self, *args, **kwargs):
+            pass
+        def publish(self, *args, **kwargs):
+            assert published and published[0] == 'public', 'Do not publish draft URLs'
+            published.append('assets')
+    def execute(root, store, run, batch, *args, **kwargs):
+        run.update(status='completed', summary={'solver_completed': True},
+                   attempts=[{'path': str(root / 'attempt')}])
+        return run, None
+    monkeypatch.setattr(sys, 'argv', ['cloud_segment.py', '--parent-id', 'b' * 32,
+        '--job-id', 'a' * 32, '--segment', '0'])
+    monkeypatch.setenv('GITHUB_RUN_ID', '123')
+    monkeypatch.setenv('GITHUB_SHA', 'c' * 40)
+    monkeypatch.setenv('GITHUB_TOKEN', 'fixture')
+    monkeypatch.setenv('GITHUB_OUTPUT', str(tmp_path / 'outputs.txt'))
+    monkeypatch.setenv('HONEYCOMB_WORKFLOW_STARTED_EPOCH', '0')
+    monkeypatch.setattr(cloud_segment, 'Github', Github)
+    monkeypatch.setattr(cloud_segment, 'Catalog', lambda *args: None)
+    monkeypatch.setattr(cloud_segment, 'ShardCatalog', lambda *args: SimpleNamespace(get=lambda key: (state, None), update=update))
+    monkeypatch.setattr(cloud_segment, 'require_qualification', lambda *args: {})
+    monkeypatch.setattr(cloud_segment, 'execute_segment', execute)
+    monkeypatch.setattr(cloud_segment, 'seal_completed_restart', lambda *args: {'available': True})
+    monkeypatch.setattr(cloud_segment, 'seal_horizon_summary', lambda *args: {'available': True, 'horizon_s': horizon})
+    monkeypatch.setattr(cloud_segment, 'ReleaseArchive', Archive)
+    cloud_segment.main(root=tmp_path / 'native')
+    assert state['runs'][0]['restart_state']['available'] is True
+    if horizon is not None:
+        assert state['runs'][0]['research_horizon']['horizon_s'] == horizon
+    assert published == ['public', 'assets']
+
+
 @pytest.mark.parametrize('resource_blocked', [False, True])
 def test_campaign_reads_original_checkpoint_history_inside_native_runtime(tmp_path, monkeypatch, resource_blocked):
     import sys

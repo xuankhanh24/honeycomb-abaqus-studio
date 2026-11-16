@@ -63,6 +63,7 @@ def main():
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
             out.write("matrix=" + json.dumps(matrix) + "\n")
             out.write("max_parallel=" + str(value["execution"]["effective_parallel_runs"]) + "\n")
+            out.write('automatic_continuation=' + str(value['profile'] == 'research').lower() + '\n')
             out.write("parameter_title=" + workflow_title(value["spec"]) + "\n")
 
 

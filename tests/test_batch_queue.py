@@ -55,7 +55,9 @@ def test_workflow_isolates_ranges_and_serializes_only_publishers():
     workflow = (root / ".github/workflows/abaqus-linux.yml").read_text(encoding="utf-8")
     assert "group: honeycomb-batch-${{ inputs.job_id }}" in workflow
     assert "honeycomb-licensed-solver" not in workflow
-    assert "needs: [prepare, simulate]" in workflow
+    assert "needs: [prepare, simulate, segment0, segment1, segment2, segment3]" in workflow
+    assert "if: needs.prepare.outputs.automatic_continuation != 'true'" in workflow
+    assert workflow.count("if: needs.prepare.outputs.automatic_continuation == 'true'") == 4
     assert "fail-fast: false" in workflow
     finalizer = workflow.split("  finalize:")[1]
     assert "group: honeycomb-training-collection" in finalizer

@@ -399,12 +399,17 @@ def create_app(github: Github | None = None) -> FastAPI:
                     actions.extend(rows)
                     if len(rows) < 100:
                         break
-                by_name = {a["name"]: a for a in actions}
                 for shard in value["shards"]:
                     # Completed recovery sources belong to their original workflow.
                     if shard.get("workflow_run_id", value["workflow_run_id"]) != value["workflow_run_id"]:
                         continue
-                    action = by_name.get(shard["display_name"])
+                    label = shard['display_name']
+                    matches = [a for a in actions if a['name'] == label or a['name'].endswith(' · ' + label)]
+                    # A reusable workflow prefixes the label with its segment.
+                    # Show the live segment ahead of completed or waiting siblings.
+                    action = next((a for state in ('in_progress', 'queued', 'waiting')
+                                   for a in matches if a['status'] == state),
+                                  max(matches, key=lambda a: a['id'], default=None))
                     if action:
                         shard.update(action_status=action["status"], action_job_id=action["id"])
                 value["queue_snapshot_available"] = True

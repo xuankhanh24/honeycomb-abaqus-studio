@@ -22,6 +22,7 @@ PHASES = {
     "cataloguing": "Lưu manifest", "completed": "Hoàn tất", "review": "Hoàn tất · cần xem xét",
     "failed": "Thất bại", "interrupted": "Đã dừng", "waiting_license": "Chờ license",
     "recovering": "Khôi phục tiến trình",
+    "archiving_solver": "Lưu ODB trước khi trích xuất",
 }
 
 CATEGORIES = {
@@ -37,6 +38,7 @@ PHASE_HELP = {
     "checking": "Abaqus kiểm tra input và lưới; nếu lỗi, mở checking.log của lần thử này.",
     "solving": "Đang tính va chạm thật. Phần trăm = thời gian vật lý đã tính / thời gian yêu cầu; thời gian chờ thực tế có thể dài hơn.",
     "extracting": "Solver đã kết thúc; đang đọc các frame trong ODB và xuất dữ liệu số.",
+    "archiving_solver": "Solver đã kết thúc; đang tải và kiểm hash ODB để có thể trích xuất lại khi lỗi.",
     "verifying_export": "Đối chiếu số frame và số mẫu đã xử lý với danh mục trong ODB.",
     "analyzing": "Tính lực, chuyển vị, năng lượng và kiểm tra chất lượng số.",
     "rendering": "Đang tạo hình kết quả; chưa hoàn tất toàn bộ công việc.",

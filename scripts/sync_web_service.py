@@ -15,6 +15,7 @@ for name in (
     "estimates.py",
     "cloud_github.py",
     "cloud_matrix.py",
+    "solver_checkpoint_ref.py",
     "cloud_quality.py",
     "cloud_api.py",
     "cloud_runtime.py",

@@ -19,6 +19,11 @@ from honeycomb_studio.completed_restart import seal_completed_restart
 from honeycomb_studio.engine import Engine
 from honeycomb_studio.horizon_summary import seal_horizon_summary
 from honeycomb_studio.models import BatchSpec, digest, expand
+from honeycomb_studio.solver_checkpoint import (
+    SavedSolverEngine,
+    publish_solver_checkpoint,
+    restore_solver_checkpoint,
+)
 from honeycomb_studio.store import Store, write_json
 
 
@@ -88,13 +93,16 @@ def run(args):
         store = Store(args.root)
         if store.list("batches"):
             raise ValueError("Use a clean workspace; do not silently reuse an earlier cloud attempt")
-        engine = Engine(store, abaqus=str(args.abaqus), fake=False)
+        postprocess_only = "postprocess_source" in job
+        engine_type = SavedSolverEngine if postprocess_only else Engine
+        engine = engine_type(store, abaqus=str(args.abaqus), fake=False)
         engine.research_archive = job['profile'] == 'research'
         # A sealed earlier-horizon validation needs scalar evidence at every
         # frame, rather than serializing the full stress/displacement matrices.
         engine.validation_metrics = job['profile'] == 'research' and job.get('research_horizon_s') is not None
         engine.runtime_fingerprint = digest(runtime)
-        batch = store.create(spec)
+        batch = (restore_solver_checkpoint(store, job, spec, runtime, github)
+                 if postprocess_only else store.create(spec))
         progress = Progress(github, catalog, args.job_id, store, batch["id"], deadline)
         for sig in (signal.SIGTERM, signal.SIGINT):
             signal.signal(sig, lambda *_: progress.stop_solver())
@@ -116,6 +124,17 @@ def run(args):
             },
         )
         release_id = release["id"]
+        if job["profile"] != "smoke" and len(expand(spec)) == 1 and not postprocess_only:
+            def save_solver(run, current_batch):
+                reference = publish_solver_checkpoint(
+                    args.root, run, current_batch, runtime, job, ReleaseArchive(github, release_id),
+                    f"workflow-{workflow_id}", os.environ["GITHUB_SHA"],
+                )
+                run["solver_checkpoint"] = reference
+                store.save("runs", run)
+                catalog.update(key, lambda old: {**old, "solver_checkpoint": reference})
+
+            engine.solver_sink = save_solver
         if job["profile"] == "full":
             field_sink = RollingFields(args.root, ReleaseArchive(github, release_id), f"workflow-{workflow_id}")
             engine.field_sink = field_sink
@@ -151,7 +170,10 @@ def run(args):
                 record = {k: finished.get(k) for k in ("id", "status", "summary", "quality", "error", "test_only")}
                 if (finished['status'] in ('completed', 'review') and job['profile'] != 'smoke' and
                         finished.get('test_only') is not True):
-                    record['restart_state'] = seal_completed_restart(args.root, finished, runtime)
+                    record['restart_state'] = (
+                        {"available": False, "reason": "ODB-only postprocessing recovery; FE restart state was not restored"}
+                        if postprocess_only else seal_completed_restart(args.root, finished, runtime)
+                    )
                 attempt = finished.get("attempts", [])
                 if (job.get('research_horizon_s') is not None and attempt and
                         finished['status'] in ('completed', 'review') and finished.get('test_only') is not True):

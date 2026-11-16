@@ -4,6 +4,7 @@ from copy import deepcopy
 from math import isclose
 
 from .models import BatchSpec, digest, expand
+from .solver_checkpoint_ref import validate_reference
 
 TERMINAL = {"completed", "review", "failed", "archive_failed", "cancelled", "timed_out",
             "blocked_license", "blocked_environment", "blocked_platform_policy"}
@@ -154,6 +155,11 @@ def recover(old, workflow_id, *, repair_indices=()):
             shard["id"] = digest({"parent": old["id"], "index": shard["index"],
                                   "recovery_workflow": workflow_id})[:32]
             shard.update(status="draft", previous_attempts=history)
+            saved_solver = source.get("postprocess_source", source.get("solver_checkpoint"))
+            has_saved_solver = "postprocess_source" in source or "solver_checkpoint" in source
+            if has_saved_solver and source["index"] not in repair_indices:
+                validate_reference(saved_solver, source["input_hash"])
+                shard["postprocess_source"] = deepcopy(saved_solver)
         shards.append(shard)
     if not any(s["status"] == "draft" for s in shards):
         raise ValueError("No failed shards to recover; collect existing data instead")

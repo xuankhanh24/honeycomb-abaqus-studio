@@ -32,7 +32,7 @@ def completed_solver(root):
         " THE ANALYSIS HAS COMPLETED SUCCESSFULLY\n"
     )
     write_json(attempt / "solver-complete.json", {"sta": {"solver_success": True}})
-    run["attempts"] = [{"path": str(attempt), "job_name": "hc", "process": None}]
+    run["attempts"] = [{"number": 1, "path": str(attempt), "job_name": "hc", "process": None}]
     store.save("runs", run)
     return store, batch, run
 
@@ -200,3 +200,76 @@ def test_backup_rejects_unfinished_or_live_native_outputs(tmp_path, archived_sol
         snapshot_view(source.store.root, tmp_path / "rejected-view", source.run, source.batch,
                       source.runtime, source.job, "b" * 40)
     assert not list((tmp_path / "rejected-view").rglob("*.odb"))
+
+
+@pytest.mark.parametrize("problem", [None, "runtime", "physics", "ODB_part", "unfinished_STA"])
+def test_legacy_interrupted_archive_reopens_only_original_solver(tmp_path, monkeypatch, archived_solver, problem):
+    """The old worker archived its closed ODB only after extraction was interrupted."""
+    import copy
+    import hashlib
+    import json
+
+    from honeycomb_studio.models import digest
+
+    source = archived_solver
+    reference = copy.deepcopy(source.reference)
+    manifest = json.loads(source.payloads[reference["manifest"]["url"]])
+    manifest["files"] = [f for f in manifest["files"] if f["path"] != "solver-snapshot.json"]
+    for name, value in [("runtime-lock.json", source.runtime), ("cloud-request.json", {
+        "spec": source.job["spec"], "input_hash": source.job["input_hash"],
+        "workflow_run_id": 123,
+    })]:
+        data = json.dumps(value).encode()
+        checksum = hashlib.sha256(data).hexdigest()
+        url = f"https://github.com/{REPOSITORY}/releases/download/simulation-fixture/legacy-{checksum}.part"
+        source.payloads[url] = data
+        manifest["files"].append({"path": name, "bytes": len(data), "sha256": checksum,
+            "parts": [{"index": 0, "offset": 0, "bytes": len(data), "sha256": checksum,
+                       "digest": "sha256:" + checksum, "url": url}]})
+    if problem == "unfinished_STA":
+        record = next(file for file in manifest["files"] if file["path"].endswith("hc.sta"))
+        data = b" THE ANALYSIS HAS NOT BEEN COMPLETED\n"
+        checksum = hashlib.sha256(data).hexdigest()
+        url = f"https://github.com/{REPOSITORY}/releases/download/simulation-fixture/legacy-{checksum}.part"
+        source.payloads[url] = data
+        record.update(bytes=len(data), sha256=checksum, parts=[{
+            "index": 0, "offset": 0, "bytes": len(data), "sha256": checksum,
+            "digest": "sha256:" + checksum, "url": url}])
+    data = json.dumps(manifest).encode()
+    source.payloads[reference["manifest"]["url"]] = data
+    reference.update(kind="honeycomb-archived-solver-postprocess-v1",
+                     runtime_hash=digest(source.runtime))
+    reference["manifest"].update(bytes=len(data), digest="sha256:" + hashlib.sha256(data).hexdigest())
+    source.assets[reference["manifest"]["asset_id"]].update(
+        size=len(data), digest=reference["manifest"]["digest"])
+    restored = Store(tmp_path / "legacy-recovered")
+    try:
+        runtime = dict(source.runtime)
+        if problem == "runtime":
+            runtime["release"] = "wrong"
+        elif problem == "physics":
+            monkeypatch.setattr("honeycomb_studio.solver_checkpoint.physics_hashes", lambda: {"models.py": "wrong"})
+        elif problem == "ODB_part":
+            record = next(file for file in manifest["files"] if file["path"].endswith("hc.odb"))
+            source.payloads[record["parts"][-1]["url"]] = b"corrupted native ODB"
+        if problem:
+            with pytest.raises(ValueError):
+                restore_solver_checkpoint(restored, {**source.job, "postprocess_source": reference},
+                    BatchSpec.model_validate(source.batch["spec"]), runtime, source.github)
+            assert restored.list("runs") == []
+            return
+        batch = restore_solver_checkpoint(restored, {**source.job, "postprocess_source": reference},
+            BatchSpec.model_validate(source.batch["spec"]), runtime, source.github)
+        run = restored.list("runs")[0]
+        assert len(run["attempts"]) == 1
+        original = Path(source.run["attempts"][0]["path"]) / "raw/hc.odb"
+        recovered = Path(run["attempts"][0]["path"]) / "raw/hc.odb"
+        assert recovered.read_bytes() == original.read_bytes()
+        engine = SavedSolverEngine(restored, abaqus="must-not-start-FE")
+        exports = []
+        monkeypatch.setattr(engine, "_postprocess", lambda r, a, b: exports.append(a["path"]))
+        engine._execute(run, batch)
+        assert exports == [run["attempts"][0]["path"]]
+        assert restored.get("runs", run["id"])["solver_recovery"]["new_FE_solve"] is False
+    finally:
+        restored.db.close()

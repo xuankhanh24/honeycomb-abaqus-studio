@@ -99,7 +99,9 @@ def run(args):
         engine.research_archive = job['profile'] == 'research'
         # A sealed earlier-horizon validation needs scalar evidence at every
         # frame, rather than serializing the full stress/displacement matrices.
-        engine.validation_metrics = job['profile'] == 'research' and job.get('research_horizon_s') is not None
+        engine.validation_metrics = job['profile'] == 'research' and (
+            postprocess_only or job.get('research_horizon_s') is not None
+        )
         engine.runtime_fingerprint = digest(runtime)
         batch = (restore_solver_checkpoint(store, job, spec, runtime, github)
                  if postprocess_only else store.create(spec))

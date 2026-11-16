@@ -13,7 +13,7 @@ from .data import checksum
 from .engine import Engine
 from .models import BatchSpec, digest, expand
 from .solver import sta_progress
-from .solver_checkpoint_ref import KIND, validate_reference
+from .solver_checkpoint_ref import ARCHIVED_KIND, KIND, validate_reference
 from .store import Store, write_json
 
 PHYSICS = ("models.py", "adapters/build.py", "adapters/reentrant.py", "adapters/hexagonal.py",
@@ -133,6 +133,8 @@ def restore_solver_checkpoint(store: Store, job, spec, runtime, github):
         raise ValueError("Completed-solver checkpoint manifest checksum failed")
     manifest = response.json()
     validate_manifest(manifest, allow_incomplete=True)
+    if reference["kind"] == ARCHIVED_KIND:
+        return _restore_archived_solver(store, job, spec, runtime, github, manifest)
     if "solver-snapshot.json" not in {file["path"] for file in manifest["files"]}:
         raise ValueError("Archive is not a completed-solver snapshot")
     restore(manifest, store.root, client=github.client, allow_incomplete=True)
@@ -156,6 +158,66 @@ def restore_solver_checkpoint(store: Store, job, spec, runtime, github):
     folder.resolve().relative_to(store.root)
     _closed_solver(run, folder)
     run.update(status="queued", phase="queued", force_new_solver=False, explicit_recover=False, error=None)
+    batch.update(status="running", pause_requested=False, stop_immediately=False)
+    store.save("runs", run)
+    store.save("batches", batch)
+    return batch
+
+
+def _restore_archived_solver(store, job, spec, runtime, github, manifest):
+    """Admit a legacy closed ODB without certifying its interrupted extraction."""
+    files = {file["path"]: file for file in manifest["files"]}
+    run_paths = [path for path in files if path.endswith("/run.json")]
+    batch_paths = [path for path in files if path.endswith("/batch.json")]
+    if len(run_paths) != 1 or len(batch_paths) != 1:
+        raise ValueError("Legacy recovery requires exactly one archived run and batch")
+    metadata = [*run_paths, *batch_paths, "runtime-lock.json", "cloud-request.json"]
+    if not set(metadata) <= files.keys():
+        raise ValueError("Legacy recovery is missing native input or runtime evidence")
+    restore(manifest, store.root, client=github.client, allow_incomplete=True, paths=metadata)
+    def read(name):
+        return json.loads(destination(store.root, name).read_text(encoding="utf-8"))
+    run, batch = read(run_paths[0]), read(batch_paths[0])
+    request = read("cloud-request.json")
+    if (digest(read("runtime-lock.json")) != digest(runtime)
+            or request.get("input_hash") != job["input_hash"]
+            or digest(request.get("spec", {})) != job["input_hash"]
+            or batch.get("spec") != spec.model_dump()):
+        raise ValueError("Legacy runtime or scientific batch identity differs")
+    expected = expand(spec)
+    if (len(expected) != 1 or len(run.get("attempts", [])) != 1
+            or any(run.get(key) != expected[0][key] for key in ("requested", "resolved", "input_hash"))
+            or run["input_hash"] != job["postprocess_source"]["run_input_hash"]):
+        raise ValueError("Legacy solver inputs or original attempt differ")
+    attempt = run["attempts"][0]
+    original = attempt.get("software", {}).get("source_sha256", {})
+    if any(original.get(name) != checksum for name, checksum in physics_hashes().items()):
+        raise ValueError("Legacy solver scientific source differs")
+    relative = Path(run_paths[0]).parent / "attempts" / f"{attempt['number']:03d}"
+    name = attempt["job_name"]
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,127}", name):
+        raise ValueError("Invalid legacy solver job name")
+    wanted = [(relative / "solver-complete.json").as_posix()]
+    wanted += [(relative / "raw" / (name + suffix)).as_posix() for suffix in (".odb", ".sta", ".inp")]
+    model = (relative / "raw/model_manifest.json").as_posix()
+    if model in files:
+        wanted.append(model)
+    if not set(wanted) <= files.keys() or any(files[path]["bytes"] <= 0 for path in wanted):
+        raise ValueError("Legacy archive lacks a complete original ODB, STA or input deck")
+    restore(manifest, store.root, client=github.client, allow_incomplete=True, paths=wanted)
+    _closed_solver(run, destination(store.root, relative.as_posix()))
+    # Rebase saved filesystem paths only after the original solver checks pass.
+    store.reindex()
+    run, batch = store.list("runs")[0], store.list("batches")[0]
+    run.update(status="queued", phase="queued", force_new_solver=False, explicit_recover=False, error=None)
+    for key in ("summary", "quality", "report"):
+        run.pop(key, None)
+    run["solver_recovery"] = {
+        "kind": ARCHIVED_KIND, "new_FE_solve": False,
+        "manifest_digest": job["postprocess_source"]["manifest"]["digest"],
+        "source_sha": job["postprocess_source"]["source_sha"],
+        "native_extraction_complete": False,
+    }
     batch.update(status="running", pause_requested=False, stop_immediately=False)
     store.save("runs", run)
     store.save("batches", batch)

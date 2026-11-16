@@ -5,11 +5,12 @@ import re
 from .cloud_restore import public_asset
 
 KIND = "honeycomb-completed-solver-checkpoint-v1"
+ARCHIVED_KIND = "honeycomb-archived-solver-postprocess-v1"
 
 
 def validate_reference(reference, input_hash):
     """A recorded checkpoint must fail closed rather than silently rerun FE."""
-    if (not isinstance(reference, dict) or reference.get("kind") != KIND
+    if (not isinstance(reference, dict) or reference.get("kind") not in (KIND, ARCHIVED_KIND)
             or reference.get("available") is not True or reference.get("input_hash") != input_hash
             or not re.fullmatch(r"[0-9a-f]{64}", str(reference.get("run_input_hash", "")))
             or not re.fullmatch(r"[0-9a-f]{64}", str(reference.get("runtime_hash", "")))

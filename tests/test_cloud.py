@@ -138,7 +138,7 @@ def test_owner_csrf_idempotency_and_qualification(monkeypatch):
 
         def repo(self, method, path, body):
             assert method == "POST"
-            assert path == "/actions/workflows/abaqus-linux.yml/dispatches"
+            assert path == "/actions/workflows/abaqus-continuation.yml/dispatches"
             assert body["ref"] == "main" and body["inputs"]["job_id"] == "b" * 32
             assert "E=7 J" in body["inputs"]["job_name"]
             assert "t=12 ms" in body["inputs"]["job_name"]

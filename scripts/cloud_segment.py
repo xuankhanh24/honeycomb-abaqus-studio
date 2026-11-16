@@ -6,7 +6,7 @@ import signal
 import time
 from pathlib import Path
 
-from cloud_worker import require_qualification
+from cloud_worker import require_qualification, validation_metrics_requested
 from native_cloud_worker import native_runtime
 
 from honeycomb_studio import solver
@@ -22,16 +22,27 @@ from honeycomb_studio.cloud_progress import Progress
 from honeycomb_studio.data import checksum
 from honeycomb_studio.engine import Engine
 from honeycomb_studio.models import BatchSpec, digest, expand
-from honeycomb_studio.store import Store, write_json
+from honeycomb_studio.solver_checkpoint import (
+    SavedSolverEngine,
+    publish_solver_checkpoint,
+    restore_solver_checkpoint,
+)
+from honeycomb_studio.store import Store, now, write_json
 
 
-def execute_segment(root, store, run, batch, progress, runtime_hash, control):
+def execute_segment(root, store, run, batch, progress, runtime_hash, control, *,
+                    job=None, postprocess_only=False, solver_sink=None):
     history_check = None
-    with native_runtime(root, continuation=True) as executable:
-        engine = Engine(store, abaqus=str(executable), fake=False)
-        engine.explicit_continuation = True
-        engine.continuation_control = control
+    with native_runtime(root, continuation=not postprocess_only) as executable:
+        engine_type = SavedSolverEngine if postprocess_only else Engine
+        engine = engine_type(store, abaqus=str(executable), fake=False)
+        engine.explicit_continuation = not postprocess_only
+        engine.continuation_control = None if postprocess_only else control
         engine.runtime_fingerprint = runtime_hash
+        engine.research_archive = (job or {}).get('profile') == 'research'
+        engine.validation_metrics = (validation_metrics_requested(job, postprocess_only=postprocess_only)
+                                     if job else False)
+        engine.solver_sink = solver_sink
         for sig in (signal.SIGTERM, signal.SIGINT):
             signal.signal(sig, lambda *_: progress.stop_solver('cancelled'))
         progress.start(os.environ['GITHUB_SHA'])
@@ -44,8 +55,21 @@ def execute_segment(root, store, run, batch, progress, runtime_hash, control):
         if run['status'] == 'interrupted' and progress.stop_reason == 'timed_out':
             attempt = run['attempts'][-1]
             raw = Path(attempt['path']) / 'raw'
-            # The query needs the private license config and container network.
-            history_check = verify_checkpoint_history(raw, attempt['job_name'], str(executable), run['resolved'])
+            sta = solver.sta_progress(raw / (attempt['job_name'] + '.sta'), run['resolved']['duration'])
+            if sta.get('solver_success'):
+                # Extraction can consume the remainder of a segment after FE completion.
+                # The next segment must reuse this closed attempt and forbid FE phases.
+                if (raw / (attempt['job_name'] + '.lck')).exists():
+                    raise ValueError('Successful solver still has a live ODB lock')
+                marker = Path(attempt['path']) / 'solver-complete.json'
+                if not marker.exists():
+                    write_json(marker, {'completed_at': now(), 'sta': sta})
+                history_check = {'solver_completed': True, 'postprocess_only': True}
+            else:
+                if postprocess_only:
+                    raise ValueError('Completed-solver recovery lost its successful original STA')
+                # The query needs the private license config and container network.
+                history_check = verify_checkpoint_history(raw, attempt['job_name'], str(executable), run['resolved'])
     return run, history_check
 
 
@@ -71,22 +95,27 @@ def main():
         raise ValueError('Continuation requires an unfinished running shard')
     if digest(job['spec']) != job['input_hash']:
         raise ValueError('Catalog input digest mismatch')
-    runtime_hash = digest(require_qualification(Path.cwd()))
+    runtime = require_qualification(Path.cwd())
+    runtime_hash = digest(runtime)
     control = Path('scripts/linux_media/continuation_control.c').resolve()
     evidence = json.loads(Path('docs/evidence/orderly-explicit-checkpoint.json').read_text())
     if (not evidence.get('passed') or not evidence.get('history_integrity', {}).get('passed')
             or evidence.get('source_sha256') != checksum(control)):
         raise ValueError('Orderly checkpoint callback has not passed native history recovery acceptance')
     model = dict(job['spec'])
-    model.update(render_images=False, backup_after_run=False, max_runs=1, export_all_fields=job['profile'] == 'full')
+    # Match cloud_worker normalization exactly so a legacy closed ODB can be
+    # restored without changing its scientific batch or presentation settings.
+    model.update(backup_after_run=False, max_runs=20, export_all_fields=job['profile'] == 'full')
     spec = BatchSpec.model_validate(model)
     expected = expand(spec)[0]
     store = Store(root)
     marker = root / 'continuation.json'
+    postprocess_only = 'postprocess_source' in job
     if args.segment == 0:
         if store.list('batches'):
             raise ValueError('Initial segment requires clean storage')
-        batch = store.create(spec)
+        batch = (restore_solver_checkpoint(store, job, spec, runtime, github)
+                 if postprocess_only else store.create(spec))
         run = store.list('runs', batch['id'])[0]
     else:
         receipt = json.loads(marker.read_text())
@@ -96,11 +125,15 @@ def main():
         run = store.get('runs', receipt['run_id'])
         attempt = run['attempts'][-1]
         raw = Path(attempt['path']) / 'raw'
+        postprocess_only = receipt.get('postprocess_only', False)
         verify_checkpoint(raw, receipt, job_name=attempt['job_name'], input_hash=expected['input_hash'],
                           runtime_hash=runtime_hash, cpus=run['resolved']['cpus'])
         if run['input_hash'] != expected['input_hash'] or run['resolved'] != expected['resolved']:
             raise ValueError('Restored scientific input mismatch')
-        if not solver.sta_progress(raw / (attempt['job_name'] + '.sta'), run['resolved']['duration']).get('solver_success'):
+        completed = solver.sta_progress(raw / (attempt['job_name'] + '.sta'), run['resolved']['duration']).get('solver_success')
+        if postprocess_only and not completed:
+            raise ValueError('Postprocessing continuation requires the original successful STA')
+        if not completed:
             run['explicit_recover'] = True
         for lock in raw.glob(attempt['job_name'] + '*.lck'):
             lock.unlink()
@@ -114,8 +147,20 @@ def main():
     # 240-minute slice leaves room for multi-GB checkpoint transfer and publication.
     deadline = time.monotonic() + max(0, 240 * 60 - (time.time() - float(os.environ['HONEYCOMB_WORKFLOW_STARTED_EPOCH'])))
     progress = Progress(github, catalog, args.job_id, store, batch['id'], deadline)
+    write_json(root / 'runtime-lock.json', runtime)
+    write_json(root / 'cloud-request.json', job)
+
+    def save_solver(finished, current_batch):
+        reference = publish_solver_checkpoint(root, finished, current_batch, runtime, job,
+            ReleaseArchive(github, job['reserved_release_id'], tag='simulation-' + args.job_id),
+            f'workflow-{workflow}', os.environ['GITHUB_SHA'])
+        finished['solver_checkpoint'] = reference
+        store.save('runs', finished)
+        catalog.update(key, lambda old: {**old, 'solver_checkpoint': reference})
+
     try:
-        run, history_check = execute_segment(root, store, run, batch, progress, runtime_hash, control)
+        run, history_check = execute_segment(root, store, run, batch, progress, runtime_hash, control,
+            job=job, postprocess_only=postprocess_only, solver_sink=None if postprocess_only else save_solver)
         if run['status'] in ('completed', 'review'):
             publisher = ReleaseArchive(github, job['reserved_release_id'], tag='simulation-' + args.job_id)
             publisher.publish(root, attempt=f'workflow-{workflow}', complete=True)
@@ -132,11 +177,13 @@ def main():
             raw = Path(attempt['path']) / 'raw'
             if history_check is None:
                 raise RuntimeError('No verified original history for this checkpoint')
-            files = checkpoint_inventory(raw, attempt['job_name'])
+            postprocess_only = history_check.get('postprocess_only', False)
+            files = checkpoint_inventory(raw, attempt['job_name'], postprocess_only=postprocess_only)
             receipt = {'segment': args.segment, 'workflow': workflow, 'child_id': args.job_id,
                        'batch_id': batch['id'], 'run_id': run['id'], 'job_name': attempt['job_name'],
                        'input_hash': run['input_hash'], 'runtime_hash': runtime_hash,
                        'cpus': run['resolved']['cpus'], 'files': files, 'orderly_checkpoint': history_check,
+                       'postprocess_only': postprocess_only,
                        'progress': solver.sta_progress(raw / (attempt['job_name'] + '.sta'), run['resolved']['duration'])}
             write_json(marker, receipt)
             if args.segment == 3:

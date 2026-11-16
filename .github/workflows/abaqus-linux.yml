@@ -37,6 +37,7 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       max_parallel: ${{ steps.matrix.outputs.max_parallel }}
       parameter_title: ${{ steps.matrix.outputs.parameter_title }}
+      automatic_continuation: ${{ steps.matrix.outputs.automatic_continuation }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -71,6 +72,7 @@ jobs:
           uv run --locked --extra cloud python scripts/cloud_matrix.py prepare --job-id "$CLOUD_JOB_ID" "${args[@]}"
   simulate:
     needs: prepare
+    if: needs.prepare.outputs.automatic_continuation != 'true'
     strategy:
       fail-fast: false
       max-parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
@@ -152,9 +154,53 @@ jobs:
             !${{ runner.temp }}/honeycomb-results/**/credentials/**
             !${{ runner.temp }}/honeycomb-results/**/session.json
             !${{ runner.temp }}/honeycomb-results/**/engine-settings.json
+  segment0:
+    needs: [prepare]
+    if: needs.prepare.outputs.automatic_continuation == 'true'
+    uses: ./.github/workflows/explicit-stage.yml
+    secrets: inherit
+    with:
+      job_id: ${{ inputs.job_id }}
+      matrix: ${{ needs.prepare.outputs.matrix }}
+      segment: 0
+      previous: -1
+      max_parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
+  segment1:
+    needs: [prepare, segment0]
+    if: needs.prepare.outputs.automatic_continuation == 'true'
+    uses: ./.github/workflows/explicit-stage.yml
+    secrets: inherit
+    with:
+      job_id: ${{ inputs.job_id }}
+      matrix: ${{ needs.prepare.outputs.matrix }}
+      segment: 1
+      previous: 0
+      max_parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
+  segment2:
+    needs: [prepare, segment1]
+    if: needs.prepare.outputs.automatic_continuation == 'true'
+    uses: ./.github/workflows/explicit-stage.yml
+    secrets: inherit
+    with:
+      job_id: ${{ inputs.job_id }}
+      matrix: ${{ needs.prepare.outputs.matrix }}
+      segment: 2
+      previous: 1
+      max_parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
+  segment3:
+    needs: [prepare, segment2]
+    if: needs.prepare.outputs.automatic_continuation == 'true'
+    uses: ./.github/workflows/explicit-stage.yml
+    secrets: inherit
+    with:
+      job_id: ${{ inputs.job_id }}
+      matrix: ${{ needs.prepare.outputs.matrix }}
+      segment: 3
+      previous: 2
+      max_parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
   finalize:
     name: Tổng hợp dữ liệu · ${{ needs.prepare.outputs.parameter_title || inputs.job_name || inputs.job_id }}
-    needs: [prepare, simulate]
+    needs: [prepare, simulate, segment0, segment1, segment2, segment3]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
     # Only publishers serialize. Solver jobs from other batches keep running.

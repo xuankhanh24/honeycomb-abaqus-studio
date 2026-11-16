@@ -34,6 +34,18 @@ def require_qualification(root: Path):
     return data
 
 
+def validation_metrics_requested(job, *, postprocess_only=False):
+    """Select scalar native evidence without changing the solver deck or horizon."""
+    requested = job.get('validation_metrics_only', False)
+    if type(requested) is not bool:
+        raise ValueError('validation_metrics_only must be a boolean')
+    if requested and (job['profile'] != 'research' or job['spec'].get('export_all_fields') is not False):
+        raise ValueError('Native metrics-only extraction requires research with full field export disabled')
+    return job['profile'] == 'research' and (
+        postprocess_only or job.get('research_horizon_s') is not None or requested
+    )
+
+
 def run(args):
     if not JOB_ID.fullmatch(args.job_id):
         raise ValueError("Invalid job ID")
@@ -97,11 +109,9 @@ def run(args):
         engine_type = SavedSolverEngine if postprocess_only else Engine
         engine = engine_type(store, abaqus=str(args.abaqus), fake=False)
         engine.research_archive = job['profile'] == 'research'
-        # A sealed earlier-horizon validation needs scalar evidence at every
-        # frame, rather than serializing the full stress/displacement matrices.
-        engine.validation_metrics = job['profile'] == 'research' and (
-            postprocess_only or job.get('research_horizon_s') is not None
-        )
+        # Native validation needs scalar evidence at every frame, including
+        # whole-window studies, without the full stress/displacement matrices.
+        engine.validation_metrics = validation_metrics_requested(job, postprocess_only=postprocess_only)
         engine.runtime_fingerprint = digest(runtime)
         batch = (restore_solver_checkpoint(store, job, spec, runtime, github)
                  if postprocess_only else store.create(spec))

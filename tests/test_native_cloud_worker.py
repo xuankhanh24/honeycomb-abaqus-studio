@@ -10,6 +10,20 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 native_cloud_worker = importlib.import_module("native_cloud_worker")
+cloud_worker = importlib.import_module("cloud_worker")
+
+
+def test_metrics_only_native_solve_does_not_require_an_artificial_earlier_horizon():
+    job = {'profile': 'research', 'spec': {'export_all_fields': False}}
+    assert cloud_worker.validation_metrics_requested(job) is False
+    assert cloud_worker.validation_metrics_requested(job, postprocess_only=True) is True
+    assert cloud_worker.validation_metrics_requested({**job, 'research_horizon_s': .008}) is True
+    assert cloud_worker.validation_metrics_requested({**job, 'validation_metrics_only': True}) is True
+    assert cloud_worker.validation_metrics_requested({'profile': 'full', 'spec': {}}) is False
+    with pytest.raises(ValueError, match='boolean'):
+        cloud_worker.validation_metrics_requested({**job, 'validation_metrics_only': 'true'})
+    with pytest.raises(ValueError, match='research'):
+        cloud_worker.validation_metrics_requested({**job, 'profile': 'full', 'validation_metrics_only': True})
 
 
 @pytest.mark.parametrize("endpoint,vendor", [("invalid", "27012"), ("27011@not-a-host", "27012"),

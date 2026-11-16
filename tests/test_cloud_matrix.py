@@ -84,6 +84,35 @@ def test_separate_runners_preserve_four_cpus_and_physics():
     assert "shards" not in original
 
 
+def test_full_window_native_metrics_preserves_resolved_physics_and_recovery_policy():
+    original = batch()
+    original['spec']['export_all_fields'] = False
+    original['input_hash'] = digest(original['spec'])
+    original['validation_context'] = {'native_metrics_only': True}
+    expected = expand(BatchSpec.model_validate(original['spec']))
+    parent = prepare(original, 123)
+    for shard, reference in zip(parent['shards'], expected, strict=True):
+        assert shard['validation_metrics_only'] is True
+        assert 'research_horizon_s' not in shard
+        assert expand(BatchSpec.model_validate(shard['spec']))[0]['resolved'] == reference['resolved']
+    parent['status'] = 'failed'
+    for shard in parent['shards']:
+        shard['status'] = 'failed'
+    repaired = recover(parent, 124)
+    assert all(s['validation_metrics_only'] is True for s in repaired['shards'])
+
+
+@pytest.mark.parametrize('flag,profile,full_fields', [('true', 'research', False),
+                         (True, 'full', False), (True, 'research', True)])
+def test_invalid_native_metrics_policy_is_rejected(flag, profile, full_fields):
+    original = batch()
+    original.update(profile=profile, validation_context={'native_metrics_only': flag})
+    original['spec']['export_all_fields'] = full_fields
+    original['input_hash'] = digest(original['spec'])
+    with pytest.raises(ValueError, match='(boolean|research)'):
+        prepare(original, 123)
+
+
 def test_reject_duplicate_claim_wrong_hash_and_oversized_cpu():
     parent = prepare(batch(), 123)
     with pytest.raises(ValueError):

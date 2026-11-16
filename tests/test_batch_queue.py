@@ -4,6 +4,8 @@ import runpy
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
+
 from honeycomb_studio.cloud_matrix import prepare
 from honeycomb_studio.models import BatchSpec, ModelSpec, digest
 
@@ -62,7 +64,8 @@ def test_workflow_isolates_ranges_and_serializes_only_publishers():
     assert "group: honeycomb-training-collection" in manual and "queue: max" in manual
 
 
-def test_web_exposes_runner_state_and_blocks_collecting_active_range(monkeypatch):
+@pytest.mark.parametrize('prefix', ['', 'segment1 / Segment 1 · '])
+def test_web_exposes_runner_state_and_blocks_collecting_active_range(monkeypatch, prefix):
     import base64
     import json
 
@@ -88,7 +91,10 @@ def test_web_exposes_runner_state_and_blocks_collecting_active_range(monkeypatch
         def repo(self, method, path, body=None):
             assert method == "GET", "Active range must not dispatch collection"
             if "/jobs?" in path:
-                return {"jobs": [{"name": label, "id": 99, "status": "in_progress"}]}
+                return {"jobs": [
+                    {"name": prefix + label, "id": 99, "status": "in_progress"},
+                    {"name": 'segment0 / Segment 0 · ' + label, "id": 98, "status": "completed"},
+                    {"name": 'segment2 / Segment 2 · ' + label, "id": 100, "status": "queued"}]}
             return {"status": "in_progress"}
 
     monkeypatch.setattr(cloud_api, "Catalog", lambda github: Memory())

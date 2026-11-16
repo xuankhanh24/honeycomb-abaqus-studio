@@ -94,7 +94,12 @@ def matrix_plan(spec):
 def validate_source(old, source_sha):
     expected = (old.get('validation_context') or {}).get('expected_source_sha')
     if expected and source_sha != expected:
-        raise ValueError('Source commit differs from the locked validation request; no solver admitted')
+        approved = old.get('automatic_continuation_execution') or {}
+        if not (old.get('recovery_dispatch_pending') is True and old['status'] in TERMINAL
+                and approved.get('source_sha') == source_sha
+                and approved.get('source_workflow_run_id') == old.get('workflow_run_id')
+                and approved.get('input_hash') == old.get('input_hash')):
+            raise ValueError('Source commit differs from the locked validation request; no solver admitted')
 
 
 def prepare(old, workflow_id):

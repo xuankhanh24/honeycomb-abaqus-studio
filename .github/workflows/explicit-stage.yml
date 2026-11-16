@@ -14,6 +14,10 @@ on:
       previous:
         required: true
         type: number
+      max_parallel:
+        required: false
+        type: number
+        default: 20
 permissions:
   contents: write
   checks: write
@@ -25,7 +29,7 @@ jobs:
     timeout-minutes: 330
     strategy:
       fail-fast: false
-      max-parallel: 20
+      max-parallel: ${{ inputs.max_parallel }}
       matrix: ${{ fromJSON(inputs.matrix) }}
     env:
       HONEYCOMB_ACTIONS_LOG: '1'
@@ -73,7 +77,10 @@ jobs:
       - name: Kiểm tra SHA-256 và cài Abaqus trong môi trường cách ly
         if: steps.prior.outputs.done != 'true'
         run: python3 scripts/actions_step.py --title "Kiểm tra và cài Abaqus" --details output/actions-logs/install.log -- bash scripts/linux_media/install_runtime.sh
-      - name: Solve or recover the same 12 ms model
+      - name: Giải phóng bộ cài trước khi giải hoặc phục hồi checkpoint
+        if: steps.prior.outputs.done != 'true'
+        run: bash scripts/linux_media/reclaim_runner_space.sh
+      - name: Solve or recover the same requested model
         if: steps.prior.outputs.done != 'true'
         id: solve
         env:

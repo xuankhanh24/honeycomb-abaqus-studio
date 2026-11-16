@@ -112,6 +112,74 @@ def test_segment_reads_checkpoint_before_native_runtime_closes(tmp_path, monkeyp
     assert not active
 
 
+@pytest.mark.parametrize('postprocess_only', [False, True])
+def test_segment_preserves_native_scalar_evidence_and_never_restarts_completed_fe(tmp_path, monkeypatch, postprocess_only):
+    import sys
+    sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
+    import cloud_segment
+    engine = SimpleNamespace(execute_wave=lambda *args: None)
+    selected = []
+    @contextmanager
+    def runtime(root, **kwargs):
+        selected.append(('runtime', kwargs['continuation']))
+        yield Path('native-wrapper')
+    def create(kind):
+        def factory(*args, **kwargs):
+            selected.append(('engine', kind))
+            return engine
+        return factory
+    monkeypatch.setattr(cloud_segment, 'native_runtime', runtime)
+    monkeypatch.setattr(cloud_segment, 'Engine', create('fresh'))
+    monkeypatch.setattr(cloud_segment, 'SavedSolverEngine', create('closed'))
+    monkeypatch.setattr(cloud_segment.signal, 'signal', lambda *args: None)
+    monkeypatch.setenv('GITHUB_SHA', 'revision')
+    progress = SimpleNamespace(stop_reason=None, stop_solver=lambda *args: None, start=lambda *args: None,
+        done=SimpleNamespace(set=lambda: None), thread=SimpleNamespace(join=lambda **kwargs: None))
+    run = {'status': 'completed', 'id': 'same-native-attempt'}
+    job = {'profile': 'research', 'spec': {'export_all_fields': False}, 'validation_metrics_only': True}
+    cloud_segment.execute_segment(tmp_path, SimpleNamespace(get=lambda *args: run), run, {}, progress,
+        'runtime', tmp_path / 'control.c', job=job, postprocess_only=postprocess_only)
+    assert engine.validation_metrics is True and engine.research_archive is True
+    assert engine.explicit_continuation is (not postprocess_only)
+    assert selected[-1] == ('engine', 'closed' if postprocess_only else 'fresh')
+    assert engine.continuation_control == (None if postprocess_only else tmp_path / 'control.c')
+
+
+def test_completed_odb_postprocessing_checkpoint_does_not_require_fe_restart_families(tmp_path):
+    for ext in ('odb', 'sta', 'inp'):
+        (tmp_path / ('hc.' + ext)).write_bytes(ext.encode())
+    receipt = dict(job_name='hc', input_hash='input', runtime_hash='runtime', cpus=4,
+        postprocess_only=True, files=checkpoint_inventory(tmp_path, 'hc', postprocess_only=True))
+    verify_checkpoint(tmp_path, receipt, job_name='hc', input_hash='input', runtime_hash='runtime', cpus=4)
+    receipt['postprocess_only'] = False
+    with pytest.raises(ValueError, match='abq'):
+        verify_checkpoint(tmp_path, receipt, job_name='hc', input_hash='input', runtime_hash='runtime', cpus=4)
+
+
+def test_segment_uses_closed_odb_after_extraction_exhausts_budget(tmp_path, monkeypatch):
+    import sys
+    sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
+    import cloud_segment
+    @contextmanager
+    def runtime(*args, **kwargs):
+        yield Path('native-wrapper')
+    run = {'status': 'interrupted', 'id': 'original', 'resolved': {'duration': .008},
+           'attempts': [{'path': str(tmp_path), 'job_name': 'hc'}]}
+    progress = SimpleNamespace(stop_reason='timed_out', stop_solver=lambda *args: None,
+        start=lambda *args: None, done=SimpleNamespace(set=lambda: None),
+        thread=SimpleNamespace(join=lambda **kwargs: None))
+    monkeypatch.setattr(cloud_segment, 'native_runtime', runtime)
+    monkeypatch.setattr(cloud_segment, 'Engine', lambda *args, **kwargs: SimpleNamespace(execute_wave=lambda *args: None))
+    monkeypatch.setattr(cloud_segment.signal, 'signal', lambda *args: None)
+    monkeypatch.setattr(cloud_segment.solver, 'sta_progress', lambda *args: {'solver_success': True})
+    monkeypatch.setattr(cloud_segment, 'verify_checkpoint_history', lambda *args: pytest.fail('Closed ODB is not a partial FE stop'))
+    monkeypatch.setenv('GITHUB_SHA', 'revision')
+    _, receipt = cloud_segment.execute_segment(tmp_path, SimpleNamespace(get=lambda *args: run), run, {},
+        progress, 'runtime', tmp_path / 'control.c')
+    assert receipt == {'solver_completed': True, 'postprocess_only': True}
+    assert json.loads((tmp_path / 'solver-complete.json').read_text())['sta']['solver_success'] is True
+
+
 @pytest.mark.parametrize('resource_blocked', [False, True])
 def test_campaign_reads_original_checkpoint_history_inside_native_runtime(tmp_path, monkeypatch, resource_blocked):
     import sys

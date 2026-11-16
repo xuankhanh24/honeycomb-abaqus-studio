@@ -350,6 +350,8 @@ def create_app(github: Github | None = None) -> FastAPI:
             ".github/workflows/linux-impact-7j.yml": "Thử nghiệm native 7 J",
             ".github/workflows/verify-native-parallel.yml": "Thử nghiệm native song song",
             ".github/workflows/abaqus-linux.yml": "Job cloud",
+            ".github/workflows/abaqus-continuation.yml": "Job cloud tự động nối tiếp",
+            ".github/workflows/automatic-native-continuation.yml": "Theo dõi tự chuyển khi quá giờ",
             ".github/workflows/recover-native-artifact.yml": "Khôi phục kết quả native",
             ".github/workflows/verify-impact-release.yml": "Kiểm tra dữ liệu đã lưu",
             ".github/workflows/verify-native-recovery.yml": "Kiểm tra dữ liệu đã khôi phục",
@@ -397,12 +399,17 @@ def create_app(github: Github | None = None) -> FastAPI:
                     actions.extend(rows)
                     if len(rows) < 100:
                         break
-                by_name = {a["name"]: a for a in actions}
                 for shard in value["shards"]:
                     # Completed recovery sources belong to their original workflow.
                     if shard.get("workflow_run_id", value["workflow_run_id"]) != value["workflow_run_id"]:
                         continue
-                    action = by_name.get(shard["display_name"])
+                    label = shard['display_name']
+                    matches = [a for a in actions if a['name'] == label or a['name'].endswith(' · ' + label)]
+                    # A reusable workflow prefixes the label with its segment.
+                    # Show the live segment ahead of completed or waiting siblings.
+                    action = next((a for state in ('in_progress', 'queued', 'waiting')
+                                   for a in matches if a['status'] == state),
+                                  max(matches, key=lambda a: a['id'], default=None))
                     if action:
                         shard.update(action_status=action["status"], action_job_id=action["id"])
                 value["queue_snapshot_available"] = True
@@ -494,7 +501,8 @@ def create_app(github: Github | None = None) -> FastAPI:
         try:
             github.repo(
                 "POST",
-                "/actions/workflows/abaqus-linux.yml/dispatches",
+                ("/actions/workflows/abaqus-continuation.yml/dispatches" if value['profile'] == 'research'
+                 else "/actions/workflows/abaqus-linux.yml/dispatches"),
                 {"ref": "main", "inputs": {"job_id": identity, "job_name": workflow_title(value["spec"])}},
             )
         except httpx.HTTPError:
@@ -522,7 +530,8 @@ def create_app(github: Github | None = None) -> FastAPI:
             return {**old, "recovery_dispatch_pending": True}
 
         catalog.update("jobs/" + identity, reserve)
-        github.repo("POST", "/actions/workflows/abaqus-linux.yml/dispatches", {
+        workflow = 'abaqus-continuation.yml' if value['profile'] == 'research' else 'abaqus-linux.yml'
+        github.repo("POST", f"/actions/workflows/{workflow}/dispatches", {
             "ref": "main", "inputs": {"job_id": identity, "job_name": workflow_title(value["spec"]), "recover": True}})
         return {"id": identity, "recovery_dispatch_pending": True}
 

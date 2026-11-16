@@ -38,10 +38,10 @@ def verify_checkpoint_history(raw: Path, job_name: str, executable: str, spec: d
     return {'stop': acknowledgment, 'history_integrity': integrity}
 
 
-def checkpoint_inventory(raw: Path, job_name: str):
+def checkpoint_inventory(raw: Path, job_name: str, *, postprocess_only=False):
     files = sorted(p for p in raw.iterdir() if p.is_file() and p.name.startswith(job_name + '.'))
     # Distributed Explicit can retain per-domain state/selected files.
-    for extension in ('abq', 'pac', 'res', 'sel', 'odb'):
+    for extension in (('odb', 'sta', 'inp') if postprocess_only else ('abq', 'pac', 'res', 'sel', 'odb')):
         if not any(p.name == job_name + '.' + extension or p.name.startswith(job_name + '.' + extension + '.')
                    for p in files if p.stat().st_size):
             raise ValueError('Missing nonempty Explicit recovery file family: ' + extension)
@@ -59,5 +59,5 @@ def verify_checkpoint(raw: Path, receipt, *, job_name, input_hash, runtime_hash,
     actual = tuple(receipt.get(k) for k in ('job_name', 'input_hash', 'runtime_hash', 'cpus'))
     if actual != expected:
         raise ValueError('Checkpoint job/input/runtime/CPU identity mismatch')
-    if checkpoint_inventory(raw, job_name) != receipt['files']:
+    if checkpoint_inventory(raw, job_name, postprocess_only=receipt.get('postprocess_only', False)) != receipt['files']:
         raise ValueError('Checkpoint file inventory or checksum mismatch')

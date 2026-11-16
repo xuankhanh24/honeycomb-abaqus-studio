@@ -75,6 +75,7 @@ jobs:
       matrix: ${{ needs.prepare.outputs.matrix }}
       segment: 0
       previous: -1
+      max_parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
   segment1:
     needs: [prepare, segment0]
     uses: ./.github/workflows/explicit-stage.yml
@@ -84,6 +85,7 @@ jobs:
       matrix: ${{ needs.prepare.outputs.matrix }}
       segment: 1
       previous: 0
+      max_parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
   segment2:
     needs: [prepare, segment1]
     uses: ./.github/workflows/explicit-stage.yml
@@ -93,6 +95,7 @@ jobs:
       matrix: ${{ needs.prepare.outputs.matrix }}
       segment: 2
       previous: 1
+      max_parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
   segment3:
     needs: [prepare, segment2]
     uses: ./.github/workflows/explicit-stage.yml
@@ -102,6 +105,7 @@ jobs:
       matrix: ${{ needs.prepare.outputs.matrix }}
       segment: 3
       previous: 2
+      max_parallel: ${{ fromJSON(needs.prepare.outputs.max_parallel) }}
   finalize:
     name: Tổng hợp dữ liệu · ${{ needs.prepare.outputs.parameter_title || inputs.job_name || inputs.job_id }}
     needs: [prepare, segment0, segment1, segment2, segment3]

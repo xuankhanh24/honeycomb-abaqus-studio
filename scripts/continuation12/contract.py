@@ -7,7 +7,7 @@ from honeycomb_studio.cloud_restore import validate_manifest
 from honeycomb_studio.models import digest
 
 KEY = "continuation-v14-12ms-20261117/"
-CASES = ("V14-03", "CTRL-0245")
+CASES = ("V14-01", "V14-02", "V14-03", "V14-04", "V14-05", "CTRL-0245")
 RUNTIME_SHA = "3b40ff65510518e9be6aca9efe53990f86beff82"
 FAMILIES = ("abq", "res", "mdl", "stt", "pac", "prt", "sel", "odb")
 

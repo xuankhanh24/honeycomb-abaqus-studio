@@ -1,8 +1,14 @@
-# V14-03 and CTRL-0245: continue the same analysis to 12 ms
+# All five V14 designs and CTRL-0245: native continuation to 12 ms
 
-Owner request, 17 November 2026: extend the best verified V14 design and its
+Owner request, 17 November 2026: extend all five verified V14 designs and their
 repeated control from 8 to 12 ms. The original workflow is 43914437764, physical
 source commit `3b40ff65510518e9be6aca9efe53990f86beff82`.
+
+V14-03 and CTRL-0245 were dispatched first in workflow 44009483687. Following
+the owner's expanded request, dispatch only V14-01, V14-02, V14-04 and V14-05
+in a second run. Keep the first run and its pinned plans unchanged. The workflow
+accepts an explicit JSON case list and the finalizer checks only that run's
+cases. Case ownership still prevents a different workflow consuming a live plan.
 
 - Only the complete sealed native step-1 end states may be restored. Each has
   eight native state families, four CPUs, double precision and a runtime hash.

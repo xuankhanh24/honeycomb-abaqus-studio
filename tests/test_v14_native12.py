@@ -12,7 +12,7 @@ from honeycomb_studio.models import digest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts/continuation12"))
-from contract import FAMILIES, RUNTIME_SHA, claim_segment, verify_plan  # noqa: E402
+from contract import CASES, FAMILIES, RUNTIME_SHA, claim_segment, verify_plan  # noqa: E402
 
 
 def archive(names, *, complete=True):
@@ -81,6 +81,15 @@ def test_completed_source_hashes_and_native_inventory_are_pinned(tmp_path):
     (tmp_path / "physics.py").write_bytes(b"changed")
     with pytest.raises(ValueError, match="Scientific source"):
         verify_plan(p, "a" * 40, tmp_path)
+
+
+@pytest.mark.parametrize("case", CASES)
+def test_all_five_candidates_and_control_can_use_the_same_verified_contract(tmp_path, case):
+    p = plan()
+    p["design_id"] = case
+    (tmp_path / "physics.py").write_bytes(b"x")
+    verify_plan(p, "a" * 40, tmp_path)
+    assert claim_segment(p, segment=0, workflow=123, attempt=1)["design_id"] == case
 
 
 @pytest.mark.parametrize(
@@ -180,3 +189,7 @@ def test_workflow_chains_four_bounded_stages_and_skips_completed_installs():
     assert "timeout-minutes: 330" in stage and "if: steps.claim.outputs.done != 'true'" in stage
     assert RUNTIME_SHA in stage
     assert "collect_cloud_training" not in workflow
+    assert "design_id: ${{ fromJSON(inputs.design_ids) }}" in stage
+    assert workflow.count("design_ids: ${{ inputs.design_ids }}") == 4
+    for case in CASES:
+        assert case in workflow

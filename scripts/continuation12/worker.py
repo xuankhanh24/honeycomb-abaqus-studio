@@ -16,6 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("claim", "run", "finalize"))
     parser.add_argument("--design-id", choices=CASES)
+    parser.add_argument("--design-ids", default=json.dumps(CASES))
     parser.add_argument("--segment", type=int, default=0)
     parser.add_argument("--root", type=Path, default=Path("/tmp/continuation12"))
     args = parser.parse_args()
@@ -23,7 +24,15 @@ def main():
     catalog = Catalog(github)
     workflow, attempt = int(os.environ["GITHUB_RUN_ID"]), int(os.environ["GITHUB_RUN_ATTEMPT"])
     if args.action == "finalize":
-        states = {case: catalog.get(KEY + case)[0] for case in CASES}
+        cases = json.loads(args.design_ids)
+        if (
+            not isinstance(cases, list)
+            or not cases
+            or len(cases) != len(set(cases))
+            or not set(cases).issubset(CASES)
+        ):
+            raise ValueError("Unapproved or duplicated study cases")
+        states = {case: catalog.get(KEY + case)[0] for case in cases}
         with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as stream:
             stream.write("## Native 8–12 ms continuation\n\n")
             for case, state in states.items():

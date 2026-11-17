@@ -5,6 +5,10 @@ on:
       segment:
         required: true
         type: number
+      design_ids:
+        required: false
+        type: string
+        default: '["V14-03","CTRL-0245"]'
 permissions:
   contents: write
   actions: read
@@ -17,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        design_id: [V14-03, CTRL-0245]
+        design_id: ${{ fromJSON(inputs.design_ids) }}
     env:
       GITHUB_TOKEN: ${{ github.token }}
       TASK_CODE_SHA: ${{ github.sha }}

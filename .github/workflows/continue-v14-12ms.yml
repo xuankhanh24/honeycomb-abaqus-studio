@@ -1,13 +1,19 @@
 name: V14 and control · native continuation to 12 ms
-run-name: V14-03 + CTRL-0245 · native 8–12 ms
+run-name: V14 native 8–12 ms · ${{ inputs.design_ids }}
 on:
   workflow_dispatch:
+    inputs:
+      design_ids:
+        description: Verified V14 cases to extend; existing claims prevent duplicate solves
+        type: string
+        required: true
+        default: '["V14-01","V14-02","V14-03","V14-04","V14-05","CTRL-0245"]'
 permissions:
   contents: write
   actions: read
   id-token: write
 concurrency:
-  group: continuation-v14-native-12ms-20261117
+  group: continuation-v14-native-12ms-20261117-${{ inputs.design_ids }}
   cancel-in-progress: false
 jobs:
   segment0:
@@ -16,24 +22,28 @@ jobs:
     secrets: inherit
     with:
       segment: 0
+      design_ids: ${{ inputs.design_ids }}
   segment1:
     needs: segment0
     uses: ./.github/workflows/continue-v14-stage.yml
     secrets: inherit
     with:
       segment: 1
+      design_ids: ${{ inputs.design_ids }}
   segment2:
     needs: segment1
     uses: ./.github/workflows/continue-v14-stage.yml
     secrets: inherit
     with:
       segment: 2
+      design_ids: ${{ inputs.design_ids }}
   segment3:
     needs: segment2
     uses: ./.github/workflows/continue-v14-stage.yml
     secrets: inherit
     with:
       segment: 3
+      design_ids: ${{ inputs.design_ids }}
   finalize:
     needs: [segment0, segment1, segment2, segment3]
     if: always() && github.ref == 'refs/heads/main'
@@ -48,4 +58,5 @@ jobs:
       - name: Record both native outcomes without touching training data
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: uv run --locked --extra cloud python scripts/continuation12/worker.py finalize
+          DESIGN_IDS: ${{ inputs.design_ids }}
+        run: uv run --locked --extra cloud python scripts/continuation12/worker.py finalize --design-ids "$DESIGN_IDS"

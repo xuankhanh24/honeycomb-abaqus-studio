@@ -8,7 +8,11 @@ from pathlib import Path
 from contract import CASES, RUNTIME_SHA, verify_plan
 
 PINS = {
+    "V14-01": "49ae9a10214ec0776a493d3e5383a641714bbc97da8397202d8d593a8d296896",
+    "V14-02": "b1261dba54c3b7428fedec29f97632daf1665047ff1b1738b0afaa9897281739",
     "V14-03": "dd70df8e16be5222ceb8f4607471a4692091eaab77916f07c53bcc0b875728d7",
+    "V14-04": "cd7138d42aa2469f47ca370766cd6399e1beb7bfe28a966dd2f2df16bf766775",
+    "V14-05": "92660cdad72ee3d76b59282eb43c2ff525e1fa7c4e0c6c1cc85be5f8e7b3970f",
     "CTRL-0245": "54137fa1bd959ab0250c9397663e2c9a0f00f88897d65c83360bb8b3fe9ff2ad",
 }
 
@@ -22,9 +26,10 @@ def main():
     parser.add_argument("--source-study", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--task-sha", required=True)
+    parser.add_argument("--design-ids", nargs="+", choices=CASES, default=list(CASES))
     args = parser.parse_args()
     policy = read(Path(__file__).resolve().parents[2] / "docs/validation/v14-automatic-continuation.json")
-    for case in CASES:
+    for case in args.design_ids:
         source = args.source_study / case / "verified_source"
         manifest = read(source / "artifact-manifest.json")
         receipt_path = next((args.output / case / "preflight").rglob("restart-state.json"))

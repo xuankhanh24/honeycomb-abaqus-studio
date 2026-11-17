@@ -1,0 +1,109 @@
+name: Bounded native 8–12 ms stage
+on:
+  workflow_call:
+    inputs:
+      segment:
+        required: true
+        type: number
+permissions:
+  contents: write
+  actions: read
+  id-token: write
+jobs:
+  native:
+    name: Segment ${{ inputs.segment }} · ${{ matrix.design_id }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        design_id: [V14-03, CTRL-0245]
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      TASK_CODE_SHA: ${{ github.sha }}
+      DESIGN_ID: ${{ matrix.design_id }}
+      SEGMENT: ${{ inputs.segment }}
+      ABAQUS_MEDIA_DRIVE_FILE_ID: ${{ vars.ABAQUS_MEDIA_DRIVE_FILE_ID }}
+      ABAQUS_LICENSE_ENDPOINT: ${{ secrets.ABAQUS_LICENSE_ENDPOINT }}
+      ABAQUS_VENDOR_PORT: ${{ secrets.ABAQUS_VENDOR_PORT }}
+      HONEYCOMB_INSTALL_CAA: '1'
+      HONEYCOMB_ACTIONS_LOG: '1'
+    steps:
+      - name: Start bounded runner clock
+        run: echo "HONEYCOMB_WORKFLOW_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: task-code
+          persist-credentials: false
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: 3b40ff65510518e9be6aca9efe53990f86beff82
+          path: runtime
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - name: Install locked dependencies
+        working-directory: runtime
+        run: uv sync --locked --extra cloud
+      - name: Claim exactly one segment or skip completed case
+        id: claim
+        working-directory: runtime
+        run: uv run --locked --extra cloud python ../task-code/scripts/continuation12/worker.py claim --design-id "$DESIGN_ID" --segment "$SEGMENT"
+      - uses: tailscale/github-action@v4
+        if: steps.claim.outputs.done != 'true'
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:honeycomb-runner
+      - name: Check private license connectivity
+        if: steps.claim.outputs.done != 'true'
+        working-directory: runtime
+        run: uv run --locked --extra cloud python scripts/check_license_network.py
+      - name: Prepare native environment
+        if: steps.claim.outputs.done != 'true'
+        working-directory: runtime
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo apt-get update -qq
+          sudo apt-get install -y unrar p7zip-full
+          docker build --build-arg MODEL_UID=$(id -u) -t honeycomb-install-probe scripts/linux_media
+      - name: Download verified installation media
+        if: steps.claim.outputs.done != 'true'
+        working-directory: runtime
+        env:
+          HONEYCOMB_DRIVE_CREDENTIALS_JSON: ${{ secrets.HONEYCOMB_DRIVE_CREDENTIALS_JSON }}
+        run: uv run --locked python scripts/prepare_linux_media.py
+      - name: Install original Abaqus 2020 runtime
+        if: steps.claim.outputs.done != 'true'
+        working-directory: runtime
+        run: bash scripts/linux_media/install_runtime.sh
+      - name: Reclaim installation-only and unused SDK space
+        if: steps.claim.outputs.done != 'true'
+        run: bash task-code/scripts/linux_media/reclaim_runner_space.sh
+      - name: Restore verified native state and extend or recover
+        if: steps.claim.outputs.done != 'true'
+        working-directory: runtime
+        run: uv run --locked --extra cloud python ../task-code/scripts/continuation12/worker.py run --design-id "$DESIGN_ID" --segment "$SEGMENT" --root /tmp/continuation12
+      - name: Preserve compact receipts
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: native12-receipts-${{ matrix.design_id }}-${{ inputs.segment }}
+          retention-days: 30
+          if-no-files-found: ignore
+          path: |
+            /tmp/continuation12/*.json
+            /tmp/continuation12/*.csv
+            /tmp/continuation12/*.log
+      - name: Retain native diagnostics on failure
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: native12-failure-${{ matrix.design_id }}-${{ inputs.segment }}
+          compression-level: 0
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: ignore
+          path: |
+            /tmp/continuation12/raw/**
+            /tmp/continuation12/*.json
+            /tmp/continuation12/*.log

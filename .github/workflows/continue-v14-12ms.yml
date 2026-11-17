@@ -1,0 +1,51 @@
+name: V14 and control · native continuation to 12 ms
+run-name: V14-03 + CTRL-0245 · native 8–12 ms
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+  id-token: write
+concurrency:
+  group: continuation-v14-native-12ms-20261117
+  cancel-in-progress: false
+jobs:
+  segment0:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/continue-v14-stage.yml
+    secrets: inherit
+    with:
+      segment: 0
+  segment1:
+    needs: segment0
+    uses: ./.github/workflows/continue-v14-stage.yml
+    secrets: inherit
+    with:
+      segment: 1
+  segment2:
+    needs: segment1
+    uses: ./.github/workflows/continue-v14-stage.yml
+    secrets: inherit
+    with:
+      segment: 2
+  segment3:
+    needs: segment2
+    uses: ./.github/workflows/continue-v14-stage.yml
+    secrets: inherit
+    with:
+      segment: 3
+  finalize:
+    needs: [segment0, segment1, segment2, segment3]
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked --extra cloud
+      - name: Record both native outcomes without touching training data
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run --locked --extra cloud python scripts/continuation12/worker.py finalize

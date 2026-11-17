@@ -125,6 +125,8 @@ def restore_source(plan, root, github):
         raise ValueError("No original native restart state; fresh solve is forbidden")
     for name, expected in plan.get("source_native_sha256", {}).items():
         path = raw / name
+        if plan.get("require_all_source_files") and not path.is_file():
+            raise ValueError("Missing pinned source native file: " + name)
         if path.exists() and sha(path) != expected:
             raise ValueError("Source native identity mismatch: " + name)
     save(
@@ -266,21 +268,19 @@ def publish(root, raw, plan, github, status, update, current_job):
     native = stage / "raw"
     native.mkdir()
     for path in raw.iterdir():
-        if not path.is_file() or path.suffix not in (
-            *("." + e for e in FAMILIES),
-            ".inp",
-            ".sta",
-            ".dat",
-            ".msg",
-            ".log",
-        ):
+        state_file = re.fullmatch(r".+\.(?:" + "|".join(FAMILIES) + r")(?:\.\d+)*", path.name)
+        if not path.is_file() or not (state_file or path.suffix in (".inp", ".sta", ".dat", ".msg", ".log")):
+            continue
+        if not path.name.startswith((plan["job_name"] + ".", current_job + ".")):
             continue
         # Completed original ODB already has a durable source archive; a checkpoint must retain both jobs.
         if status == "completed" and path.name == plan["job_name"] + ".odb":
             continue
         os.link(path, native / path.name)
+        if state_file:
+            cloud_archive.ALLOWED.add(path.suffix)
     attempt = int(plan.get("continuation_attempt", 0))
-    tag = "continue-12ms-20261115-" + plan["design_id"] + "-" + str(attempt)
+    tag = plan.get("publication_prefix", "continue-12ms-20261115-") + plan["design_id"] + "-" + str(attempt)
     source_sha = os.environ["TASK_CODE_SHA"]
     ref = github.repo("GET", "/git/ref/tags/" + tag, allow_missing=True)
     if not ref:
@@ -347,6 +347,11 @@ def main():
         catalog.update(key, transform)
         save(root / "status.json", {"design_id": args.design_id, "workflow_run_id": workflow, **changes})
 
+    execute(plan, root, github, update)
+
+
+def execute(plan, root, github, update):
+    """Run a claimed plan; shared by historical and bounded multi-runner studies."""
     current_job = plan["job_name"]
     save(root / "request.json", plan)
     try:
@@ -368,6 +373,8 @@ def main():
         with native_runtime(root, continuation=True) as executable:
             progress = total_progress(raw, current_job)
             if progress.get("total_time_s", 0) < 0.008 - 1e-7:
+                if plan.get("new_initial_solve_allowed") is False:
+                    raise ValueError("Sealed source must already be complete at 8 ms")
                 update({"phase": "recover_original_to_8ms"})
                 done = run_solver(
                     executable,
@@ -452,6 +459,7 @@ def main():
                 ]
             done = run_solver(executable, raw, arguments, current_job, 0.012, root, deadline, update)
             if not done:
+                save(root / "checkpoint-inventory.json", inventory(raw, current_job))
                 publish(root, raw, plan, github, "checkpoint", update, current_job)
                 return
             update({"phase": "extracting_native_8to12ms"})
@@ -494,6 +502,17 @@ def main():
             pa.Table.from_pylist(combined), root / "impact_history_0to12ms.parquet", compression="zstd"
         )
         rear = [{**r, "time_s": r["time_s"] + 0.008} for r in native["rear"]]
+        if plan.get("require_all_source_files"):
+            times = np.asarray([r["time_s"] for r in rear])
+            if (
+                len(times) != native["frames"]
+                or len(times) < 401
+                or abs(times[0] - 0.008) > 1e-7
+                or abs(times[-1] - 0.012) > 1e-7
+                or np.any(np.diff(times) <= 0)
+                or np.max(np.diff(times)) > 1.1e-5
+            ):
+                raise ValueError("Missing rear STATUS frames over 8–12 ms")
         write_rows(root / "rear_fields_8to12ms.csv", rear)
         energies = np.asarray([r["CORE_ALLPD_J"] + r["CORE_ALLDMD_J"] for r in combined])
         force = np.asarray([r["contact_force_N"] for r in combined])
@@ -507,6 +526,11 @@ def main():
             "last_time_s": combined[-1]["time_s"],
             "SEA_core_J_kg": float(energies[-1]) / plan["core_mass_kg"],
             "core_dissipation_J": float(energies[-1]),
+            "SEA_core_8ms_J_kg": (original[-1]["CORE_ALLPD_J"] + original[-1]["CORE_ALLDMD_J"])
+            / plan["core_mass_kg"],
+            "peak_contact_force_0to12ms_N": float(np.max(force)),
+            "end_contact_force_N": float(force[-1]),
+            "rear_skin_deleted_8to12ms": native["damage"]["rear_skin_deleted"],
             "end_impactor_velocity_m_s": combined[-1]["velocity_mm_s"] / 1000,
             "event_finished_diagnostic": finished,
             "original_prefix_rows_unchanged": len(original),
